@@ -7,6 +7,7 @@
 	path = src/smdps_msgs
 	url = https://github.com/samkwok-hkclr/smdps_msgs.git
 	branch = master
+	
 [submodule "src/nlohmann"]
 	path = src/nlohmann
 	url = https://github.com/nlohmann/json
