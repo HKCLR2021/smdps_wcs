@@ -106,7 +106,7 @@ private:
   const std::string dispense_request_      = "/dispenseRequest";
   const std::string packaging_request_     = "/packagingRequest";
   const std::string packaging_info_        = "/packagingMachineInfo";
-  const std::string order_completion_       = "/orderCompeletion";
+  const std::string order_completion_      = "/orderCompeletion";
   const std::string cleaning_mac_scan_     = "/cleaningMachineScanner";
 
   void healthy_handler(const httplib::Request &req, httplib::Response &res);
@@ -158,7 +158,7 @@ private:
 
 protected:
   std::shared_ptr<httplib::Server> httpsvr_;
-  std::atomic<bool> svr_started = std::atomic<bool>{false};
+  std::atomic<bool> svr_started_;
   std::thread httpsvr_thread_;
 };
 

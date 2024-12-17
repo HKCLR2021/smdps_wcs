@@ -2,7 +2,8 @@
 
 ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 : Node("prod_line_ctrl", options), 
-  count_(0)
+  count_(0),
+  svr_started_(std::atomic<bool>{false})
 {
   rclcpp::QoS dispense_request_qos_profile(10);
   dispense_request_qos_profile.reliability(rclcpp::ReliabilityPolicy::Reliable);
@@ -42,7 +43,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 
 ProdLineCtrl::~ProdLineCtrl()
 {
-  if (svr_started.load()) 
+  if (svr_started_.load()) 
   {
     httpsvr_->wait_until_ready();
     httpsvr_->stop();
@@ -832,7 +833,7 @@ void ProdLineCtrl::start_http_server(void)
 {
   try 
   { 
-    svr_started.store(true);
+    svr_started_.store(true);
     RCLCPP_INFO(this->get_logger(), "HTTP server thread started");
     if (!httpsvr_->listen(httpsvr_ip_, httpsvr_port_)) 
     {

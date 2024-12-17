@@ -12,3 +12,8 @@
 	path = src/nlohmann
 	url = https://github.com/nlohmann/json
 	branch = master
+
+[submodule "src/open62541pp"]
+	path = src/open62541pp
+	url = https://github.com/open62541pp/open62541pp
+	branch = master
