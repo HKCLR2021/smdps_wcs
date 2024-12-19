@@ -93,14 +93,14 @@ private:
   void order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal_handle);
 
   // HTTP Server function
-  const std::string httpsvr_ip_ = "127.0.0.1"; // FIXME
-  const int httpsvr_port_ = 7070; // FIXME 
+  std::string httpsvr_ip_; // FIXME
+  int httpsvr_port_; // FIXME 
   const size_t DATA_CHUNK_SIZE = 4; // FIXME 
 
   const std::string api_ = "/api";
   const std::string version_ = "/v1";
   
-  const std::string healthy_               = "/health";
+  const std::string health_               = "/health";
   const std::string abnormal_dispensation_ = "/abnormalDispensation";
   const std::string abnormal_device_       = "/abnormalDevice";
   const std::string dispense_request_      = "/dispenseRequest";
@@ -109,13 +109,13 @@ private:
   const std::string order_completion_      = "/orderCompeletion";
   const std::string cleaning_mac_scan_     = "/cleaningMachineScanner";
 
-  void healthy_handler(const httplib::Request &req, httplib::Response &res);
-  void abnormal_dispensation_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &content_reader);
-  void abnormal_device_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &content_reader);
-  void dispense_request_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &content_reader);
+  void health_handler(const httplib::Request &req, httplib::Response &res);
+  void abnormal_dispensation_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
+  void abnormal_device_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
+  void dispense_request_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
   void packaging_request_handler(const httplib::Request &req, httplib::Response &res);
   void packaging_info_handler(const httplib::Request &req, httplib::Response &res);
-  void order_completion_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &content_reader);
+  void order_completion_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
   void cleaning_machine_scanner_handler(const httplib::Request &req, httplib::Response &res);
   
   void logger_handler(const httplib::Request& req, const httplib::Response& res);
@@ -126,8 +126,8 @@ private:
 
   // HTTP Client function
   const std::string jinli_protocol_ = "http"; // FIXME
-  const std::string jinli_ip_ = "192.168.0.110";  // FIXME
-  const int jinli_port_ = 8080; // FIXME
+  std::string jinli_ip_;
+  int jinli_port_;
 
   const std::string mtrl_box_info_url_       = "/sort/materialBox/getMaterialBoxInfo";
   const std::string mtrl_box_info_by_id_url_ = "/sort/materialBox/getMaterialBoxInfoById";
@@ -135,6 +135,8 @@ private:
   const std::string mtrl_box_amt_url_        = "/sort/container/materialBoxAmount";
   const std::string new_order_url_           = "/sort/order/newOrder";
   const std::string order_by_id_url_         = "/sort/order/getOrderById";
+  const std::string dis_result_url_          = "/sort/dispenseResult";
+  const std::string health_url_              = "/sort/health";
 
   bool init_httpsvr(void);
   bool get_material_box_info(nlohmann::json &body_json);
@@ -143,6 +145,8 @@ private:
   bool get_material_box_amt(nlohmann::json &res_json);
   bool new_order(const nlohmann::json &req_json, nlohmann::json &res_json);
   bool get_order_by_id(const httplib::Params &params, nlohmann::json &res_json);
+  bool dispense_result(const nlohmann::json &req_json, nlohmann::json &res_json);
+  bool health(nlohmann::json &res_json);
 
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_;

@@ -5,6 +5,19 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
   count_(0),
   svr_started_(std::atomic<bool>{false})
 {
+  this->declare_parameter<std::string>("hkclr_ip", "");
+  this->declare_parameter<int>("hkclr_port", 0);
+  this->declare_parameter<std::string>("jinli_ip", "");
+  this->declare_parameter<int>("jinli_port", 0);
+
+  this->get_parameter("hkclr_ip", httpsvr_ip_);
+  this->get_parameter("hkclr_port", httpsvr_port_);
+  this->get_parameter("jinli_ip", jinli_ip_);
+  this->get_parameter("jinli_port", jinli_port_);
+
+  RCLCPP_INFO(this->get_logger(), "jinli HTTP server: %s:%d", jinli_ip_.c_str(), jinli_port_);
+  RCLCPP_INFO(this->get_logger(), "hkclr HTTP server: %s:%d", httpsvr_ip_.c_str(), httpsvr_port_);
+
   rclcpp::QoS dispense_request_qos_profile(10);
   dispense_request_qos_profile.reliability(rclcpp::ReliabilityPolicy::Reliable);
   dispense_request_qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
@@ -23,7 +36,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 
   timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::timer_callback, this));
   mtrl_box_amt_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this));
-  mtrl_box_info_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this));
+  // mtrl_box_info_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this));
 
   this->action_server_ = rclcpp_action::create_server<NewOrder>(
     this,
@@ -61,16 +74,10 @@ void ProdLineCtrl::mtrl_box_amt_container_cb(void)
   if (get_material_box_amt(res_json)) 
   {
     RCLCPP_DEBUG(this->get_logger(), "\n%s", res_json.dump().c_str());
-    unsigned int _amount = static_cast<unsigned int>(res_json["amount"]);
-    if (_amount < 255)
-    {
-      ContainerInfo msg;
-      msg.header.stamp = this->get_clock()->now();
-      msg.amount = _amount;
-      mtrl_box_amt_pub_->publish(msg);
-    }
-    else
-      RCLCPP_DEBUG(this->get_logger(), "material box amount > 255");
+    ContainerInfo msg;
+    msg.header.stamp = this->get_clock()->now();
+    msg.amount = static_cast<uint8_t>(res_json["amount"]);
+    mtrl_box_amt_pub_->publish(msg);
   } 
 }
 
@@ -130,7 +137,7 @@ void ProdLineCtrl::mtrl_box_info_cb(void)
   }
   else
   {
-    RCLCPP_ERROR(this->get_logger(), "mtrl_box_info_cb error ocurred");
+    RCLCPP_ERROR(this->get_logger(), "%s error ocurred", __FUNCTION__);
   }
 }
 
@@ -149,12 +156,12 @@ bool ProdLineCtrl::get_material_box_info(nlohmann::json &res_json)
   
   if (res && res->status == httplib::StatusCode::OK_200) 
   {
-    RCLCPP_DEBUG(this->get_logger(), "get_material_box_info OK");
+    RCLCPP_DEBUG(this->get_logger(), "%s OK", __FUNCTION__);
     res_json = nlohmann::json::parse(res->body);
     return true;
   } 
 
-  RCLCPP_ERROR(this->get_logger(), "get_material_box_info error occurred. Error code: %s", to_string(res.error()).c_str());
+  RCLCPP_ERROR(this->get_logger(), "%s error occurred. Error code: %s", __FUNCTION__, to_string(res.error()).c_str());
   return false;
 }
 
@@ -171,12 +178,12 @@ bool ProdLineCtrl::get_material_box_info_by_id(const httplib::Params &params, nl
   
   if (res && res->status == httplib::StatusCode::OK_200) 
   {
-    RCLCPP_DEBUG(this->get_logger(), "get_material_box_info_by_id OK");
+    RCLCPP_DEBUG(this->get_logger(), "%s OK", __FUNCTION__);
     res_json = nlohmann::json::parse(res->body);
     return true;
   } 
   
-  RCLCPP_ERROR(this->get_logger(), "get_material_box_info_by_id error occurred. Error code: %s", to_string(res.error()).c_str());
+  RCLCPP_ERROR(this->get_logger(), "%s error occurred. Error code: %s", __FUNCTION__, to_string(res.error()).c_str());
   return false;
 }
 
@@ -193,12 +200,12 @@ bool ProdLineCtrl::get_cell_info_by_id(const httplib::Params &params, nlohmann::
   
   if (res && res->status == httplib::StatusCode::OK_200) 
   {
-    RCLCPP_DEBUG(this->get_logger(), "get_cell_info_by_id OK");
+    RCLCPP_DEBUG(this->get_logger(), "%s OK", __FUNCTION__);
     res_json = nlohmann::json::parse(res->body);
     return true;
   } 
   
-  RCLCPP_ERROR(this->get_logger(), "get_cell_info_by_id error occurred. Error code: %s", to_string(res.error()).c_str());
+  RCLCPP_ERROR(this->get_logger(), "%s error occurred. Error code: %s", __FUNCTION__, to_string(res.error()).c_str());
   return false;
 }
 
@@ -211,12 +218,12 @@ bool ProdLineCtrl::get_material_box_amt(nlohmann::json &res_json)
   
   if (res && res->status == httplib::StatusCode::OK_200) 
   {
-    RCLCPP_DEBUG(this->get_logger(), "get_material_box_amt OK");
+    RCLCPP_DEBUG(this->get_logger(), "%s OK", __FUNCTION__);
     res_json = nlohmann::json::parse(res->body);
     return true;
   } 
 
-  RCLCPP_ERROR(this->get_logger(), "get_material_box_amt error occurred. Error code: %s", to_string(res.error()).c_str());
+  RCLCPP_ERROR(this->get_logger(), "%s error occurred. Error code: %s", __FUNCTION__, to_string(res.error()).c_str());
   return false;
 }
 
@@ -238,12 +245,12 @@ bool ProdLineCtrl::new_order(const nlohmann::json &req_json, nlohmann::json &res
 
   if (res && res->status == httplib::StatusCode::OK_200) 
   {
-    RCLCPP_DEBUG(this->get_logger(), "new_order OK");
+    RCLCPP_DEBUG(this->get_logger(), "%s OK", __FUNCTION__);
     res_json = nlohmann::json::parse(res->body);
     return true;
   } 
 
-  RCLCPP_ERROR(this->get_logger(), "new_order error occurred. Error code: %s", to_string(res.error()).c_str());
+  RCLCPP_ERROR(this->get_logger(), "%s error occurred. Error code: %s", __FUNCTION__, to_string(res.error()).c_str());
   return false;
 }
 
@@ -260,12 +267,57 @@ bool ProdLineCtrl::get_order_by_id(const httplib::Params &params, nlohmann::json
 
   if (res && res->status == httplib::StatusCode::OK_200) 
   {
-    RCLCPP_DEBUG(this->get_logger(), "get_order_by_id OK");
+    RCLCPP_DEBUG(this->get_logger(), "%s OK", __FUNCTION__);
     res_json = nlohmann::json::parse(res->body);
     return true;
   } 
   
-  RCLCPP_ERROR(this->get_logger(), "get_order_by_id error occurred. Error code: %s", to_string(res.error()).c_str());
+  RCLCPP_ERROR(this->get_logger(), "%s error occurred. Error code: %s", __FUNCTION__, to_string(res.error()).c_str());
+  return false;
+}
+
+bool ProdLineCtrl::dispense_result(const nlohmann::json &req_json, nlohmann::json &res_json)
+{
+  httplib::Client cli(jinli_ip_, jinli_port_);
+  cli.set_connection_timeout(0, 1000 * 1000); // 1000ms 
+
+  httplib::Headers headers = {
+    { "Content-Type", "application/json" }
+  };
+  std::string req_body = req_json.dump();
+
+  auto res = cli.Post(
+    dis_result_url_, 
+    headers,
+    req_body, 
+    "application/json");
+
+  if (res && res->status == httplib::StatusCode::OK_200) 
+  {
+    RCLCPP_DEBUG(this->get_logger(), "%s OK", __FUNCTION__);
+    res_json = nlohmann::json::parse(res->body);
+    return true;
+  } 
+
+  RCLCPP_ERROR(this->get_logger(), "%s error occurred. Error code: %s", __FUNCTION__, to_string(res.error()).c_str());
+  return false;
+}
+
+bool ProdLineCtrl::health(nlohmann::json &res_json)
+{
+  httplib::Client cli(jinli_ip_, jinli_port_);
+  cli.set_connection_timeout(0, 1000 * 1000); // 1000ms 
+  
+  auto res = cli.Get(health_url_);
+
+  if (res && res->status == httplib::StatusCode::OK_200) 
+  {
+    RCLCPP_DEBUG(this->get_logger(), "%s OK", __FUNCTION__);
+    res_json = nlohmann::json::parse(res->body);
+    return true;
+  } 
+
+  RCLCPP_ERROR(this->get_logger(), "%s error occurred. Error code: %s", __FUNCTION__, to_string(res.error()).c_str());
   return false;
 }
 
@@ -443,7 +495,7 @@ bool ProdLineCtrl::init_httpsvr(void)
     httpsvr_->set_pre_routing_handler(std::bind(&ProdLineCtrl::pre_routing_handler, this, _1, _2));
     httpsvr_->set_payload_max_length(1024 * 1024 * 4); // 4MB
 
-    httpsvr_->Get(from_url(healthy_), std::bind(&ProdLineCtrl::healthy_handler, this, _1, _2));
+    httpsvr_->Get(from_url(health_), std::bind(&ProdLineCtrl::health_handler, this, _1, _2));
     httpsvr_->Post(from_url(abnormal_dispensation_), std::bind(&ProdLineCtrl::abnormal_dispensation_handler, this, _1, _2, _3));
     httpsvr_->Post(from_url(abnormal_device_), std::bind(&ProdLineCtrl::abnormal_device_handler, this, _1, _2, _3));
     httpsvr_->Post(from_url(dispense_request_), std::bind(&ProdLineCtrl::dispense_request_handler, this, _1, _2, _3));
@@ -468,7 +520,7 @@ bool ProdLineCtrl::init_httpsvr(void)
   return true;
 }
 
-void ProdLineCtrl::healthy_handler(
+void ProdLineCtrl::health_handler(
   const httplib::Request &req, 
   httplib::Response &res)
 {
@@ -479,7 +531,7 @@ void ProdLineCtrl::healthy_handler(
 void ProdLineCtrl::abnormal_dispensation_handler(
   const httplib::Request &req, 
   httplib::Response &res, 
-  const httplib::ContentReader &content_reader)
+  const httplib::ContentReader &ctx_reader)
 {
   nlohmann::json res_json = {
     {"code", 0},
@@ -490,7 +542,7 @@ void ProdLineCtrl::abnormal_dispensation_handler(
   if (!req.is_multipart_form_data()) 
   {
     std::string req_body;
-    content_reader([&](const char *data, size_t data_length) {
+    ctx_reader([&](const char *data, size_t data_length) {
       req_body.append(data, data_length);
       return true;
     });
@@ -528,8 +580,8 @@ void ProdLineCtrl::abnormal_dispensation_handler(
 
 void ProdLineCtrl::abnormal_device_handler(
   const httplib::Request &req, 
-  httplib::Response &res, const 
-  httplib::ContentReader &content_reader)
+  httplib::Response &res, 
+  const httplib::ContentReader &ctx_reader)
 {
   nlohmann::json res_json = {
     {"code", 0},
@@ -540,7 +592,7 @@ void ProdLineCtrl::abnormal_device_handler(
   if (!req.is_multipart_form_data()) 
   {
     std::string req_body;
-    content_reader([&](const char *data, size_t data_length) {
+    ctx_reader([&](const char *data, size_t data_length) {
       req_body.append(data, data_length);
       return true;
     });
@@ -575,8 +627,8 @@ void ProdLineCtrl::abnormal_device_handler(
 
 void ProdLineCtrl::dispense_request_handler(
   const httplib::Request &req, 
-  httplib::Response &res, const 
-  httplib::ContentReader &content_reader)
+  httplib::Response &res, 
+  const httplib::ContentReader &ctx_reader)
 {
   nlohmann::json res_json = {
     {"code", 0},
@@ -586,7 +638,7 @@ void ProdLineCtrl::dispense_request_handler(
   if (!req.is_multipart_form_data()) 
   {
     std::string req_body;
-    content_reader([&](const char *data, size_t data_length) {
+    ctx_reader([&](const char *data, size_t data_length) {
       req_body.append(data, data_length);
       return true;
     });
@@ -709,7 +761,7 @@ void ProdLineCtrl::cleaning_machine_scanner_handler(
 void ProdLineCtrl::order_completion_handler(
   const httplib::Request &req, 
   httplib::Response &res, 
-  const httplib::ContentReader &content_reader)
+  const httplib::ContentReader &ctx_reader)
 {
   nlohmann::json res_json = {
     {"code", 0},
@@ -719,7 +771,7 @@ void ProdLineCtrl::order_completion_handler(
   if (!req.is_multipart_form_data()) 
   {
     std::string req_body;
-    content_reader([&](const char *data, size_t data_length) {
+    ctx_reader([&](const char *data, size_t data_length) {
       req_body.append(data, data_length);
       return true;
     });

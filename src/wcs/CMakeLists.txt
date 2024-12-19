@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.8)
 project(wcs)
 
+if(NOT CMAKE_C_STANDARD)
+  set(CMAKE_C_STANDARD 99)
+endif()
+
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -15,7 +23,7 @@ find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(smdps_msgs REQUIRED)
 find_package(nlohmann_json REQUIRED)
-# find_package(httplib REQUIRED)
+find_package(open62541pp REQUIRED)
 
 include_directories(
   include 
@@ -24,7 +32,6 @@ include_directories(
 add_executable(prod_line_ctrl src/prod_line_ctrl.cpp)
 target_link_libraries(prod_line_ctrl
   nlohmann_json::nlohmann_json
-  # httplib::httplib
 )
 ament_target_dependencies(prod_line_ctrl 
   rclcpp 
@@ -33,9 +40,26 @@ ament_target_dependencies(prod_line_ctrl
   smdps_msgs
 )
 
+add_executable(dis_station_node src/dis_station_node.cpp)
+target_link_libraries(dis_station_node
+  open62541pp::open62541pp
+)
+ament_target_dependencies(dis_station_node 
+  rclcpp 
+  std_msgs
+  smdps_msgs
+  open62541pp
+)
+
 install(TARGETS
-prod_line_ctrl
+  prod_line_ctrl
+  dis_station_node
   DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
 )
 
 if(BUILD_TESTING)
