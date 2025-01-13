@@ -11,15 +11,18 @@
 #include "std_msgs/msg/string.hpp"
 #include "std_msgs/msg/u_int8.hpp"
 
+#include "wcs/api_endpoints.hpp"
 #include "wcs/prod_line_ctrl.hpp"
 #include "httplib/httplib.h"
 #include "nlohmann/json.hpp"
 
 #include "smdps_msgs/action/new_order.hpp"
-#include "smdps_msgs/msg/cleaning_machine_scanner.hpp"
+
 #include "smdps_msgs/msg/container_info.hpp"
+#include "smdps_msgs/msg/dispense_content.hpp"
 #include "smdps_msgs/msg/dispensing_error.hpp"
 #include "smdps_msgs/msg/dispensing_detail.hpp"
+#include "smdps_msgs/msg/heartbeat.hpp"
 #include "smdps_msgs/msg/material_box_slot.hpp"
 #include "smdps_msgs/msg/material_box_status.hpp"
 #include "smdps_msgs/msg/material_box.hpp"
@@ -27,6 +30,12 @@
 #include "smdps_msgs/msg/order_request.hpp"
 #include "smdps_msgs/msg/order_response.hpp"
 #include "smdps_msgs/msg/packaging_machine_status.hpp"
+#include "smdps_msgs/msg/scanner_trigger.hpp"
+
+#include "smdps_msgs/srv/dispense_drug.hpp"
+#include "smdps_msgs/srv/packaging_order.hpp"
+
+// #define NO_OF_STATION 1
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;
@@ -38,10 +47,12 @@ class ProdLineCtrl : public rclcpp::Node
   using UInt8 = std_msgs::msg::UInt8;
 
   using NewOrder = smdps_msgs::action::NewOrder;
-  using CleaningMachineScanner = smdps_msgs::msg::CleaningMachineScanner;
+  using ScannerTrigger = smdps_msgs::msg::ScannerTrigger;
   using ContainerInfo = smdps_msgs::msg::ContainerInfo;
+  using DispenseContent = smdps_msgs::msg::DispenseContent;
   using DispensingError = smdps_msgs::msg::DispensingError;
   using DispensingDetail = smdps_msgs::msg::DispensingDetail;
+  using Heartbeat = smdps_msgs::msg::Heartbeat;
   using MaterialBoxSlot = smdps_msgs::msg::MaterialBoxSlot;
   using MaterialBoxStatus = smdps_msgs::msg::MaterialBoxStatus;
   using MaterialBox = smdps_msgs::msg::MaterialBox;
@@ -51,6 +62,9 @@ class ProdLineCtrl : public rclcpp::Node
   using PackagingMachineStatus = smdps_msgs::msg::PackagingMachineStatus;
 
   using GaolHandlerNewOrder = rclcpp_action::ServerGoalHandle<NewOrder>;
+
+  using DispenseDrug = smdps_msgs::srv::DispenseDrug;
+  using PackagingOrder = smdps_msgs::srv::PackagingOrder;
 
 public:
   explicit ProdLineCtrl(const rclcpp::NodeOptions& options);
@@ -67,19 +81,27 @@ private:
   std::mutex mutex_;
   std::map<uint8_t, PackagingMachineStatus> pkg_mac_status;
 
+  rclcpp::TimerBase::SharedPtr hc_timer_;
   rclcpp::TimerBase::SharedPtr mtrl_box_amt_timer_;
   rclcpp::TimerBase::SharedPtr mtrl_box_info_timer_;
 
+  rclcpp::CallbackGroup::SharedPtr reuse_cbg;
+
+  rclcpp::Publisher<Heartbeat>::SharedPtr hc_pub_;
   rclcpp::Publisher<ContainerInfo>::SharedPtr mtrl_box_amt_pub_;
   rclcpp::Publisher<DispensingError>::SharedPtr dis_err_pub_;
   rclcpp::Publisher<DispensingDetail>::SharedPtr dis_req_pub_;
-  rclcpp::Publisher<CleaningMachineScanner>::SharedPtr cleaning_mac_scan_pub_;
+  rclcpp::Publisher<ScannerTrigger>::SharedPtr cleaning_mac_scan_pub_;
   rclcpp::Publisher<OrderCompletion>::SharedPtr order_compl_pub_;
 
   rclcpp::Subscription<PackagingMachineStatus>::SharedPtr pkg_mac_status_sub_;
 
+  std::vector<rclcpp::Client<DispenseDrug>::SharedPtr> dis_req_client_;
+  std::vector<rclcpp::Client<PackagingOrder>::SharedPtr> pkg_order_client_;
+
   rclcpp_action::Server<NewOrder>::SharedPtr action_server_;
 
+  void hc_cb(void);
   void mtrl_box_amt_container_cb(void);
   void mtrl_box_info_cb(void);
   void pkg_mac_status_cb(const PackagingMachineStatus::SharedPtr msg);
@@ -97,26 +119,14 @@ private:
   int httpsvr_port_; // FIXME 
   const size_t DATA_CHUNK_SIZE = 4; // FIXME 
 
-  const std::string api_ = "/api";
-  const std::string version_ = "/v1";
-  
-  const std::string health_               = "/health";
-  const std::string abnormal_dispensation_ = "/abnormalDispensation";
-  const std::string abnormal_device_       = "/abnormalDevice";
-  const std::string dispense_request_      = "/dispenseRequest";
-  const std::string packaging_request_     = "/packagingRequest";
-  const std::string packaging_info_        = "/packagingMachineInfo";
-  const std::string order_completion_      = "/orderCompeletion";
-  const std::string cleaning_mac_scan_     = "/cleaningMachineScanner";
-
   void health_handler(const httplib::Request &req, httplib::Response &res);
   void abnormal_dispensation_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
   void abnormal_device_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
   void dispense_request_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
-  void packaging_request_handler(const httplib::Request &req, httplib::Response &res);
+  void packaging_request_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
   void packaging_info_handler(const httplib::Request &req, httplib::Response &res);
   void order_completion_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
-  void cleaning_machine_scanner_handler(const httplib::Request &req, httplib::Response &res);
+  void scanner_handler(const httplib::Request &req, httplib::Response &res, const std::string &location);
   
   void logger_handler(const httplib::Request& req, const httplib::Response& res);
   void error_handler(const httplib::Request &req, httplib::Response &res);
@@ -129,16 +139,11 @@ private:
   std::string jinli_ip_;
   int jinli_port_;
 
-  const std::string mtrl_box_info_url_       = "/sort/materialBox/getMaterialBoxInfo";
-  const std::string mtrl_box_info_by_id_url_ = "/sort/materialBox/getMaterialBoxInfoById";
-  const std::string cells_info_by_id_url_    = "/sort/cell/CellInfoByMaterialBoxId";
-  const std::string mtrl_box_amt_url_        = "/sort/container/materialBoxAmount";
-  const std::string new_order_url_           = "/sort/order/newOrder";
-  const std::string order_by_id_url_         = "/sort/order/getOrderById";
-  const std::string dis_result_url_          = "/sort/dispenseResult";
-  const std::string health_url_              = "/sort/health";
+  size_t no_of_dis_stations_;
+  size_t no_of_pkg_mac_;
 
   bool init_httpsvr(void);
+  
   bool get_material_box_info(nlohmann::json &body_json);
   bool get_material_box_info_by_id(const httplib::Params &params, nlohmann::json &res_json);
   bool get_cell_info_by_id(const httplib::Params &params, nlohmann::json &res_json);
@@ -146,19 +151,7 @@ private:
   bool new_order(const nlohmann::json &req_json, nlohmann::json &res_json);
   bool get_order_by_id(const httplib::Params &params, nlohmann::json &res_json);
   bool dispense_result(const nlohmann::json &req_json, nlohmann::json &res_json);
-  bool health(nlohmann::json &res_json);
-
-  rclcpp::TimerBase::SharedPtr timer_;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_;
-  size_t count_;
-
-  void timer_callback()
-  {
-    auto message = std_msgs::msg::String();
-    message.data = "Hello, world! " + std::to_string(count_++);
-    RCLCPP_INFO(this->get_logger(), "Publishing: '%s'", message.data.c_str());
-    pub_->publish(message);
-  }
+  bool health_check(nlohmann::json &res_json);
 
 protected:
   std::shared_ptr<httplib::Server> httpsvr_;
