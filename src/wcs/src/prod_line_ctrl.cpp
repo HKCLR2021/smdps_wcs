@@ -701,7 +701,8 @@ void ProdLineCtrl::dispense_request_handler(
           if (response) 
           {
             RCLCPP_INFO(this->get_logger(), "Sent a dispense drug request.");
-          } else 
+          } 
+          else 
           {
             const std::string err_msg = "Service call failed or returned no result";
             RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
