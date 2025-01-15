@@ -7,6 +7,11 @@ def generate_launch_description():
     NUMBER_OF_DISPENSER_STATION = 3
     NUMBER_OF_PACKAGING_MACHINE = 1
 
+    HKCLR_IP = "172.17.0.2"
+    HKCLR_PORT = 8000
+    JINLI_IP = "192.168.8.211"
+    JINLI_PORT = 8080
+
     IP_PREFIX = "192.168.8."
     OPCUA_PORT = "4840"
 
@@ -30,12 +35,12 @@ def generate_launch_description():
     prod_line_ctrl = Node(
         package="wcs",
         executable="prod_line_ctrl",
-        name="prod_line_ctrl",
+        # name="prod_line_ctrl",
         parameters=[
-            {"hkclr_ip": "127.0.0.1"},
-            {"hkclr_port": 8000},
-            {"jinli_ip": "192.168.0.102"},
-            {"jinli_port": 8080},
+            {"hkclr_ip": HKCLR_IP},
+            {"hkclr_port": HKCLR_PORT},
+            {"jinli_ip": JINLI_IP},
+            {"jinli_port": JINLI_PORT},
             {"no_of_dispenser_stations": NUMBER_OF_DISPENSER_STATION},
             {"no_of_packaging_machine": NUMBER_OF_PACKAGING_MACHINE},
           ],

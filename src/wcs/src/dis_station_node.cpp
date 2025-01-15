@@ -72,7 +72,7 @@ void DispenserStationNode::dis_station_status_cb(void)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
   status_pub_->publish(*status_);
-  RCLCPP_INFO(this->get_logger(), "%s is working", __FUNCTION__);
+  RCLCPP_DEBUG(this->get_logger(), "%s is working", __FUNCTION__);
 }
 
 void DispenserStationNode::heartbeat_valid_cb(void)
@@ -219,7 +219,7 @@ void DispenserStationNode::general_bool_cb(uint32_t sub_id, uint32_t mon_id, con
   
   if (!name.empty())
   {
-    RCLCPP_DEBUG(this->get_logger(), ">>>> %s data change notification, value: %s", name.c_str(), *val ? "true" : "false");
+    RCLCPP_INFO(this->get_logger(), ">>>> %s data change notification, value: %s", name.c_str(), *val ? "true" : "false");
     RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
     RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
   }
@@ -244,7 +244,7 @@ void DispenserStationNode::alm_code_cb(uint32_t sub_id, uint32_t mon_id, const o
 void DispenserStationNode::create_sub_async()
 {
   opcua::SubscriptionParameters sub_params{};
-  sub_params.publishingInterval = 200;
+  // sub_params.publishingInterval = 200;
 
   opcua::services::createSubscriptionAsync(
     cli,
@@ -363,7 +363,7 @@ void DispenserStationNode::create_sub_async()
   //   create_monitored_item(response, baffle_closed_id[i], "Baffle" + std::to_string(i+1) + "Closed", unit_status.baffle_closed);
   // }
 
-  RCLCPP_INFO(this->get_logger(), "%s is working", __FUNCTION__);
+  RCLCPP_DEBUG(this->get_logger(), "%s is working", __FUNCTION__);
 }
 
 void DispenserStationNode::create_monitored_item(
@@ -482,7 +482,7 @@ void DispenserStationNode::start_opcua_cli(void)
 {
   cli_started_.store(true);
 
-  while (cli_started_.load()) 
+  while (cli_started_.load() && rclcpp::ok()) 
   {
     try 
     {
@@ -500,6 +500,7 @@ void DispenserStationNode::start_opcua_cli(void)
       cli_started_.store(false);
       rclcpp::shutdown();
     }
+
     std::this_thread::sleep_for(1s);
   }
 }

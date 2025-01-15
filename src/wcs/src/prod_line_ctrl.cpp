@@ -39,8 +39,8 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 
   reuse_cbg = create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
-  hc_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::hc_cb, this), reuse_cbg);
-  mtrl_box_amt_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this), reuse_cbg);
+  // hc_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::hc_cb, this), reuse_cbg);
+  // mtrl_box_amt_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this), reuse_cbg);
   // mtrl_box_info_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this));
 
   dis_req_client_.resize(no_of_dis_stations_);
@@ -665,6 +665,8 @@ void ProdLineCtrl::dispense_request_handler(
     {
       nlohmann::json req_json = nlohmann::json::parse(req_body);
 
+      RCLCPP_INFO(this->get_logger(), "\n%s", req_body.c_str());
+
       std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs;
 
       for (const auto &loc : req_json["locations"])
@@ -966,7 +968,7 @@ void ProdLineCtrl::start_http_server(void)
 {
   svr_started_.store(true);
 
-  while (true)
+  while (svr_started_.load() && rclcpp::ok())
   {
     try 
     { 
@@ -981,6 +983,8 @@ void ProdLineCtrl::start_http_server(void)
     { 
       RCLCPP_ERROR(this->get_logger(), "HTTP server thread exception. Aborting."); 
     }
+    
+    std::this_thread::sleep_for(1s);
   }
 }
 
