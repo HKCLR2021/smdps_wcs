@@ -29,7 +29,11 @@ include_directories(
   include 
 )
 
-add_executable(prod_line_ctrl src/prod_line_ctrl.cpp)
+add_executable(prod_line_ctrl 
+  src/prod_line_ctrl.cpp
+  src/http_svr.cpp
+  src/http_cli.cpp
+)
 target_link_libraries(prod_line_ctrl
   nlohmann_json::nlohmann_json
 )
@@ -40,7 +44,10 @@ ament_target_dependencies(prod_line_ctrl
   smdps_msgs
 )
 
-add_executable(dis_station_node src/dis_station_node.cpp)
+add_executable(dis_station_node 
+  src/dis_station_node.cpp
+  src/opcua_cli.cpp
+)
 target_link_libraries(dis_station_node
   open62541pp::open62541pp
 )
