@@ -128,6 +128,8 @@ private:
   void order_completion_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
   void scanner_handler(const httplib::Request &req, httplib::Response &res, const std::string &location);
   
+  // void dispense_result_handler(std::vector<std::tuple<uint8_t, bool, ServiceSharedFutureAndRequestId>> futures);
+
   void logger_handler(const httplib::Request& req, const httplib::Response& res);
   void error_handler(const httplib::Request &req, httplib::Response &res);
   void exception_handler(const httplib::Request &req, httplib::Response &res, std::exception_ptr ep);

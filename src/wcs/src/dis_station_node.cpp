@@ -187,9 +187,9 @@ void DispenserStationNode::dis_req_handle(
     {
       const std::string msg = "too long to do the dispense";
       RCLCPP_ERROR(this->get_logger(), msg.c_str());
-      res->success = false; // FIXME
-      res->message = msg; // FIXME
-      break;
+      // res->success = false; // FIXME
+      // res->message = msg; // FIXME
+      // break;
     }
 
     t++;

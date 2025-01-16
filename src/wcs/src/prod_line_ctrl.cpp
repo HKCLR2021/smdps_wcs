@@ -661,14 +661,12 @@ void ProdLineCtrl::dispense_request_handler(
       return true;
     });
 
-    try 
+    nlohmann::json req_json;
+    std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs;
+    try
     {
-      nlohmann::json req_json = nlohmann::json::parse(req_body);
-
+      req_json = nlohmann::json::parse(req_body);
       RCLCPP_INFO(this->get_logger(), "\n%s", req_body.c_str());
-
-      std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs;
-
       for (const auto &loc : req_json["locations"])
       {
         uint8_t station_id = loc["dispenserStation"];
@@ -691,54 +689,72 @@ void ProdLineCtrl::dispense_request_handler(
         }
       }
       RCLCPP_DEBUG(this->get_logger(), "dis_reqs size: %ld", dis_reqs.size());
-
-      using ServiceSharedFutureAndRequestId = rclcpp::Client<DispenseDrug>::SharedFutureAndRequestId;
-      std::vector<ServiceSharedFutureAndRequestId> futures;
-      for (const auto &req_pair : dis_reqs)
-      {
-        using ServiceResponseFuture = rclcpp::Client<DispenseDrug>::SharedFuture;
-
-        auto response_received_cb = [this](ServiceResponseFuture future) {
-          auto response = future.get();
-          if (response) 
-          {
-            RCLCPP_INFO(this->get_logger(), "Sent a dispense drug request.");
-          } 
-          else 
-          {
-            const std::string err_msg = "Service call failed or returned no result";
-            RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
-          }
-        };
-
-        auto future = dis_req_client_[req_pair.first - 1]->async_send_request(req_pair.second, response_received_cb);
-        futures.push_back(std::move(future));
-      }
-
-      for (const auto &future : futures)
-      {
-        std::future_status status = future.wait_for(10s);
-        switch (status)
-        {
-        case std::future_status::ready:
-          break; 
-        default: {
-          std::string err_msg = "The DispenseDrug Service is wait too long.";
-          RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
-          break;
-        }
-        }
-      }
-
-      res_json["code"] = 200;
-      res_json["msg"] = "success";
-      RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
     } 
     catch (const std::exception &e) 
     {
       res_json["msg"] = "JSON parsing error";
     }
-  } 
+  
+    using ServiceSharedFutureAndRequestId = rclcpp::Client<DispenseDrug>::SharedFutureAndRequestId;
+    std::vector<std::tuple<uint8_t, bool, ServiceSharedFutureAndRequestId>> futures;
+    for (const auto &req_pair : dis_reqs)
+    {
+      using ServiceResponseFuture = rclcpp::Client<DispenseDrug>::SharedFuture;
+
+      auto response_received_cb = [this](ServiceResponseFuture future) {
+        auto response = future.get();
+        if (response) 
+        {
+          RCLCPP_INFO(this->get_logger(), "Sent a dispense drug request.");
+        } 
+        else 
+        {
+          const std::string err_msg = "Service call failed or returned no result";
+          RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+        }
+      };
+
+      auto future = dis_req_client_[req_pair.first - 1]->async_send_request(req_pair.second, response_received_cb);
+      futures.push_back(std::make_tuple(req_pair.first, false, std::move(future)));
+    }
+
+    for (auto &future : futures)
+    {
+      std::future_status status = std::get<2>(future).wait_for(10s);
+      switch (status)
+      {
+      case std::future_status::ready:
+        std::get<1>(future) = true;
+        break; 
+      default: {
+        std::get<1>(future) = false;
+        std::string err_msg = "The DispenseDrug Service is wait too long.";
+        RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+        break;
+      }
+      }
+    }
+
+    res_json["code"] = 200;
+    res_json["msg"] = "success";
+    RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
+
+    std::this_thread::sleep_for(10s);
+
+    for (const auto &future : futures)
+    {
+      nlohmann::json result_req_json = {
+        {"dispenserStation", std::get<0>(future)},
+        {"isCompleted", std::get<1>(future) ? 1 : 0}
+      };
+      nlohmann::json result_res_json;
+
+      if (dispense_result(result_req_json, result_res_json))
+        RCLCPP_INFO(this->get_logger(), "dispense_result OK");
+      else
+        RCLCPP_ERROR(this->get_logger(), "dispense_result NOT OK");
+    }
+  }
 
   res.set_content(res_json.dump(), "application/json");
 }
@@ -892,6 +908,11 @@ void ProdLineCtrl::order_completion_handler(
 
   res.set_content(res_json.dump(), "application/json");
 }
+
+// void ProdLineCtrl::dispense_result_handler(std::vector<std::tuple<uint8_t, bool, ServiceSharedFutureAndRequestId>> futures)
+// {
+  
+// }
 
 void ProdLineCtrl::logger_handler(const httplib::Request &req, const httplib::Response &res)
 {
