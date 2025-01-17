@@ -4,7 +4,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     ld = LaunchDescription()
     
-    NUMBER_OF_DISPENSER_STATION = 3
+    NUMBER_OF_DISPENSER_STATION = 14
     NUMBER_OF_PACKAGING_MACHINE = 1
 
     HKCLR_IP = "172.17.0.2"

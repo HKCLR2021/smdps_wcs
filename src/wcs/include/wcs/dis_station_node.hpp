@@ -36,7 +36,7 @@ public:
   explicit DispenserStationNode(const rclcpp::NodeOptions& options);
   ~DispenserStationNode();
 
-  inline const std::string form_opcua_url(void);
+  const std::string form_opcua_url(void);
   bool init_opcua_cli(void);
   void start_opcua_cli(void); 
   void wait_for_opcua_connection(void);
@@ -53,7 +53,7 @@ public:
   void inactive_cb(void);
 
   void create_sub_async(void);
-  void create_monitored_item(const opcua::CreateSubscriptionResponse &response, const opcua::NodeId &id, const std::string &name, bool &ref);
+  void create_monitored_item_async(const opcua::CreateSubscriptionResponse &response, const opcua::NodeId &id, const std::string &name, bool &ref);
   void sub_status_change_cb(uint32_t sub_id, opcua::StatusChangeNotification &notification);
   void sub_deleted_cb(uint32_t sub_id);
   void monitored_item_deleted_cb(uint32_t sub_id, uint32_t mon_id, std::string name);
@@ -62,6 +62,7 @@ public:
   void heartbeat_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void general_bool_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name, bool &bool_ref);
   void alm_code_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
+  void completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
 
 private:
   std::mutex mutex_;
@@ -86,6 +87,8 @@ private:
   void heartbeat_valid_cb(void);
   void units_lack_cb(void);
 
+  void initiate(void);
+
   void dis_req_handle(
     const std::shared_ptr<DispenseDrug::Request> req, 
     std::shared_ptr<DispenseDrug::Response> res);
@@ -100,6 +103,8 @@ protected:
   const opcua::NamespaceIndex ns_ind = 4;
   const std::string send_prefix = "SEND|";
   const std::string rev_prefix = "REV|";
+
+  const opcua::NodeId initiate_id = {ns_ind, rev_prefix + "Initiate"};
 
   const opcua::NodeId heartbeat_id = {ns_ind, send_prefix + "Heartbeat"};
   const opcua::NodeId running_id = {ns_ind, send_prefix + "Running"};

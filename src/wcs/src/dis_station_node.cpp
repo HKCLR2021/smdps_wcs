@@ -155,26 +155,23 @@ void DispenserStationNode::dis_req_handle(
   if (code != UA_STATUSCODE_GOOD)
     RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
 
-  uint16_t t = 0;
+  uint32_t t = 0;
   const uint16_t MAX_SEC = 10;
   const uint16_t MAX_RETIES = 1000 / retry_freq.count() * MAX_SEC; // retries = 1000ms / 100ms * 10s = 100 times
   while (rclcpp::ok())
   {
-    bool done = false;
-
-    std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, cmd_req_id, opcua::useFuture);
+    std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, completed_id, opcua::useFuture);
     future.wait();
     const opcua::Result<opcua::Variant> &result = future.get();
 
     if (result.code() == UA_STATUSCODE_GOOD)
     {
       std::optional<bool> val = result.value().scalar<bool>();
-      done = (*val == false);
 
-      if (done)
+      if (val && *val)
       {
         RCLCPP_INFO(this->get_logger(), "Submit dispense request success");
-        res->success = true; // FIXME
+        res->success = true;
         break;
       }
     }
@@ -195,6 +192,7 @@ void DispenserStationNode::dis_req_handle(
     t++;
     loop_rate.sleep();
   }
+  RCLCPP_INFO(this->get_logger(), "%s is completed", __FUNCTION__);
 }
 
 void DispenserStationNode::heartbeat_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
@@ -237,6 +235,19 @@ void DispenserStationNode::alm_code_cb(uint32_t sub_id, uint32_t mon_id, const o
     RCLCPP_INFO(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
   else
     RCLCPP_ERROR(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
+}
+
+void DispenserStationNode::completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
+{
+  std::optional<bool> val = value.value().scalar<bool>();
+  // const opcua::MonitoredItem item(cli, sub_id, mon_id);
+
+  if (val && *val)
+    std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
+  
+  RCLCPP_INFO(this->get_logger(), ">>>> Completed data change notification, value: %s", *val ? "true" : "false");
   RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
   RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
 }

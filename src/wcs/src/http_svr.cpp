@@ -87,33 +87,36 @@ void ProdLineCtrl::abnormal_dispensation_handler(
     { "instructionCode", 0 }
   };
 
-  if (!req.is_multipart_form_data()) 
+  if (req.is_multipart_form_data()) 
   {
-    std::string req_body;
-    ctx_reader([&](const char *data, size_t data_length) {
-      req_body.append(data, data_length);
-      return true;
-    });
+    res.set_content(res_json.dump(), "application/json");
+    return;
+  }
 
-    try 
-    {
-      nlohmann::json req_json = nlohmann::json::parse(req_body);
-      DispensingError msg;
-      msg.order_id = req_json["orderId"];
-      msg.error_msg = req_json["errorMsg"];
-      dis_err_pub_->publish(msg);
+  std::string req_body;
+  ctx_reader([&](const char *data, size_t data_length) {
+    req_body.append(data, data_length);
+    return true;
+  });
 
-      res_json["code"] = 200;
-      res_json["msg"] = "success";
-      res_json["instructionCode"] = 200; // FIXME
+  try 
+  {
+    nlohmann::json req_json = nlohmann::json::parse(req_body);
+    DispensingError msg;
+    msg.order_id = req_json["orderId"];
+    msg.error_msg = req_json["errorMsg"];
+    dis_err_pub_->publish(msg);
 
-      RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
-    } 
-    catch (const std::exception &e) 
-    {
-      res_json["msg"] = "JSON parsing error";
-    }
+    res_json["code"] = 200;
+    res_json["msg"] = "success";
+    res_json["instructionCode"] = 200; // FIXME
+
+    RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
   } 
+  catch (const std::exception &e) 
+  {
+    res_json["msg"] = "JSON parsing error";
+  }
 
   res.set_content(res_json.dump(), "application/json");
 }
@@ -129,30 +132,33 @@ void ProdLineCtrl::abnormal_device_handler(
     { "instructionCode", 0 }
   };
 
-  if (!req.is_multipart_form_data()) 
+  if (req.is_multipart_form_data()) 
   {
-    std::string req_body;
-    ctx_reader([&](const char *data, size_t data_length) {
-      req_body.append(data, data_length);
-      return true;
-    });
+    res.set_content(res_json.dump(), "application/json");
+    return;
+  }
 
-    try 
-    {
-      nlohmann::json req_json = nlohmann::json::parse(req_body);
-      // TODO: Error msg
+  std::string req_body;
+  ctx_reader([&](const char *data, size_t data_length) {
+    req_body.append(data, data_length);
+    return true;
+  });
 
-      res_json["code"] = 200;
-      res_json["msg"] = "success";
-      res_json["instructionCode"] = 200;
+  try 
+  {
+    nlohmann::json req_json = nlohmann::json::parse(req_body);
+    // TODO: Error msg
 
-      RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
-    } 
-    catch (const std::exception &e) 
-    {
-      res_json["msg"] = "JSON parsing error";
-    }
+    res_json["code"] = 200;
+    res_json["msg"] = "success";
+    res_json["instructionCode"] = 200;
+
+    RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
   } 
+  catch (const std::exception &e) 
+  {
+    res_json["msg"] = "JSON parsing error";
+  }
   
   res.set_content(res_json.dump(), "application/json");
 }
@@ -167,109 +173,59 @@ void ProdLineCtrl::dispense_request_handler(
     { "msg", "failure" }
   };
 
-  if (!req.is_multipart_form_data()) 
+  if (req.is_multipart_form_data()) 
   {
-    std::string req_body;
-    ctx_reader([&](const char *data, size_t data_length) {
-      req_body.append(data, data_length);
-      return true;
-    });
-
-    nlohmann::json req_json;
-    std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs;
-    try
-    {
-      req_json = nlohmann::json::parse(req_body);
-      RCLCPP_INFO(this->get_logger(), "\n%s", req_body.c_str());
-      for (const auto &loc : req_json["locations"])
-      {
-        uint8_t station_id = loc["dispenserStation"];
-        if (dis_reqs.find(station_id) != dis_reqs.end()) 
-        {
-          auto &dis_req_ref = dis_reqs[station_id];
-          DispenseContent msg;
-          msg.unit_id = loc["dispenserUnit"];
-          msg.amount = loc["amount"];
-          dis_req_ref->content.push_back(msg);
-        } 
-        else 
-        {
-          std::shared_ptr<DispenseDrug::Request> request = std::make_shared<DispenseDrug::Request>();
-          DispenseContent msg;
-          msg.unit_id = loc["dispenserUnit"];
-          msg.amount = loc["amount"];
-          request->content.push_back(msg);
-          dis_reqs[station_id] = request;
-        }
-      }
-      RCLCPP_DEBUG(this->get_logger(), "dis_reqs size: %ld", dis_reqs.size());
-    } 
-    catch (const std::exception &e) 
-    {
-      res_json["msg"] = "JSON parsing error";
-    }
-  
-    using ServiceSharedFutureAndRequestId = rclcpp::Client<DispenseDrug>::SharedFutureAndRequestId;
-    // tuple<station_id, result, future>
-    std::vector<std::tuple<uint8_t, bool, ServiceSharedFutureAndRequestId>> futures_tuple;
-    for (const auto &req_pair : dis_reqs)
-    {
-      using ServiceResponseFuture = rclcpp::Client<DispenseDrug>::SharedFuture;
-      auto response_received_cb = [this](ServiceResponseFuture future) {
-        auto response = future.get();
-        if (response) 
-          RCLCPP_INFO(this->get_logger(), "Sent a dispense drug request.");
-        else 
-        {
-          const std::string err_msg = "Service call failed or returned no result";
-          RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
-        }
-      };
-
-      auto future = dis_req_client_[req_pair.first - 1]->async_send_request(req_pair.second, response_received_cb);
-      futures_tuple.push_back(std::make_tuple(req_pair.first, false, std::move(future)));
-    }
-
-    for (auto &future : futures_tuple)
-    {
-        std::get<2>(future).wait();
-        std::get<1>(future) = true;
-    //   std::future_status status = std::get<2>(future).wait_for(60s);
-    //   switch (status)
-    //   {
-    //   case std::future_status::ready:
-    //     std::get<1>(future) = true;
-    //     break; 
-    //   default: {
-    //     std::get<1>(future) = false;
-    //     std::string err_msg = "The DispenseDrug Service is wait too long.";
-    //     RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
-    //     break;
-    //   }
-    //   }
-    }
-
-    std::this_thread::sleep_for(10s);
-    
-    for (const auto &future : futures_tuple)
-    {
-      nlohmann::json result_req_json = {
-        {"dispenserStation", std::get<0>(future)},
-        {"isCompleted", std::get<1>(future) ? 1 : 0}
-      };
-      nlohmann::json result_res_json;
-
-      if (dispense_result(result_req_json, result_res_json))
-        RCLCPP_INFO(this->get_logger(), "dispense_result OK");
-      else
-        RCLCPP_ERROR(this->get_logger(), "dispense_result NOT OK");
-    }
-
-    res_json["code"] = 200;
-    res_json["msg"] = "success";
-
-    RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
+    res.set_content(res_json.dump(), "application/json");
+    return;
   }
+
+  std::string req_body;
+  ctx_reader([&](const char *data, size_t data_length) {
+    req_body.append(data, data_length);
+    return true;
+  });
+
+  nlohmann::json req_json;
+  std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs;
+  try
+  {
+    req_json = nlohmann::json::parse(req_body);
+    RCLCPP_INFO(this->get_logger(), "\n%s", req_body.c_str());
+    for (const auto &loc : req_json["locations"])
+    {
+      uint8_t station_id = loc["dispenserStation"];
+      if (dis_reqs.find(station_id) != dis_reqs.end()) 
+      {
+        auto &dis_req_ref = dis_reqs[station_id];
+        DispenseContent msg;
+        msg.unit_id = loc["dispenserUnit"];
+        msg.amount = loc["amount"];
+        dis_req_ref->content.push_back(msg);
+      } 
+      else 
+      {
+        std::shared_ptr<DispenseDrug::Request> request = std::make_shared<DispenseDrug::Request>();
+        DispenseContent msg;
+        msg.unit_id = loc["dispenserUnit"];
+        msg.amount = loc["amount"];
+        request->content.push_back(msg);
+        dis_reqs[station_id] = request;
+      }
+    }
+    RCLCPP_DEBUG(this->get_logger(), "dis_reqs size: %ld", dis_reqs.size());
+  } 
+  catch (const std::exception &e) 
+  {
+    res_json["msg"] = "JSON parsing error";
+  }
+  
+  auto dis_reqs_ptr = std::make_unique<decltype(dis_reqs)>(dis_reqs);
+  std::thread(std::bind(&ProdLineCtrl::dis_result_handler, this, *dis_reqs_ptr)).detach(); 
+
+  res_json["code"] = 200;
+  res_json["msg"] = "success";
+
+  RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
 
   res.set_content(res_json.dump(), "application/json");
 }
@@ -284,15 +240,19 @@ void ProdLineCtrl::packaging_request_handler(
     { "msg", "failure" }
   };
 
-  if (!req.is_multipart_form_data()) 
+  if (req.is_multipart_form_data()) 
   {
-    std::string req_body;
-    ctx_reader([&](const char *data, size_t data_length) {
-      req_body.append(data, data_length);
-      return true;
-    });
+    res.set_content(res_json.dump(), "application/json");
+    return;
+  }
 
-  } 
+  std::string req_body;
+  ctx_reader([&](const char *data, size_t data_length) {
+    req_body.append(data, data_length);
+    return true;
+  });
+
+  // TODO
 
   res.set_content(res_json.dump(), "application/json");
 }
@@ -302,6 +262,7 @@ void ProdLineCtrl::packaging_info_handler(
   httplib::Response &res)
 {
   (void)req;
+
   nlohmann::json res_json = {
     { "code", 0 },
     { "msg", "failure" },
@@ -325,7 +286,6 @@ void ProdLineCtrl::packaging_info_handler(
   
   res_json["code"] = 200;
   res_json["msg"] = "success";
-  std::string res_body = res_json.dump();
 
   res.set_content(res_json.dump(), "application/json");
 }
@@ -389,36 +349,39 @@ void ProdLineCtrl::order_completion_handler(
     { "msg", "failure" }
   };
 
-  if (!req.is_multipart_form_data()) 
+  if (req.is_multipart_form_data()) 
   {
-    std::string req_body;
-    ctx_reader([&](const char *data, size_t data_length) {
-      req_body.append(data, data_length);
-      return true;
-    });
+    res.set_content(res_json.dump(), "application/json");
+    return;
+  }
 
-    try 
-    {
-      nlohmann::json req_json = nlohmann::json::parse(req_body);
-      auto orders = req_json["orders"];
-      for (const auto &order : orders)
-      {
-        OrderCompletion msg;
-        msg.header.stamp = this->get_clock()->now();
-        msg.material_box_id = order["materialBoxId"];
-        // msg.order_id = order["orderId"];
-        order_compl_pub_->publish(msg);
-      }
+  std::string req_body;
+  ctx_reader([&](const char *data, size_t data_length) {
+    req_body.append(data, data_length);
+    return true;
+  });
 
-      res_json["code"] = 200;
-      res_json["msg"] = "success";
-      RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
-    } 
-    catch (const std::exception &e) 
+  try 
+  {
+    nlohmann::json req_json = nlohmann::json::parse(req_body);
+    auto orders = req_json["orders"];
+    for (const auto &order : orders)
     {
-      res_json["msg"] = "JSON parsing error";
+      OrderCompletion msg;
+      msg.header.stamp = this->get_clock()->now();
+      msg.material_box_id = order["materialBoxId"];
+      // msg.order_id = order["orderId"];
+      order_compl_pub_->publish(msg);
     }
+
+    res_json["code"] = 200;
+    res_json["msg"] = "success";
+    RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
   } 
+  catch (const std::exception &e) 
+  {
+    res_json["msg"] = "JSON parsing error";
+  }
 
   res.set_content(res_json.dump(), "application/json");
 }

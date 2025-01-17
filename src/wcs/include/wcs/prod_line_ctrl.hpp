@@ -86,6 +86,7 @@ private:
   rclcpp::TimerBase::SharedPtr mtrl_box_info_timer_;
 
   rclcpp::CallbackGroup::SharedPtr reuse_cbg;
+  rclcpp::CallbackGroup::SharedPtr action_ser_cbg_;
 
   rclcpp::Publisher<Heartbeat>::SharedPtr hc_pub_;
   rclcpp::Publisher<ContainerInfo>::SharedPtr mtrl_box_amt_pub_;
@@ -105,6 +106,8 @@ private:
   void mtrl_box_amt_container_cb(void);
   void mtrl_box_info_cb(void);
   void pkg_mac_status_cb(const PackagingMachineStatus::SharedPtr msg);
+
+  void dis_result_handler(std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs);
 
   rclcpp_action::GoalResponse handle_goal(
     const rclcpp_action::GoalUUID & uuid, 

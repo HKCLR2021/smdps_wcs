@@ -139,7 +139,7 @@ bool ProdLineCtrl::dispense_result(const nlohmann::json &req_json, nlohmann::jso
 
   if (res && res->status == httplib::StatusCode::OK_200) 
   {
-    RCLCPP_DEBUG(this->get_logger(), "%s OK", __FUNCTION__);
+    RCLCPP_INFO(this->get_logger(), "%s OK", __FUNCTION__);
     res_json = nlohmann::json::parse(res->body);
     return true;
   } 

@@ -38,8 +38,9 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     std::bind(&ProdLineCtrl::pkg_mac_status_cb, this, _1));
 
   reuse_cbg = create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  action_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-  hc_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::hc_cb, this));
+  // hc_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::hc_cb, this));
   // mtrl_box_amt_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this), reuse_cbg);
   // mtrl_box_info_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this));
 
@@ -62,7 +63,9 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     "new_order",
     std::bind(&ProdLineCtrl::handle_goal, this, _1, _2),
     std::bind(&ProdLineCtrl::handle_cancel, this, _1),
-    std::bind(&ProdLineCtrl::handle_accepted, this, _1));
+    std::bind(&ProdLineCtrl::handle_accepted, this, _1),
+    rcl_action_server_get_default_options(),
+    action_ser_cbg_);
 
   if (!init_httpsvr())
   {
@@ -174,6 +177,54 @@ void ProdLineCtrl::pkg_mac_status_cb(const PackagingMachineStatus::SharedPtr msg
 {
   const std::lock_guard<std::mutex> lock(mutex_);
   pkg_mac_status[msg->packaging_machine_id] = *msg;
+}
+
+void ProdLineCtrl::dis_result_handler(std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs)
+{
+  RCLCPP_DEBUG(this->get_logger(), "dis_reqs size: %ld", dis_reqs.size());
+
+  using ServiceSharedFutureAndRequestId = rclcpp::Client<DispenseDrug>::SharedFutureAndRequestId;
+  // tuple<station_id, result, future>
+  std::vector<std::tuple<uint8_t, bool, ServiceSharedFutureAndRequestId>> futures_tuple;
+  for (const auto &req_pair : dis_reqs)
+  {
+    using ServiceResponseFuture = rclcpp::Client<DispenseDrug>::SharedFuture;
+    auto response_received_cb = [this](ServiceResponseFuture future) {
+      auto response = future.get();
+      if (response) 
+        RCLCPP_INFO(this->get_logger(), "Sent a dispense drug request.");
+      else 
+      {
+        const std::string err_msg = "Service call failed or returned no result";
+        RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+      }
+    };
+    
+    auto future = dis_req_client_[req_pair.first - 1]->async_send_request(req_pair.second, response_received_cb);
+    futures_tuple.push_back(std::make_tuple(req_pair.first, false, std::move(future)));
+  }
+
+  for (auto &future : futures_tuple)
+  {
+    RCLCPP_DEBUG(this->get_logger(), "start to wait a future");
+    std::get<2>(future).wait(); // wait forever until the future is done
+    std::get<1>(future) = true;
+  }
+
+  std::this_thread::sleep_for(1s);
+  
+  for (const auto &future : futures_tuple)
+  {
+    nlohmann::json result_req_json = {
+      {"dispenserStation", std::get<0>(future)},
+      {"isCompleted", std::get<1>(future) ? 1 : 0}
+    };
+    nlohmann::json result_res_json;
+
+    std::thread(std::bind(&ProdLineCtrl::dispense_result, this, result_req_json, result_req_json)).detach(); 
+  }
+  
+  RCLCPP_DEBUG(this->get_logger(), "%s is done.", __FUNCTION__);
 }
 
 rclcpp_action::GoalResponse ProdLineCtrl::handle_goal(
