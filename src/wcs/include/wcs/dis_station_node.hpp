@@ -12,10 +12,12 @@
 #include <open62541pp/open62541pp.hpp>
 
 #include "smdps_msgs/msg/dispense_content.hpp"
-
 #include "smdps_msgs/msg/dispenser_station_status.hpp"
 #include "smdps_msgs/msg/dispenser_unit_status.hpp"
+#include "smdps_msgs/msg/unit_type.hpp"
+
 #include "smdps_msgs/srv/dispense_drug.hpp"
+#include "smdps_msgs/srv/unit_request.hpp"
 
 #define NO_OF_UNITS 12
 #define MAX_HB_COUNT 5 * 4
@@ -31,6 +33,8 @@ class DispenserStationNode : public rclcpp::Node
   using DispenserStationStatus = smdps_msgs::msg::DispenserStationStatus;
   using DispenserUnitStatus = smdps_msgs::msg::DispenserUnitStatus;
   using DispenseDrug = smdps_msgs::srv::DispenseDrug;
+  using UnitRequest = smdps_msgs::srv::UnitRequest;
+  using UnitType = smdps_msgs::msg::UnitType;
 
 public:
   explicit DispenserStationNode(const rclcpp::NodeOptions& options);
@@ -69,19 +73,24 @@ private:
   std::string ip_;
   std::string port_;
 
+  rclcpp::CallbackGroup::SharedPtr srv_ser_cbg_;
+
   uint32_t heartbeat_counter_ = 0;
   const uint32_t OPCUA_TIMEOUT = 1000; // 1000ms
 
   std::shared_ptr<DispenserStationStatus> status_;
 
   rclcpp::TimerBase::SharedPtr status_timer_;
-  rclcpp::TimerBase::SharedPtr opcua_timer_;
+  rclcpp::TimerBase::SharedPtr opcua_heartbeat_timer_;
   rclcpp::TimerBase::SharedPtr units_lack_timer_;
   rclcpp::Publisher<DispenserStationStatus>::SharedPtr status_pub_;
 
   rclcpp::Subscription<DispenseContent>::SharedPtr dis_ctx_sub_;
 
   rclcpp::Service<DispenseDrug>::SharedPtr dis_req_srv_;
+
+  rclcpp::Service<UnitRequest>::SharedPtr bin_req_srv_;
+  rclcpp::Service<UnitRequest>::SharedPtr baffle_req_srv_;
 
   void dis_station_status_cb(void);
   void heartbeat_valid_cb(void);
@@ -92,6 +101,10 @@ private:
   void dis_req_handle(
     const std::shared_ptr<DispenseDrug::Request> req, 
     std::shared_ptr<DispenseDrug::Response> res);
+
+  void unit_req_handle(
+    const std::shared_ptr<UnitRequest::Request> req, 
+    std::shared_ptr<UnitRequest::Response> res);
 
 protected:
   bool sim_;
@@ -122,6 +135,11 @@ protected:
   const opcua::NodeId cmd_exe_id = {ns_ind, rev_prefix + "CmdExecute"};
 
   std::array<opcua::NodeId, NO_OF_UNITS> unit_amt_id;
+  
+  std::array<opcua::NodeId, NO_OF_UNITS> bin_open_req_id;
+  std::array<opcua::NodeId, NO_OF_UNITS> bin_close_req_id;
+  std::array<opcua::NodeId, NO_OF_UNITS> baffle_open_req_id;
+  std::array<opcua::NodeId, NO_OF_UNITS> baffle_close_req_id;
 
   std::array<opcua::NodeId, NO_OF_UNITS> unit_lack_id;
 
@@ -133,5 +151,6 @@ protected:
   std::array<opcua::NodeId, NO_OF_UNITS> baffle_opened_id;
   std::array<opcua::NodeId, NO_OF_UNITS> baffle_closing_id;
   std::array<opcua::NodeId, NO_OF_UNITS> baffle_closed_id;
+
 };
 #endif

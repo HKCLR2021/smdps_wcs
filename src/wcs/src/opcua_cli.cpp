@@ -100,7 +100,7 @@ void DispenserStationNode::initiate(void)
   if (stop_code != UA_STATUSCODE_GOOD)
     RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
 
-  std::chrono::milliseconds freq = 250ms;
+  std::chrono::milliseconds freq = 200ms;
   rclcpp::Rate loop_rate(freq); 
   while (rclcpp::ok())
   {
@@ -180,82 +180,22 @@ void DispenserStationNode::create_sub_async()
       create_monitored_item_async(response, error_id, "Error", status_->error);
 
 
-      // for (size_t i = 0; i < NO_OF_UNITS; i++)
-      // {
-      //   auto &unit_status = status_->unit_status[i];
+      for (size_t i = 0; i < NO_OF_UNITS; i++)
+      {
+        auto &unit_status = status_->unit_status[i];
 
-      //   create_monitored_item_async(response, unit_lack_id[i], "Unit" + std::to_string(i+1) + "Lack", unit_status.lack);
-      //   create_monitored_item_async(response, bin_opening_id[i], "Bin" + std::to_string(i+1) + "Opening", unit_status.bin_opening);
-      //   create_monitored_item_async(response, bin_opened_id[i], "Bin" + std::to_string(i+1) + "Opened", unit_status.bin_opened);
-      //   create_monitored_item_async(response, bin_closing_id[i], "Bin" + std::to_string(i+1) + "Closing", unit_status.bin_closing);
-      //   create_monitored_item_async(response, bin_closed_id[i], "Bin" + std::to_string(i+1) + "Closed", unit_status.bin_closed);
-      //   create_monitored_item_async(response, baffle_opening_id[i], "Baffle" + std::to_string(i+1) + "Opening", unit_status.baffle_opening);
-      //   create_monitored_item_async(response, baffle_opened_id[i], "Baffle" + std::to_string(i+1) + "Opened", unit_status.baffle_opened);
-      //   create_monitored_item_async(response, baffle_closing_id[i], "Baffle" + std::to_string(i+1) + "Closing", unit_status.baffle_closing);
-      //   create_monitored_item_async(response, baffle_closed_id[i], "Baffle" + std::to_string(i+1) + "Closed", unit_status.baffle_closed);
-      // }
+        create_monitored_item_async(response, unit_lack_id[i], "Unit" + std::to_string(i+1) + "Lack", unit_status.lack);
+        create_monitored_item_async(response, bin_opening_id[i], "Bin" + std::to_string(i+1) + "Opening", unit_status.bin_opening);
+        create_monitored_item_async(response, bin_opened_id[i], "Bin" + std::to_string(i+1) + "Opened", unit_status.bin_opened);
+        create_monitored_item_async(response, bin_closing_id[i], "Bin" + std::to_string(i+1) + "Closing", unit_status.bin_closing);
+        create_monitored_item_async(response, bin_closed_id[i], "Bin" + std::to_string(i+1) + "Closed", unit_status.bin_closed);
+        create_monitored_item_async(response, baffle_opening_id[i], "Baffle" + std::to_string(i+1) + "Opening", unit_status.baffle_opening);
+        create_monitored_item_async(response, baffle_opened_id[i], "Baffle" + std::to_string(i+1) + "Opened", unit_status.baffle_opened);
+        create_monitored_item_async(response, baffle_closing_id[i], "Baffle" + std::to_string(i+1) + "Closing", unit_status.baffle_closing);
+        create_monitored_item_async(response, baffle_closed_id[i], "Baffle" + std::to_string(i+1) + "Closed", unit_status.baffle_closed);
+      }
     }
   );
-
-  // std::future<opcua::CreateSubscriptionResponse> future = opcua::services::createSubscriptionAsync(
-  //   cli,
-  //   sub_params,
-  //   true,  // publishingEnabled
-  //   {}, // std::bind(&DispenserStationNode::sub_status_change_cb, this, _1, _2),
-  //   std::bind(&DispenserStationNode::sub_deleted_cb, this, _1),
-  //   opcua::useFuture
-  // );
-    
-  // future.wait();
-  // const opcua::CreateSubscriptionResponse &response = future.get();
-
-  // RCLCPP_INFO(this->get_logger(), ">>>> Subscription created:");
-  // RCLCPP_INFO(this->get_logger(), ">>>> - status code: %s", std::to_string(response.responseHeader().serviceResult()).c_str());
-  // RCLCPP_INFO(this->get_logger(), ">>>> - subscription id: %s", std::to_string(response.subscriptionId()).c_str());
-
-  // opcua::MonitoringParametersEx heartbeat_monitoring_params{};
-  // heartbeat_monitoring_params.samplingInterval = 100.0;
-
-  // opcua::services::createMonitoredItemDataChangeAsync(
-  //   cli,
-  //   response.subscriptionId(),
-  //   opcua::ReadValueId(heartbeat_id, opcua::AttributeId::Value),
-  //   opcua::MonitoringMode::Reporting,
-  //   opcua::MonitoringParametersEx{}, 
-  //   std::bind(&DispenserStationNode::heartbeat_cb, this, _1, _2, _3),
-  //   std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "Heartbeat"),
-  //   std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "Heartbeat")
-  // );
-
-  // opcua::services::createMonitoredItemDataChangeAsync(
-  //   cli,
-  //   response.subscriptionId(),
-  //   opcua::ReadValueId(alm_code_id, opcua::AttributeId::Value),
-  //   opcua::MonitoringMode::Reporting,
-  //   opcua::MonitoringParametersEx{},
-  //   std::bind(&DispenserStationNode::alm_code_cb, this, _1, _2, _3),
-  //   std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "ALM Code"), 
-  //   std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "ALM Code")
-  // );
-
-  // create_monitored_item_async(response, running_id, "Running", status_->running);
-  // create_monitored_item_async(response, paused_id, "Paused", status_->paused);
-  // create_monitored_item_async(response, error_id, "Error", status_->error);
-
-  // for (size_t i = 0; i < NO_OF_UNITS; i++)
-  // {
-  //   auto &unit_status = status_->unit_status[i];
-
-  //   create_monitored_item_async(response, unit_lack_id[i], "Unit" + std::to_string(i+1) + "Lack", unit_status.lack);
-  //   create_monitored_item_async(response, bin_opening_id[i], "Bin" + std::to_string(i+1) + "Opening", unit_status.bin_opening);
-  //   create_monitored_item_async(response, bin_opened_id[i], "Bin" + std::to_string(i+1) + "Opened", unit_status.bin_opened);
-  //   create_monitored_item_async(response, bin_closing_id[i], "Bin" + std::to_string(i+1) + "Closing", unit_status.bin_closing);
-  //   create_monitored_item_async(response, bin_closed_id[i], "Bin" + std::to_string(i+1) + "Closed", unit_status.bin_closed);
-  //   create_monitored_item_async(response, baffle_opening_id[i], "Baffle" + std::to_string(i+1) + "Opening", unit_status.baffle_opening);
-  //   create_monitored_item_async(response, baffle_opened_id[i], "Baffle" + std::to_string(i+1) + "Opened", unit_status.baffle_opened);
-  //   create_monitored_item_async(response, baffle_closing_id[i], "Baffle" + std::to_string(i+1) + "Closing", unit_status.baffle_closing);
-  //   create_monitored_item_async(response, baffle_closed_id[i], "Baffle" + std::to_string(i+1) + "Closed", unit_status.baffle_closed);
-  // }
 
   RCLCPP_DEBUG(this->get_logger(), "%s is working", __FUNCTION__);
 }

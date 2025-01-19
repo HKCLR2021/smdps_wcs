@@ -30,10 +30,12 @@
 #include "smdps_msgs/msg/order_request.hpp"
 #include "smdps_msgs/msg/order_response.hpp"
 #include "smdps_msgs/msg/packaging_machine_status.hpp"
+#include "smdps_msgs/msg/printing_info.hpp"
 #include "smdps_msgs/msg/scanner_trigger.hpp"
 
 #include "smdps_msgs/srv/dispense_drug.hpp"
 #include "smdps_msgs/srv/packaging_order.hpp"
+#include "smdps_msgs/srv/printing_order.hpp"
 
 // #define NO_OF_STATION 1
 
@@ -47,7 +49,6 @@ class ProdLineCtrl : public rclcpp::Node
   using UInt8 = std_msgs::msg::UInt8;
 
   using NewOrder = smdps_msgs::action::NewOrder;
-  using ScannerTrigger = smdps_msgs::msg::ScannerTrigger;
   using ContainerInfo = smdps_msgs::msg::ContainerInfo;
   using DispenseContent = smdps_msgs::msg::DispenseContent;
   using DispensingError = smdps_msgs::msg::DispensingError;
@@ -60,11 +61,14 @@ class ProdLineCtrl : public rclcpp::Node
   using OrderRequest = smdps_msgs::msg::OrderRequest;
   using OrderResponse = smdps_msgs::msg::OrderResponse;
   using PackagingMachineStatus = smdps_msgs::msg::PackagingMachineStatus;
+  using PrintingInfo = smdps_msgs::msg::PrintingInfo;
+  using ScannerTrigger = smdps_msgs::msg::ScannerTrigger;
 
   using GaolHandlerNewOrder = rclcpp_action::ServerGoalHandle<NewOrder>;
 
   using DispenseDrug = smdps_msgs::srv::DispenseDrug;
   using PackagingOrder = smdps_msgs::srv::PackagingOrder;
+  using PrintingOrder = smdps_msgs::srv::PrintingOrder;
 
 public:
   explicit ProdLineCtrl(const rclcpp::NodeOptions& options);
@@ -76,6 +80,7 @@ public:
   std::string dump_headers(const httplib::Headers &headers);
   std::string dump_multipart_files(const httplib::MultipartFormDataMap &files);
   inline bool verify_params(const httplib::Request &req, const std::vector<std::string> &keys);
+  inline bool is_number(const std::string &s);
 
 private:
   std::mutex mutex_;
@@ -85,7 +90,8 @@ private:
   rclcpp::TimerBase::SharedPtr mtrl_box_amt_timer_;
   rclcpp::TimerBase::SharedPtr mtrl_box_info_timer_;
 
-  rclcpp::CallbackGroup::SharedPtr reuse_cbg;
+  rclcpp::CallbackGroup::SharedPtr srv_ser_cbg_;
+  rclcpp::CallbackGroup::SharedPtr srv_cli_cbg_;
   rclcpp::CallbackGroup::SharedPtr action_ser_cbg_;
 
   rclcpp::Publisher<Heartbeat>::SharedPtr hc_pub_;
@@ -94,11 +100,13 @@ private:
   rclcpp::Publisher<DispensingDetail>::SharedPtr dis_req_pub_;
   rclcpp::Publisher<ScannerTrigger>::SharedPtr cleaning_mac_scan_pub_;
   rclcpp::Publisher<OrderCompletion>::SharedPtr order_compl_pub_;
+  rclcpp::Publisher<MaterialBoxStatus>::SharedPtr mtrl_box_status_pub_;
 
   rclcpp::Subscription<PackagingMachineStatus>::SharedPtr pkg_mac_status_sub_;
 
-  std::vector<rclcpp::Client<DispenseDrug>::SharedPtr> dis_req_client_;
-  std::vector<rclcpp::Client<PackagingOrder>::SharedPtr> pkg_order_client_;
+  rclcpp::Client<PrintingOrder>::SharedPtr printing_info_cli_;
+  rclcpp::Client<PackagingOrder>::SharedPtr pkg_order_cli_;
+  std::vector<rclcpp::Client<DispenseDrug>::SharedPtr> dis_req_cli_;
 
   rclcpp_action::Server<NewOrder>::SharedPtr action_server_;
 
@@ -148,10 +156,11 @@ private:
   size_t no_of_pkg_mac_;
 
   bool init_httpsvr(void);
+  bool init_httpcli(void);
   
   bool get_material_box_info(nlohmann::json &body_json);
   bool get_material_box_info_by_id(const httplib::Params &params, nlohmann::json &res_json);
-  bool get_cell_info_by_id(const httplib::Params &params, nlohmann::json &res_json);
+  bool get_cells_info_by_id(const httplib::Params &params, nlohmann::json &res_json);
   bool get_material_box_amt(nlohmann::json &res_json);
   bool new_order(const nlohmann::json &req_json, nlohmann::json &res_json);
   bool get_order_by_id(const httplib::Params &params, nlohmann::json &res_json);
@@ -160,6 +169,7 @@ private:
 
 protected:
   std::shared_ptr<httplib::Server> httpsvr_;
+  std::shared_ptr<httplib::Client> httpcli_;
   std::atomic<bool> svr_started_;
   std::thread httpsvr_thread_;
 };

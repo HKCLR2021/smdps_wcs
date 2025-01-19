@@ -31,30 +31,45 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
   cleaning_mac_scan_pub_ = this->create_publisher<ScannerTrigger>("scanner_trigger", 10);
   order_compl_pub_ = this->create_publisher<OrderCompletion>("order_completion", 10);
   mtrl_box_amt_pub_ = this->create_publisher<ContainerInfo>("container_info", 10);
+  mtrl_box_status_pub_ = this->create_publisher<MaterialBoxStatus>("material_box_status", 10);
 
   pkg_mac_status_sub_ = this->create_subscription<PackagingMachineStatus>(
     "packaging_machine_status", 
     10, 
     std::bind(&ProdLineCtrl::pkg_mac_status_cb, this, _1));
 
-  reuse_cbg = create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  srv_cli_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   action_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-  // hc_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::hc_cb, this));
-  // mtrl_box_amt_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this), reuse_cbg);
-  // mtrl_box_info_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this));
+  hc_timer_ = this->create_wall_timer(5s, std::bind(&ProdLineCtrl::hc_cb, this));
+  mtrl_box_amt_timer_ = this->create_wall_timer(5s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this));
+  mtrl_box_info_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this));
 
-  dis_req_client_.resize(no_of_dis_stations_);
+  printing_info_cli_ = this->create_client<PrintingOrder>(
+    "/printing_info",
+    rmw_qos_profile_services_default,
+    srv_cli_cbg_
+  );
+
+  pkg_order_cli_ = this->create_client<PackagingOrder>(
+    "/packaging_order",
+    rmw_qos_profile_services_default,
+    srv_cli_cbg_
+  );
+
+  dis_req_cli_.resize(no_of_dis_stations_);
   for (size_t i = 0; i < no_of_dis_stations_; i++)
   {
-    dis_req_client_[i] = this->create_client<DispenseDrug>(
+    dis_req_cli_[i] = this->create_client<DispenseDrug>(
       "/dispenser_station_" + std::to_string(i+1) + "/dispense_request",
-      rmw_qos_profile_services_default
+      rmw_qos_profile_services_default,
+      srv_cli_cbg_
     );
 
-    while (rclcpp::ok() && !dis_req_client_[i]->wait_for_service(std::chrono::seconds(1))) 
+    while (rclcpp::ok() && !dis_req_cli_[i]->wait_for_service(std::chrono::seconds(1))) 
     {
-      RCLCPP_ERROR(this->get_logger(), "Load Node Service not available!");
+      RCLCPP_ERROR(this->get_logger(), "Dispense Request Service not available!");
     }
   }  
 
@@ -70,6 +85,12 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
   if (!init_httpsvr())
   {
     RCLCPP_ERROR(this->get_logger(), "init_httpsvr error occurred");
+    rclcpp::shutdown();
+  }
+
+  if (!init_httpcli())
+  {
+    RCLCPP_ERROR(this->get_logger(), "init_httpcli error occurred");
     rclcpp::shutdown();
   }
 
@@ -117,59 +138,60 @@ void ProdLineCtrl::mtrl_box_info_cb(void)
 {
   nlohmann::json res_json;
   
-  if (get_material_box_info(res_json)) 
-  {
-    RCLCPP_DEBUG(this->get_logger(), "\n%s", res_json.dump().c_str());
-    for (const auto &x : res_json["materialBoxs"])
-    {
-      nlohmann::json mtrl_box_res_json;
-      const httplib::Params params = {
-        {"materialBoxId", x["id"]},
-        {"isCompleted", "1"}
-      };
-
-      if (get_cell_info_by_id(params, mtrl_box_res_json))
-      {
-        MaterialBoxStatus msg;
-        msg.header.stamp = this->get_clock()->now();
-        msg.id = x["id"];
-        msg.location = x["location"];
-        msg.status = MaterialBoxStatus::STATUS_ERROR;
-        
-        if (msg.material_box.slots.size() == mtrl_box_res_json["cells"].size())
-        {
-          // for (size_t i = 0; i < mtrl_box_res_json["cells"].size(); i++)
-          // {
-          //   MaterialBoxSlot slot;
-          //   for (const auto &drug : mtrl_box_res_json["cells"]["drugs"])
-          //   { 
-          //     DispensingDetail dis_detail_msg;
-          //     for (const auto &location : drug["locations"]) // The length must be 1
-          //     {
-          //       dis_detail_msg.location.dispenser_station = location["dispenserStation"];
-          //       dis_detail_msg.location.dispenser_unit = location["dispenserUnit"];
-          //     }
-          //     dis_detail_msg.amount = drug["amount"];
-          //     slot.dispensing_detail.push_back(dis_detail_msg);
-          //   }
-          //   msg.material_box.slots[i] = slot;
-          //   RCLCPP_INFO(this->get_logger(), "a cell is added to msg, i: %ld", i);
-          // }
-        }
-        else
-        {
-          RCLCPP_ERROR(this->get_logger(), "size not equal");
-        }
-      }
-      else
-      {
-        RCLCPP_ERROR(this->get_logger(), "material box not found");
-      }
-    }
-  }
-  else
+  if (!get_material_box_info(res_json)) 
   {
     RCLCPP_ERROR(this->get_logger(), "%s error ocurred", __FUNCTION__);
+    return;
+  }
+
+  RCLCPP_INFO(this->get_logger(), "\n%s", res_json.dump().c_str());
+
+  for (const auto &mtrl_box : res_json["materialBoxs"])
+  {
+    nlohmann::json mtrl_box_res_json;
+
+    const httplib::Params params = {
+      {"materialBoxId", mtrl_box["id"]},
+      {"isCompleted", "1"}
+    };
+
+    if (!get_cells_info_by_id(params, mtrl_box_res_json))
+    {
+      RCLCPP_ERROR(this->get_logger(), "%s had unknown error", __FUNCTION__);
+      return;
+    }
+
+    MaterialBoxStatus msg;
+    msg.header.stamp = this->get_clock()->now();
+    msg.id = mtrl_box["id"];
+    msg.location = mtrl_box["location"];
+    msg.status = MaterialBoxStatus::STATUS_ERROR;
+    
+    if (msg.material_box.slots.size() != mtrl_box_res_json["cells"].size())
+    {
+      RCLCPP_ERROR(this->get_logger(), "size not equal");
+      return;
+    }
+
+    for (size_t i = 0; i < mtrl_box_res_json["cells"].size(); i++)
+    {
+      MaterialBoxSlot slot;
+      for (const auto &drug : mtrl_box_res_json["cells"]["drugs"])
+      { 
+        DispensingDetail dis_detail_msg;
+        for (const auto &location : drug["locations"]) // The length of locations must be 1
+        {
+          dis_detail_msg.location.dispenser_station = location["dispenserStation"];
+          dis_detail_msg.location.dispenser_unit = location["dispenserUnit"];
+        }
+        dis_detail_msg.amount = drug["amount"];
+        slot.dispensing_detail.push_back(std::move(dis_detail_msg));
+      }
+      msg.material_box.slots[i] = slot;
+      RCLCPP_INFO(this->get_logger(), "a cell is added to msg, i: %ld", i);
+    }
+
+    mtrl_box_status_pub_->publish(msg);
   }
 }
 
@@ -200,8 +222,8 @@ void ProdLineCtrl::dis_result_handler(std::map<uint8_t, std::shared_ptr<Dispense
       }
     };
     
-    auto future = dis_req_client_[req_pair.first - 1]->async_send_request(req_pair.second, response_received_cb);
-    futures_tuple.push_back(std::make_tuple(req_pair.first, false, std::move(future)));
+    auto future = dis_req_cli_[req_pair.first - 1]->async_send_request(req_pair.second, response_received_cb);
+    futures_tuple.push_back(std::move(std::make_tuple(req_pair.first, false, std::move(future))));
   }
 
   for (auto &future : futures_tuple)
@@ -213,11 +235,11 @@ void ProdLineCtrl::dis_result_handler(std::map<uint8_t, std::shared_ptr<Dispense
 
   std::this_thread::sleep_for(1s);
   
-  for (const auto &future : futures_tuple)
+  for (const auto &tuple : futures_tuple)
   {
     nlohmann::json result_req_json = {
-      {"dispenserStation", std::get<0>(future)},
-      {"isCompleted", std::get<1>(future) ? 1 : 0}
+      { "dispenserStation", std::get<0>(tuple) },
+      { "isCompleted", std::get<1>(tuple) ? 1 : 0 }
     };
     nlohmann::json result_res_json;
 
@@ -282,13 +304,14 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
           {"dispenserStation", location_j.dispenser_station},
           {"dispenserUnit", location_j.dispenser_unit}
         };
-        _drug["locations"].push_back(location);
+
+        _drug["locations"].push_back(std::move(location));
       }
       
-      _cell["drugs"].push_back(_drug);
+      _cell["drugs"].push_back(std::move(_drug));
     }
 
-    req_json["cells"].push_back(_cell);
+    req_json["cells"].push_back(std::move(_cell));
     RCLCPP_INFO(this->get_logger(), "a cell is added, i: %ld", i);
   }
 
@@ -297,6 +320,7 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
   if (new_order(req_json, res_json))
   {
     RCLCPP_INFO(this->get_logger(), "a new order is sent, waiting for material box id...");
+
     const httplib::Params params = {
       {"orderId", res_json["orderId"]}
     };
@@ -308,12 +332,13 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
     for (; retries < MAX_RETRY && rclcpp::ok(); ++retries) 
     {
       RCLCPP_INFO(this->get_logger(), "Waiting for the material box id (%d times)...", retries + 1);
-      res_json.clear();
-      if (get_order_by_id(params, res_json))
+      nlohmann::json order_by_id_res_json;
+
+      if (get_order_by_id(params, order_by_id_res_json))
       {
-        if (static_cast<int>(res_json["sortBoder"]["borderMaterialBoxId"]) != 0)
+        if (static_cast<int>(order_by_id_res_json["sortBoder"]["borderMaterialBoxId"]) != 0)
         {
-          result->response.material_box_id = static_cast<int>(res_json["sortBoder"]["borderMaterialBoxId"]);
+          result->response.material_box_id = static_cast<int>(order_by_id_res_json["sortBoder"]["borderMaterialBoxId"]);
           result->response.result = true;
           break;
         }
@@ -322,9 +347,11 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
           RCLCPP_ERROR(this->get_logger(), "Received a material box id is 0");
         }
       }
+
       goal_handle->publish_feedback(feedback);
       loop_rate.sleep();
     }
+
     if (retries >= MAX_RETRY)
     {
       RCLCPP_ERROR(this->get_logger(), "retries (%d) >= MAX_RETRY", retries);
