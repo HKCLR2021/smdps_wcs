@@ -37,8 +37,6 @@
 #include "smdps_msgs/srv/packaging_order.hpp"
 #include "smdps_msgs/srv/printing_order.hpp"
 
-// #define NO_OF_STATION 1
-
 using namespace std::chrono_literals;
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -97,7 +95,6 @@ private:
   rclcpp::Publisher<Heartbeat>::SharedPtr hc_pub_;
   rclcpp::Publisher<ContainerInfo>::SharedPtr mtrl_box_amt_pub_;
   rclcpp::Publisher<DispensingError>::SharedPtr dis_err_pub_;
-  rclcpp::Publisher<DispensingDetail>::SharedPtr dis_req_pub_;
   rclcpp::Publisher<ScannerTrigger>::SharedPtr cleaning_mac_scan_pub_;
   rclcpp::Publisher<OrderCompletion>::SharedPtr order_compl_pub_;
   rclcpp::Publisher<MaterialBoxStatus>::SharedPtr mtrl_box_status_pub_;

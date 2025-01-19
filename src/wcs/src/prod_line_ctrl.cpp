@@ -21,13 +21,8 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
   RCLCPP_INFO(this->get_logger(), "jinli HTTP server: %s:%d", jinli_ip_.c_str(), jinli_port_);
   RCLCPP_INFO(this->get_logger(), "hkclr HTTP server: %s:%d", httpsvr_ip_.c_str(), httpsvr_port_);
 
-  rclcpp::QoS dispense_request_qos_profile(10);
-  dispense_request_qos_profile.reliability(rclcpp::ReliabilityPolicy::Reliable);
-  dispense_request_qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
-
   hc_pub_ = this->create_publisher<Heartbeat>("jinli_heartbeat", 10);
   dis_err_pub_ = this->create_publisher<DispensingError>("dispensing_error", 10);
-  dis_req_pub_ = this->create_publisher<DispensingDetail>("dispense_request", dispense_request_qos_profile);
   cleaning_mac_scan_pub_ = this->create_publisher<ScannerTrigger>("scanner_trigger", 10);
   order_compl_pub_ = this->create_publisher<OrderCompletion>("order_completion", 10);
   mtrl_box_amt_pub_ = this->create_publisher<ContainerInfo>("container_info", 10);
@@ -47,30 +42,31 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
   mtrl_box_info_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this));
 
   printing_info_cli_ = this->create_client<PrintingOrder>(
-    "/printing_info",
+    "printing_order",
     rmw_qos_profile_services_default,
     srv_cli_cbg_
   );
 
   pkg_order_cli_ = this->create_client<PackagingOrder>(
-    "/packaging_order",
+    "packaging_order",
     rmw_qos_profile_services_default,
     srv_cli_cbg_
   );
 
-  dis_req_cli_.resize(no_of_dis_stations_);
   for (size_t i = 0; i < no_of_dis_stations_; i++)
   {
-    dis_req_cli_[i] = this->create_client<DispenseDrug>(
-      "/dispenser_station_" + std::to_string(i+1) + "/dispense_request",
+    auto tmp_cli = this->create_client<DispenseDrug>(
+      "/dispenser_station_" + std::to_string(i + 1) + "/dispense_request",
       rmw_qos_profile_services_default,
       srv_cli_cbg_
     );
-
-    while (rclcpp::ok() && !dis_req_cli_[i]->wait_for_service(std::chrono::seconds(1))) 
+    
+    while (rclcpp::ok() && !tmp_cli->wait_for_service(std::chrono::seconds(1))) 
     {
       RCLCPP_ERROR(this->get_logger(), "Dispense Request Service not available!");
     }
+
+    dis_req_cli_.push_back(std::move(tmp_cli));
   }  
 
   this->action_server_ = rclcpp_action::create_server<NewOrder>(
@@ -162,17 +158,16 @@ void ProdLineCtrl::mtrl_box_info_cb(void)
     }
 
     MaterialBoxStatus msg;
-    msg.header.stamp = this->get_clock()->now();
-    msg.id = mtrl_box["id"];
-    msg.location = mtrl_box["location"];
-    msg.status = MaterialBoxStatus::STATUS_ERROR;
-    
     if (msg.material_box.slots.size() != mtrl_box_res_json["cells"].size())
     {
       RCLCPP_ERROR(this->get_logger(), "size not equal");
       return;
     }
-
+    msg.header.stamp = this->get_clock()->now();
+    msg.id = mtrl_box["id"];
+    msg.location = mtrl_box["location"];
+    msg.status = MaterialBoxStatus::STATUS_ERROR;
+    
     for (size_t i = 0; i < mtrl_box_res_json["cells"].size(); i++)
     {
       MaterialBoxSlot slot;

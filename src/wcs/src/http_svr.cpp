@@ -271,7 +271,7 @@ void ProdLineCtrl::packaging_request_handler(
 
   if (!pkg_mac_availability)
   {
-    res_json["msg"] = "Packaging Machines are not idle";
+    res_json["msg"] = "Packaging Machines are busy";
     res.set_content(res_json.dump(), "application/json");
     return;
   }
@@ -291,10 +291,9 @@ void ProdLineCtrl::packaging_request_handler(
   }
 
   std::thread print_srv_wait_thread_ = std::thread([this]() {
-    while (!printing_info_cli_->wait_for_service(std::chrono::seconds(1)))
+    while (rclcpp::ok() && !printing_info_cli_->wait_for_service(std::chrono::seconds(1)))
     {
-      RCLCPP_ERROR(this->get_logger(), "PrintingOrder Service not available, waiting again...");
-      std::this_thread::sleep_for(1s);
+      RCLCPP_ERROR(this->get_logger(), "PrintingInfo Service not available, waiting again...");
     }
   });
 
@@ -312,7 +311,7 @@ void ProdLineCtrl::packaging_request_handler(
     if (srv_res && srv_res->success) 
     {
       *info = srv_res->info;
-      RCLCPP_DEBUG(this->get_logger(), "Inside the PrintingOrder Callback OK");
+      RCLCPP_INFO(this->get_logger(), "Inside the PrintingOrder Callback OK");
     } else 
     {
       RCLCPP_ERROR(this->get_logger(), "Inside the PrintingOrder Callback NOT OK. message: %s", srv_res->message.c_str());
@@ -338,10 +337,9 @@ void ProdLineCtrl::packaging_request_handler(
   }
 
   std::thread pkg_srv_wait_thread_ = std::thread([this]() {
-    while (!pkg_order_cli_->wait_for_service(std::chrono::seconds(1))) 
+    while (rclcpp::ok() && !pkg_order_cli_->wait_for_service(std::chrono::seconds(1))) 
     {
       RCLCPP_ERROR(this->get_logger(), "PackagingOrder Service not available, waiting again...");
-      std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   });
 
@@ -354,8 +352,8 @@ void ProdLineCtrl::packaging_request_handler(
   {
     pkg_order_srv_req->print_info[i].cn_name = info->patient_info.institute_name;
     pkg_order_srv_req->print_info[i].en_name = info->patient_info.name;
-    pkg_order_srv_req->print_info[i].date = "2023-11-27 (FIXME)";
-    pkg_order_srv_req->print_info[i].time = "12:00 (FIXME)";
+    pkg_order_srv_req->print_info[i].date = info->start_date; // FIXME
+    pkg_order_srv_req->print_info[i].time = info->start_time; // FIXME
     pkg_order_srv_req->print_info[i].qr_code = info->qr_code;
     pkg_order_srv_req->print_info[i].drugs = {"FIXME 1", "FIXME 2"};
   }
@@ -521,6 +519,24 @@ void ProdLineCtrl::order_completion_handler(
   res.set_content(res_json.dump(), "application/json");
 }
 
+inline const std::string ProdLineCtrl::from_url(const std::string resource)
+{
+  return api + ver + resource;
+}
+
+inline bool ProdLineCtrl::verify_params(const httplib::Request &req, const std::vector<std::string> &keys) {
+  return std::all_of(keys.begin(), keys.end(),
+    [&req](auto p) {
+      return req.has_param(p);
+    }
+  );
+}
+
+inline bool ProdLineCtrl::is_number(const std::string &s) 
+{
+  return !s.empty() && std::all_of(s.begin(), s.end(), [](unsigned char c) { return std::isdigit(c); });
+}
+
 void ProdLineCtrl::logger_handler(const httplib::Request &req, const httplib::Response &res)
 {
   std::string s;
@@ -590,24 +606,6 @@ httplib::Server::HandlerResponse ProdLineCtrl::pre_routing_handler(const httplib
     return httplib::Server::HandlerResponse::Handled;
 
   return httplib::Server::HandlerResponse::Unhandled;
-}
-
-inline const std::string ProdLineCtrl::from_url(const std::string resource)
-{
-  return api + ver + resource;
-}
-
-inline bool ProdLineCtrl::verify_params(const httplib::Request &req, const std::vector<std::string> &keys) {
-  return std::all_of(keys.begin(), keys.end(),
-    [&req](auto p) {
-      return req.has_param(p);
-    }
-  );
-}
-
-inline bool ProdLineCtrl::is_number(const std::string &s) 
-{
-  return !s.empty() && std::all_of(s.begin(), s.end(), [](unsigned char c) { return std::isdigit(c); });
 }
 
 std::string ProdLineCtrl::dump_headers(const httplib::Headers &headers) 

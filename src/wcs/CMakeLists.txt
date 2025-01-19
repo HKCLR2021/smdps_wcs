@@ -58,9 +58,18 @@ ament_target_dependencies(dis_station_node
   open62541pp
 )
 
+add_executable(fake_printing_srv_node 
+  src/fake_printing_srv.cpp
+)
+ament_target_dependencies(fake_printing_srv_node 
+  rclcpp 
+  smdps_msgs
+)
+
 install(TARGETS
   prod_line_ctrl
   dis_station_node
+  fake_printing_srv_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

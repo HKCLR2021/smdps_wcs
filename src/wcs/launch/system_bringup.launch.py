@@ -4,10 +4,11 @@ from launch_ros.actions import Node
 def generate_launch_description():
     ld = LaunchDescription()
     
-    NUMBER_OF_DISPENSER_STATION = 14
+    NUMBER_OF_DISPENSER_STATION = 1
     NUMBER_OF_PACKAGING_MACHINE = 1
 
     HKCLR_IP = "172.17.0.2"
+    # HKCLR_IP = "172.19.46.74" # debug IP
     HKCLR_PORT = 8000
     JINLI_IP = "192.168.8.211"
     JINLI_PORT = 8080
@@ -30,7 +31,7 @@ def generate_launch_description():
             respawn_delay=1,
             output="screen",
           )
-        ld.add_action(node)
+        # ld.add_action(node)
 
     prod_line_ctrl = Node(
         package="wcs",
