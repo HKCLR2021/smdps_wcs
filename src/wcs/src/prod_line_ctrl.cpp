@@ -66,7 +66,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
       RCLCPP_ERROR(this->get_logger(), "Dispense Request Service not available!");
     }
 
-    dis_req_cli_.push_back(std::move(tmp_cli));
+    dis_req_cli_.push_back(tmp_cli);
   }  
 
   this->action_server_ = rclcpp_action::create_server<NewOrder>(
@@ -147,8 +147,8 @@ void ProdLineCtrl::mtrl_box_info_cb(void)
     nlohmann::json mtrl_box_res_json;
 
     const httplib::Params params = {
-      {"materialBoxId", mtrl_box["id"]},
-      {"isCompleted", "1"}
+      { "materialBoxId", mtrl_box["id"] },
+      { "isCompleted", "1" }
     };
 
     if (!get_cells_info_by_id(params, mtrl_box_res_json))
@@ -180,7 +180,7 @@ void ProdLineCtrl::mtrl_box_info_cb(void)
           dis_detail_msg.location.dispenser_unit = location["dispenserUnit"];
         }
         dis_detail_msg.amount = drug["amount"];
-        slot.dispensing_detail.push_back(std::move(dis_detail_msg));
+        slot.dispensing_detail.push_back(dis_detail_msg);
       }
       msg.material_box.slots[i] = slot;
       RCLCPP_INFO(this->get_logger(), "a cell is added to msg, i: %ld", i);
@@ -218,14 +218,14 @@ void ProdLineCtrl::dis_result_handler(std::map<uint8_t, std::shared_ptr<Dispense
     };
     
     auto future = dis_req_cli_[req_pair.first - 1]->async_send_request(req_pair.second, response_received_cb);
-    futures_tuple.push_back(std::move(std::make_tuple(req_pair.first, false, std::move(future))));
+    futures_tuple.push_back(std::make_tuple(req_pair.first, false, std::move(future)));
   }
 
-  for (auto &future : futures_tuple)
+  for (auto &tuple : futures_tuple)
   {
     RCLCPP_DEBUG(this->get_logger(), "start to wait a future");
-    std::get<2>(future).wait(); // wait forever until the future is done
-    std::get<1>(future) = true;
+    std::get<2>(tuple).wait(); // wait forever until the future is done
+    std::get<1>(tuple) = true;
   }
 
   std::this_thread::sleep_for(1s);
@@ -290,7 +290,6 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
     for (const auto &drugs_j : slots_i.drugs)
     {
       nlohmann::json _drug;
-      _drug["drugId"] = drugs_j.drug_id;
       _drug["amount"] = drugs_j.amount;
 
       for (const auto &location_j : drugs_j.locations)
@@ -300,57 +299,73 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
           {"dispenserUnit", location_j.dispenser_unit}
         };
 
-        _drug["locations"].push_back(std::move(location));
+        _drug["locations"].push_back(location);
       }
-      
-      _cell["drugs"].push_back(std::move(_drug));
+      RCLCPP_INFO(this->get_logger(), "a drug is added to a cell");
+      _cell["drugs"].push_back(_drug);
     }
 
-    req_json["cells"].push_back(std::move(_cell));
-    RCLCPP_INFO(this->get_logger(), "a cell is added, i: %ld", i);
+    req_json["cells"].push_back(_cell);
+    RCLCPP_INFO(this->get_logger(), "a cell is added to req_json, i: %ld", i);
   }
 
   running = true;
+  goal_handle->publish_feedback(feedback);
+  RCLCPP_INFO(this->get_logger(), "A new order json is created. Set running to %s", running ? "true" : "false");
+  RCLCPP_INFO(this->get_logger(), "\n%s", req_json.dump().c_str());
 
-  if (new_order(req_json, res_json))
+  if (!new_order(req_json, res_json))
   {
-    RCLCPP_INFO(this->get_logger(), "a new order is sent, waiting for material box id...");
+    const std::string msg = "newOrder API is failed";
+    result->response.success = false;
+    result->response.message = msg;
 
-    const httplib::Params params = {
-      {"orderId", res_json["orderId"]}
-    };
-
-    uint16_t retries = 0;
-    const uint16_t MAX_RETRY = 60; // FIXME
-    rclcpp::Rate loop_rate(1s); 
-
-    for (; retries < MAX_RETRY && rclcpp::ok(); ++retries) 
+    if (rclcpp::ok()) 
     {
-      RCLCPP_INFO(this->get_logger(), "Waiting for the material box id (%d times)...", retries + 1);
-      nlohmann::json order_by_id_res_json;
+      goal_handle->succeed(result);
+      RCLCPP_ERROR(this->get_logger(), msg.c_str());
+    }
+    return;
+  }
 
-      if (get_order_by_id(params, order_by_id_res_json))
+  RCLCPP_INFO(this->get_logger(), "A new order is sent, waiting for material box id...");
+
+  const httplib::Params params = {
+    {"orderId", res_json["orderId"]}
+  };
+
+  uint16_t retries = 0;
+  const uint16_t MAX_RETRY = 60; // FIXME
+  rclcpp::Rate loop_rate(1s); 
+
+  for (; retries < MAX_RETRY && rclcpp::ok(); ++retries) 
+  {
+    RCLCPP_INFO(this->get_logger(), "Waiting for the material box id (%d times)...", retries + 1);
+    nlohmann::json order_by_id_res_json;
+
+    if (get_order_by_id(params, order_by_id_res_json))
+    {
+      if (static_cast<int>(order_by_id_res_json["sortBoder"]["borderMaterialBoxId"]) != 0)
       {
-        if (static_cast<int>(order_by_id_res_json["sortBoder"]["borderMaterialBoxId"]) != 0)
-        {
-          result->response.material_box_id = static_cast<int>(order_by_id_res_json["sortBoder"]["borderMaterialBoxId"]);
-          result->response.result = true;
-          break;
-        }
-        else
-        {
-          RCLCPP_ERROR(this->get_logger(), "Received a material box id is 0");
-        }
+        result->response.material_box_id = static_cast<int>(order_by_id_res_json["sortBoder"]["borderMaterialBoxId"]);
+        result->response.success = true;
+        break;
       }
-
-      goal_handle->publish_feedback(feedback);
-      loop_rate.sleep();
+      else
+      {
+        RCLCPP_ERROR(this->get_logger(), "Received a material box id is 0");
+      }
     }
 
-    if (retries >= MAX_RETRY)
-    {
-      RCLCPP_ERROR(this->get_logger(), "retries (%d) >= MAX_RETRY", retries);
-    }
+    goal_handle->publish_feedback(feedback);
+    loop_rate.sleep();
+  }
+
+  if (retries >= MAX_RETRY)
+  {
+    result->response.success = false;
+    result->response.message = "The material box is waited too long";
+    RCLCPP_ERROR(this->get_logger(), "retries (%d) >= MAX_RETRY", retries);
   }
 
   if (rclcpp::ok()) 

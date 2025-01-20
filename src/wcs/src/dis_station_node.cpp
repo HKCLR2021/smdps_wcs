@@ -298,59 +298,6 @@ void DispenserStationNode::unit_req_handle(
   res->success = true;
 }
 
-void DispenserStationNode::heartbeat_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
-{
-  std::optional<bool> val = value.value().scalar<bool>();
-  // const opcua::MonitoredItem item(cli, sub_id, mon_id);
-
-  RCLCPP_INFO(this->get_logger(), ">>>> Heartbeat data change notification, value: %s", val ? "true" : "false");
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-}
-
-void DispenserStationNode::general_bool_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name, bool &bool_ref)
-{
-  std::optional<bool> val = value.value().scalar<bool>();
-
-  const std::lock_guard<std::mutex> lock(mutex_);
-  bool_ref = *val;
-  
-  if (!name.empty())
-  {
-    RCLCPP_INFO(this->get_logger(), ">>>> %s data change notification, value: %s", name.c_str(), *val ? "true" : "false");
-    RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
-    RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-  }
-}
-
-void DispenserStationNode::alm_code_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
-{
-  std::optional<int16_t> val = value.value().scalar<int16_t>();
-  // const opcua::MonitoredItem item(cli, sub_id, mon_id);
-
-  const std::lock_guard<std::mutex> lock(mutex_);
-  status_->error_code = *val;
-
-  if (val == 200)
-    RCLCPP_INFO(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
-  else
-    RCLCPP_ERROR(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-}
-
-void DispenserStationNode::completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
-{
-  std::optional<bool> val = value.value().scalar<bool>();
-
-  if (val && *val)
-    std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
-  
-  RCLCPP_INFO(this->get_logger(), ">>>> Completed data change notification, value: %s", *val ? "true" : "false");
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-}
-
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);

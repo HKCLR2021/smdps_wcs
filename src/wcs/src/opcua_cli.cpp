@@ -71,7 +71,6 @@ void DispenserStationNode::connected_cb(void)
 void DispenserStationNode::session_activated_cb(void)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
-  // add_subscriptions();
   create_sub_async();
   RCLCPP_INFO(this->get_logger(), ">>> session activated: %s:%s", ip_.c_str(), port_.c_str());
 }
@@ -88,12 +87,66 @@ void DispenserStationNode::inactive_cb(void)
   RCLCPP_INFO(this->get_logger(), ">>> inactive: %s:%s", ip_.c_str(), port_.c_str());
 }
 
+
+void DispenserStationNode::heartbeat_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
+{
+  std::optional<bool> val = value.value().scalar<bool>();
+  // const opcua::MonitoredItem item(cli, sub_id, mon_id);
+
+  RCLCPP_INFO(this->get_logger(), ">>>> Heartbeat data change notification, value: %s", val ? "true" : "false");
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
+}
+
+void DispenserStationNode::general_bool_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name, bool &bool_ref)
+{
+  std::optional<bool> val = value.value().scalar<bool>();
+
+  const std::lock_guard<std::mutex> lock(mutex_);
+  bool_ref = *val;
+  
+  if (!name.empty())
+  {
+    RCLCPP_INFO(this->get_logger(), ">>>> %s data change notification, value: %s", name.c_str(), *val ? "true" : "false");
+    RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
+    RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
+  }
+}
+
+void DispenserStationNode::alm_code_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
+{
+  std::optional<int16_t> val = value.value().scalar<int16_t>();
+  // const opcua::MonitoredItem item(cli, sub_id, mon_id);
+
+  const std::lock_guard<std::mutex> lock(mutex_);
+  status_->error_code = *val;
+
+  if (val == 200)
+    RCLCPP_INFO(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
+  else
+    RCLCPP_ERROR(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
+}
+
+void DispenserStationNode::completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
+{
+  std::optional<bool> val = value.value().scalar<bool>();
+
+  if (val && *val)
+    std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
+  
+  RCLCPP_INFO(this->get_logger(), ">>>> Completed data change notification, value: %s", *val ? "true" : "false");
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
+}
+
 void DispenserStationNode::initiate(void)
 {
-  opcua::Variant init_var_true;
-  init_var_true = true;
+  opcua::Variant init_var;
+  init_var = true;
 
-  std::future<opcua::StatusCode> stop_future = opcua::services::writeValueAsync(cli, initiate_id, init_var_true, opcua::useFuture);
+  std::future<opcua::StatusCode> stop_future = opcua::services::writeValueAsync(cli, initiate_id, init_var, opcua::useFuture);
   stop_future.wait();
 
   const opcua::StatusCode &stop_code = stop_future.get();
@@ -121,10 +174,9 @@ void DispenserStationNode::initiate(void)
     loop_rate.sleep();
   }
 
-  opcua::Variant init_var_false;
-  init_var_false = false;
+  init_var = false;
 
-  std::future<opcua::StatusCode> start_future = opcua::services::writeValueAsync(cli, initiate_id, init_var_false, opcua::useFuture);
+  std::future<opcua::StatusCode> start_future = opcua::services::writeValueAsync(cli, initiate_id, init_var, opcua::useFuture);
   start_future.wait();
 
   const opcua::StatusCode &start_code = start_future.get();

@@ -9,6 +9,7 @@
 
 using PrintingOrder = smdps_msgs::srv::PrintingOrder;
 
+// This node is used for creating a PrintingOrder Service for simulation.
 class PrintingService : public rclcpp::Node
 {
 public:
@@ -23,15 +24,12 @@ private:
   void handle_service(const std::shared_ptr<PrintingOrder::Request> request,
                       std::shared_ptr<PrintingOrder::Response> response)
   {
-    // Process the request
     RCLCPP_INFO(this->get_logger(), "Received material_box_id: %d", request->material_box_id);
 
-    // Populate the PrintingInfo
     response->info.patient_info.name = "Testing";
     response->info.patient_info.institute_name = "HKCLR";
     response->info.qr_code = "https://www.hkclr.hk";
 
-    // Populate slots (example)
     for (size_t i = 0; i < 28; ++i)
     {
       smdps_msgs::msg::Drug drug;
@@ -41,7 +39,6 @@ private:
       response->info.slots[i].drugs.push_back(std::move(drug));
     }
 
-    // Set success and message
     response->success = true;
     response->message = "";
 

@@ -31,7 +31,7 @@ def generate_launch_description():
             respawn_delay=1,
             output="screen",
           )
-        # ld.add_action(node)
+        ld.add_action(node)
 
     prod_line_ctrl = Node(
         package="wcs",
@@ -50,5 +50,7 @@ def generate_launch_description():
         output="screen",
       )
     ld.add_action(prod_line_ctrl)
+
+
 
     return ld

@@ -66,10 +66,21 @@ ament_target_dependencies(fake_printing_srv_node
   smdps_msgs
 )
 
+add_executable(fake_new_order_cli_node 
+  src/fake_new_order_cli.cpp
+)
+ament_target_dependencies(fake_new_order_cli_node 
+  rclcpp 
+  rclcpp_action
+  std_msgs
+  smdps_msgs
+)
+
 install(TARGETS
   prod_line_ctrl
   dis_station_node
   fake_printing_srv_node
+  fake_new_order_cli_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
