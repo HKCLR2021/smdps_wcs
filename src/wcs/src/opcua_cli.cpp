@@ -29,11 +29,12 @@ void DispenserStationNode::start_opcua_cli(void)
     catch (const opcua::BadStatus& e) 
     {
       cli.disconnectAsync();
-      RCLCPP_ERROR(this->get_logger(), "Error: %s, Retry to connect in 1 seconds", e.what());
+      const std::lock_guard<std::mutex> lock(mutex_);
+      RCLCPP_ERROR(this->get_logger(), "Error: %s, Retry to connect Station [%d] in 1 seconds", e.what(), status_->id);
     }
     catch (...)
     {
-      RCLCPP_ERROR(this->get_logger(), "caught an unknown exception!!!");
+      RCLCPP_ERROR(this->get_logger(), "Caught an unknown exception!!!");
       cli_started_.store(false);
       rclcpp::shutdown();
     }
@@ -42,16 +43,14 @@ void DispenserStationNode::start_opcua_cli(void)
   }
 }
 
-void DispenserStationNode::wait_for_opcua_connection(void)
+void DispenserStationNode::wait_for_opcua_connection(const std::chrono::milliseconds freq)
 {
-  RCLCPP_INFO(this->get_logger(), "started to wait the opcua connection <<<<<<<<<<<<<");
-  std::this_thread::sleep_for(1s);
+  RCLCPP_DEBUG(this->get_logger(), "Started to wait the OPCUA connection <<<<<<<<<<<<<");
 
-  std::chrono::seconds retry = 1s;
-  rclcpp::Rate loop_rate(retry); 
+  rclcpp::Rate loop_rate(freq); 
   while (rclcpp::ok() && !cli.isConnected())
   {
-    RCLCPP_ERROR(this->get_logger(), "waiting for opcua connection (%ld sec to retry)...", retry.count());
+    RCLCPP_ERROR(this->get_logger(), "Waiting for opcua connection (%ld ms to retry)...", freq.count());
     loop_rate.sleep();
   }
 }
@@ -87,7 +86,6 @@ void DispenserStationNode::inactive_cb(void)
   RCLCPP_INFO(this->get_logger(), ">>> inactive: %s:%s", ip_.c_str(), port_.c_str());
 }
 
-
 void DispenserStationNode::heartbeat_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
 {
   std::optional<bool> val = value.value().scalar<bool>();
@@ -98,6 +96,7 @@ void DispenserStationNode::heartbeat_cb(uint32_t sub_id, uint32_t mon_id, const 
   RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
 }
 
+// FIXME: the function is incorrect to reference the bool_ref
 void DispenserStationNode::general_bool_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name, bool &bool_ref)
 {
   std::optional<bool> val = value.value().scalar<bool>();
@@ -183,7 +182,7 @@ void DispenserStationNode::initiate(void)
   if (start_code != UA_STATUSCODE_GOOD)
     RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
 
-  RCLCPP_INFO(this->get_logger(), "Initiated the Station, ID: %d", status_->id);
+  RCLCPP_INFO(this->get_logger(), "Initiated the Dispenser Station [%d]", status_->id);
 }
 
 void DispenserStationNode::create_sub_async()

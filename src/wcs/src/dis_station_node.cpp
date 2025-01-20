@@ -44,7 +44,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
 
   if (!init_opcua_cli())
   {
-    RCLCPP_ERROR(this->get_logger(), "init opcua client error occurred");
+    RCLCPP_ERROR(this->get_logger(), "Initiate the OPCUA Client error occurred");
     rclcpp::shutdown();
   }
 
@@ -53,7 +53,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   status_pub_ = this->create_publisher<DispenserStationStatus>("status", 10);
 
   cli_thread_ = std::thread(std::bind(&DispenserStationNode::start_opcua_cli, this)); 
-  wait_for_opcua_connection();
+  wait_for_opcua_connection(200ms);
 
   status_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::dis_station_status_cb, this));
   opcua_heartbeat_timer_ = this->create_wall_timer(250ms, std::bind(&DispenserStationNode::heartbeat_valid_cb, this));
@@ -77,7 +77,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
     srv_ser_cbg_);
 
   RCLCPP_INFO(this->get_logger(), "OPCUA Server: %s", form_opcua_url().c_str());
-  RCLCPP_INFO(this->get_logger(), "dispenser station node is up");
+  RCLCPP_INFO(this->get_logger(), "Dispenser Station Node [%d] is up", status_->id);
 }
 
 DispenserStationNode::~DispenserStationNode()
@@ -113,15 +113,18 @@ void DispenserStationNode::heartbeat_valid_cb(void)
   }
 
   std::optional<bool> val = result.value().scalar<bool>();
-  if (!val) 
+
+  const std::lock_guard<std::mutex> lock(mutex_);
+  if (!val)
   {
+    status_->heartbeat = false;
     RCLCPP_ERROR(this->get_logger(), "Heartbeat value is not available");
     return;
   }
-  RCLCPP_DEBUG(this->get_logger(), "Read result with status code: %s, Data: %s", std::to_string(result.code()).c_str(), *val ? "true" : "false");
 
-  const std::lock_guard<std::mutex> lock(mutex_);
-  if (*val == status_->heartbeat) 
+  RCLCPP_DEBUG(this->get_logger(), "Read Heartbeat result with status code: %s, Data: %s", std::to_string(result.code()).c_str(), *val ? "true" : "false");
+
+  if (val && *val == status_->heartbeat) 
   {
     heartbeat_counter_++;
   } 
@@ -134,7 +137,7 @@ void DispenserStationNode::heartbeat_valid_cb(void)
   if (heartbeat_counter_ > MAX_HB_COUNT)
   {
     status_->heartbeat = false;
-    RCLCPP_ERROR(this->get_logger(), "lost connection to %s", ip_.c_str());
+    RCLCPP_ERROR(this->get_logger(), "Lost connection to %s", ip_.c_str());
   }
 }
 
@@ -142,14 +145,10 @@ void DispenserStationNode::dis_req_handle(
   const std::shared_ptr<DispenseDrug::Request> req, 
   std::shared_ptr<DispenseDrug::Response> res)
 {
-  std::chrono::milliseconds retry_freq = 250ms;
-  rclcpp::Rate loop_rate(retry_freq); 
+  std::chrono::milliseconds freq = 200ms;
+  rclcpp::Rate loop_rate(freq); 
 
-  while (rclcpp::ok() && !cli.isConnected())
-  {
-    RCLCPP_ERROR(this->get_logger(), "waiting for opcua connection (%ld ms to retry)...", retry_freq.count());
-    loop_rate.sleep();
-  }
+  wait_for_opcua_connection(freq);
   
   std::vector<std::future<opcua::StatusCode>> futures;
   for (size_t i = 0; i < req->content.size(); i++)
@@ -175,20 +174,16 @@ void DispenserStationNode::dis_req_handle(
       RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
   }
 
-  opcua::Variant req_var;
-  req_var = true;
-  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, cmd_req_id, req_var, opcua::useFuture);
+  opcua::Variant cmd_req;
+  cmd_req = true;
+  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, cmd_req_id, cmd_req, opcua::useFuture);
 
   future.wait();
   const opcua::StatusCode &code = future.get();
   if (code != UA_STATUSCODE_GOOD)
     RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
 
-  // uint32_t t = 0;
-  // const uint16_t MAX_SEC = 10;
-  // const uint16_t MAX_RETIES = 1000 / retry_freq.count() * MAX_SEC; // retries = 1000ms / 100ms * 10s = 100 times
-
-  // wait forever until the station is completed
+  // wait forever until the dispenser station is completed
   while (rclcpp::ok())
   {
     std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, completed_id, opcua::useFuture);
@@ -198,27 +193,15 @@ void DispenserStationNode::dis_req_handle(
     if (result.code() == UA_STATUSCODE_GOOD)
     {
       std::optional<bool> val = result.value().scalar<bool>();
-
       if (val && *val)
       {
-        RCLCPP_INFO(this->get_logger(), "Submit dispense request success");
+        RCLCPP_INFO(this->get_logger(), "Submit a dispense request successfully");
         res->success = true;
         break;
       }
     }
     else
-    {
       RCLCPP_ERROR(this->get_logger(), "Read result with status code: %s", std::to_string(result.code()).c_str());
-    }
-
-    // if (t++ > MAX_RETIES)
-    // {
-    //   const std::string msg = "too long to do the dispense";
-    //   RCLCPP_ERROR(this->get_logger(), msg.c_str());
-    //   res->success = false; // FIXME
-    //   res->message = msg; // FIXME
-    //   break;
-    // }
 
     loop_rate.sleep();
   }
@@ -288,14 +271,15 @@ void DispenserStationNode::unit_req_handle(
   future.wait();
   const opcua::StatusCode &code = future.get();
 
-  if (code != UA_STATUSCODE_GOOD)
+  if (code == UA_STATUSCODE_GOOD)
+  {
+    res->success = true;
+  }
+  else
   {
     res->success = false;
     RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-    return;
   }
-  
-  res->success = true;
 }
 
 int main(int argc, char * argv[])

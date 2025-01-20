@@ -43,7 +43,7 @@ public:
   const std::string form_opcua_url(void);
   bool init_opcua_cli(void);
   void start_opcua_cli(void); 
-  void wait_for_opcua_connection(void);
+  void wait_for_opcua_connection(const std::chrono::milliseconds freq);
 
   constexpr std::string_view get_enum_name(opcua::NodeClass node_class);
   constexpr std::string_view get_log_level_name(opcua::LogLevel level);
