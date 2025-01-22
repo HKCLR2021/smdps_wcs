@@ -3,14 +3,15 @@
 
 #include <string>
 
-const std::string mtrl_box_info_url       = "/sort/materialBox/getMaterialBoxInfo";
-const std::string mtrl_box_info_by_id_url = "/sort/materialBox/getMaterialBoxInfoById";
-const std::string cells_info_by_id_url    = "/sort/cell/CellInfoByMaterialBoxId";
-const std::string mtrl_box_amt_url        = "/sort/container/materialBoxAmount";
-const std::string new_order_url           = "/sort/order/newOrder";
-const std::string order_by_id_url         = "/sort/order/getOrderById";
-const std::string dis_result_url          = "/sort/dispenseResult";
-const std::string health_url              = "/sort/health";
+const std::string mtrl_box_info_url                = "/sort/materialBox/materialBoxInfo";
+const std::string mtrl_box_info_by_id_url          = "/sort/materialBox/materialBoxInfoById";
+const std::string cells_info_by_id_url             = "/sort/cell/cellsInfoByMaterialBoxId";
+const std::string cell_info_by_id_and_cell_id_url  = "/sort/cell/cellInfoByMaterialBoxIdAndCellId";
+const std::string mtrl_box_amt_url                 = "/sort/container/materialBoxAmount";
+const std::string new_order_url                    = "/sort/order/newOrder";
+const std::string order_by_id_url                  = "/sort/order/getOrderById";
+const std::string dis_result_url                   = "/sort/dispenseResult";
+const std::string health_url                       = "/sort/health";
 
 const std::string api = "/api";
 const std::string ver = "/v1";
@@ -23,6 +24,7 @@ const std::string abnormal_device = "/abnormalDevice";
 const std::string dispense_request = "/dispenseRequest";
 const std::string packaging_request = "/packagingRequest";
 const std::string packaging_info = "/packagingMachineInfo";
+const std::string init_pkg_mac = "/initPackagingMachine";
 const std::string order_completion = "/orderCompletion";
 const std::string cleaning_mac_scan = "/cleaningMachine";
 const std::string mtrl_box_con_scan = "/materialBoxContainer";

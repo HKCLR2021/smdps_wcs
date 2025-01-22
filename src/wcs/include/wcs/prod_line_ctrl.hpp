@@ -91,6 +91,9 @@ private:
   rclcpp::CallbackGroup::SharedPtr srv_ser_cbg_;
   rclcpp::CallbackGroup::SharedPtr srv_cli_cbg_;
   rclcpp::CallbackGroup::SharedPtr action_ser_cbg_;
+  rclcpp::CallbackGroup::SharedPtr hc_timer_cbg_;
+  rclcpp::CallbackGroup::SharedPtr container_timer_cbg_;
+  rclcpp::CallbackGroup::SharedPtr mtrl_box_info_timer_cbg_;
 
   rclcpp::Publisher<Heartbeat>::SharedPtr hc_pub_;
   rclcpp::Publisher<ContainerInfo>::SharedPtr mtrl_box_amt_pub_;
@@ -112,7 +115,8 @@ private:
   void mtrl_box_info_cb(void);
   void pkg_mac_status_cb(const PackagingMachineStatus::SharedPtr msg);
 
-  void dis_result_handler(std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs);
+  void init_pkg_mac_srv_handler(const uint8_t pkg_mac_id);
+  void dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs);
 
   rclcpp_action::GoalResponse handle_goal(
     const rclcpp_action::GoalUUID & uuid, 
@@ -128,15 +132,16 @@ private:
   const size_t DATA_CHUNK_SIZE = 4; // FIXME 
 
   void health_handler(const httplib::Request &req, httplib::Response &res);
-  void abnormal_dispensation_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
+  void abnormal_dis_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
   void abnormal_device_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
-  void dispense_request_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
-  void packaging_request_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
-  void packaging_info_handler(const httplib::Request &req, httplib::Response &res);
-  void order_completion_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
+  void dis_req_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
+  void pkg_req_handler(const httplib::Request &req, httplib::Response &res);
+  void pkg_mac_info_handler(const httplib::Request &req, httplib::Response &res);
+  void order_comp_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
   void scanner_handler(const httplib::Request &req, httplib::Response &res, const std::string &location);
-  
-  // void dispense_result_handler(std::vector<std::tuple<uint8_t, bool, ServiceSharedFutureAndRequestId>> futures);
+  void init_pkg_mac_handler(const httplib::Request &req, httplib::Response &res);
+
+  // void dis_result_handler(std::vector<std::tuple<uint8_t, bool, ServiceSharedFutureAndRequestId>> futures);
 
   void logger_handler(const httplib::Request& req, const httplib::Response& res);
   void error_handler(const httplib::Request &req, httplib::Response &res);
@@ -155,13 +160,15 @@ private:
   bool init_httpsvr(void);
   bool init_httpcli(void);
   
-  bool get_material_box_info(nlohmann::json &body_json);
-  bool get_material_box_info_by_id(const httplib::Params &params, nlohmann::json &res_json);
+  bool get_mtrl_box_info(nlohmann::json &body_json);
+  bool get_mtrl_box_info_by_id(const httplib::Params &params, nlohmann::json &res_json);
   bool get_cells_info_by_id(const httplib::Params &params, nlohmann::json &res_json);
-  bool get_material_box_amt(nlohmann::json &res_json);
+  bool get_cell_info_by_id_and_cell_id(const httplib::Params &params, nlohmann::json &res_json);
+  bool get_mtrl_box_amt(nlohmann::json &res_json);
   bool new_order(const nlohmann::json &req_json, nlohmann::json &res_json);
   bool get_order_by_id(const httplib::Params &params, nlohmann::json &res_json);
-  bool dispense_result(const nlohmann::json &req_json, nlohmann::json &res_json);
+  bool dis_result(const nlohmann::json &req_json, nlohmann::json &res_json);
+  void dis_result_until_success(const nlohmann::json &req_json, nlohmann::json &res_json);
   bool health_check(nlohmann::json &res_json);
 
 protected:

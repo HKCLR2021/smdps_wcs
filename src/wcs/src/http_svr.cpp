@@ -11,15 +11,17 @@ bool ProdLineCtrl::init_httpsvr(void)
     httpsvr_->set_error_handler(std::bind(&ProdLineCtrl::error_handler, this, _1, _2));
     httpsvr_->set_exception_handler(std::bind(&ProdLineCtrl::exception_handler, this, _1, _2, _3));
     httpsvr_->set_pre_routing_handler(std::bind(&ProdLineCtrl::pre_routing_handler, this, _1, _2));
-    httpsvr_->set_payload_max_length(1024 * 1024 * 8); // 8MB
+    httpsvr_->set_payload_max_length(1024 * 1024 * 16); // 16MB
 
     httpsvr_->Get(from_url(health), std::bind(&ProdLineCtrl::health_handler, this, _1, _2));
-    httpsvr_->Post(from_url(abnormal_dispensation), std::bind(&ProdLineCtrl::abnormal_dispensation_handler, this, _1, _2, _3));
+    httpsvr_->Post(from_url(abnormal_dispensation), std::bind(&ProdLineCtrl::abnormal_dis_handler, this, _1, _2, _3));
     httpsvr_->Post(from_url(abnormal_device), std::bind(&ProdLineCtrl::abnormal_device_handler, this, _1, _2, _3));
-    httpsvr_->Post(from_url(dispense_request), std::bind(&ProdLineCtrl::dispense_request_handler, this, _1, _2, _3));
-    httpsvr_->Post(from_url(packaging_request), std::bind(&ProdLineCtrl::packaging_request_handler, this, _1, _2, _3));
-    httpsvr_->Get(from_url(packaging_info), std::bind(&ProdLineCtrl::packaging_info_handler, this, _1, _2));
-    httpsvr_->Post(from_url(order_completion), std::bind(&ProdLineCtrl::order_completion_handler, this, _1, _2, _3));
+    httpsvr_->Post(from_url(dispense_request), std::bind(&ProdLineCtrl::dis_req_handler, this, _1, _2, _3));
+    httpsvr_->Get(from_url(packaging_request), std::bind(&ProdLineCtrl::pkg_req_handler, this, _1, _2));
+    httpsvr_->Get(from_url(packaging_info), std::bind(&ProdLineCtrl::pkg_mac_info_handler, this, _1, _2));
+    httpsvr_->Post(from_url(order_completion), std::bind(&ProdLineCtrl::order_comp_handler, this, _1, _2, _3));
+    
+    httpsvr_->Get(from_url(init_pkg_mac), std::bind(&ProdLineCtrl::init_pkg_mac_handler, this, _1, _2));
 
     httpsvr_->Get(from_url(scanner + cleaning_mac_scan), std::bind(&ProdLineCtrl::scanner_handler, this, _1, _2, cleaning_mac_loc));
     httpsvr_->Get(from_url(scanner + mtrl_box_con_scan), std::bind(&ProdLineCtrl::scanner_handler, this, _1, _2, mtrl_box_con_loc));
@@ -76,7 +78,7 @@ void ProdLineCtrl::health_handler(
   res.set_content("OK", "text/plain");
 }
 
-void ProdLineCtrl::abnormal_dispensation_handler(
+void ProdLineCtrl::abnormal_dis_handler(
   const httplib::Request &req, 
   httplib::Response &res, 
   const httplib::ContentReader &ctx_reader)
@@ -148,26 +150,29 @@ void ProdLineCtrl::abnormal_device_handler(
     return true;
   });
 
+  nlohmann::json req_json;
   try 
   {
-    nlohmann::json req_json = nlohmann::json::parse(req_body);
+    req_json = nlohmann::json::parse(req_body);
     // TODO: Error msg
-
-    res_json["code"] = 200;
-    res_json["msg"] = "success";
-    res_json["instructionCode"] = 200;
-
-    RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
   } 
   catch (const std::exception &e) 
   {
     res_json["msg"] = "JSON parsing error";
+    res.set_content(res_json.dump(), "application/json");
+    return;
   }
+
+  res_json["code"] = 200;
+  res_json["msg"] = "success";
+  res_json["instructionCode"] = 0;
+
+  RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
   
   res.set_content(res_json.dump(), "application/json");
 }
 
-void ProdLineCtrl::dispense_request_handler(
+void ProdLineCtrl::dis_req_handler(
   const httplib::Request &req, 
   httplib::Response &res, 
   const httplib::ContentReader &ctx_reader)
@@ -211,7 +216,7 @@ void ProdLineCtrl::dispense_request_handler(
       DispenseContent msg;
       msg.unit_id = loc["dispenserUnit"];
       msg.amount = loc["amount"];
-      dis_req_ref->content.push_back(std::move(msg));
+      dis_req_ref->content.push_back(msg);
     } 
     else 
     {
@@ -219,31 +224,26 @@ void ProdLineCtrl::dispense_request_handler(
       DispenseContent msg;
       msg.unit_id = loc["dispenserUnit"];
       msg.amount = loc["amount"];
-      request->content.push_back(std::move(msg));
+      request->content.push_back(msg);
       dis_reqs[station_id] = request;
     }
   }
 
-  RCLCPP_DEBUG(this->get_logger(), "dis_reqs size: %ld", dis_reqs.size());
+  RCLCPP_INFO(this->get_logger(), "dis_reqs size: %ld", dis_reqs.size());
 
   auto dis_reqs_ptr = std::make_unique<decltype(dis_reqs)>(dis_reqs);
-  std::thread(std::bind(&ProdLineCtrl::dis_result_handler, this, *dis_reqs_ptr)).detach(); 
+  std::thread(std::bind(&ProdLineCtrl::dis_result_srv_handler, this, *dis_reqs_ptr)).detach(); 
 
   res_json["code"] = 200;
   res_json["msg"] = "success";
 
-  RCLCPP_DEBUG(this->get_logger(), "\n%s", req_body.c_str());
-
   res.set_content(res_json.dump(), "application/json");
 }
 
-void ProdLineCtrl::packaging_request_handler(
+void ProdLineCtrl::pkg_req_handler(
   const httplib::Request &req, 
-  httplib::Response &res,
-  const httplib::ContentReader &ctx_reader)
+  httplib::Response &res)
 {
-  (void)ctx_reader;
-
   nlohmann::json res_json = {
     { "code", 0 },
     { "msg", "failure" }
@@ -278,123 +278,128 @@ void ProdLineCtrl::packaging_request_handler(
 
   if (!req.has_param("materialBoxId"))
   {
-    res_json["msg"] = "materialBoxId is not found";
+    res_json["msg"] = "materialBoxId is missing";
     res.set_content(res_json.dump(), "application/json");
     return;
   } 
   
-  if (!is_number(req.get_param_value("materialBoxId")))
+  const auto val = req.get_param_value("materialBoxId");
+
+  if (!is_number(val))
   {
     res_json["msg"] = "materialBoxId is not a number";
     res.set_content(res_json.dump(), "application/json");
     return;
   }
 
-  std::thread print_srv_wait_thread_ = std::thread([this]() {
-    while (rclcpp::ok() && !printing_info_cli_->wait_for_service(std::chrono::seconds(1)))
-    {
-      RCLCPP_ERROR(this->get_logger(), "PrintingInfo Service not available, waiting again...");
-    }
-  });
+  // FIXME: for debugging only
+  res_json["code"] = 200;
+  res_json["msg"] = "success";
 
-  const auto val = req.get_param_value("materialBoxId");
-  const uint8_t id = static_cast<uint8_t>(stoi(val));
+  // std::thread print_srv_wait_thread_ = std::thread([this]() {
+  //   while (rclcpp::ok() && !printing_info_cli_->wait_for_service(std::chrono::seconds(1)))
+  //   {
+  //     RCLCPP_ERROR(this->get_logger(), "PrintingInfo Service not available, waiting again...");
+  //   }
+  // });
 
-  std::shared_ptr<PrintingOrder::Request> printing_info_srv_req = std::make_shared<PrintingOrder::Request>();
-  printing_info_srv_req->material_box_id = id;
+  // const uint8_t id = static_cast<uint8_t>(stoi(val));
 
-  std::shared_ptr<PrintingInfo> info = std::make_shared<PrintingInfo>();
+  // std::shared_ptr<PrintingOrder::Request> printing_info_srv_req = std::make_shared<PrintingOrder::Request>();
+  // printing_info_srv_req->material_box_id = id;
 
-  using ServiceResponseFuture = rclcpp::Client<PrintingOrder>::SharedFuture;
-  auto printing_res_received_cb = [this, info](ServiceResponseFuture future) {
-    auto srv_res = future.get();
-    if (srv_res && srv_res->success) 
-    {
-      *info = srv_res->info;
-      RCLCPP_INFO(this->get_logger(), "Inside the PrintingOrder Callback OK");
-    } else 
-    {
-      RCLCPP_ERROR(this->get_logger(), "Inside the PrintingOrder Callback NOT OK. message: %s", srv_res->message.c_str());
-    }
-  };
+  // std::shared_ptr<PrintingInfo> info = std::make_shared<PrintingInfo>();
 
-  if (print_srv_wait_thread_.joinable())
-    print_srv_wait_thread_.join();
+  // using ServiceResponseFuture = rclcpp::Client<PrintingOrder>::SharedFuture;
+  // auto printing_res_received_cb = [this, info](ServiceResponseFuture future) {
+  //   auto srv_res = future.get();
+  //   if (srv_res && srv_res->success) 
+  //   {
+  //     *info = srv_res->info;
+  //     RCLCPP_INFO(this->get_logger(), "Inside the PrintingOrder Callback OK");
+  //   } else 
+  //   {
+  //     RCLCPP_ERROR(this->get_logger(), "Inside the PrintingOrder Callback NOT OK. message: %s", srv_res->message.c_str());
+  //   }
+  // };
 
-  auto print_future = printing_info_cli_->async_send_request(printing_info_srv_req, printing_res_received_cb);
+  // if (print_srv_wait_thread_.joinable())
+  //   print_srv_wait_thread_.join();
 
-  std::future_status print_status = print_future.wait_for(500ms);
-  switch (print_status)
-  {
-  case std::future_status::ready:
-    break;
-  case std::future_status::timeout:
-    RCLCPP_ERROR(this->get_logger(), "PrintingOrder wait_for timeout");
-    return;
-  default: 
-    RCLCPP_ERROR(this->get_logger(), "PrintingOrder wait_for NOT OK");
-    return;
-  }
+  // auto print_future = printing_info_cli_->async_send_request(printing_info_srv_req, printing_res_received_cb);
 
-  std::thread pkg_srv_wait_thread_ = std::thread([this]() {
-    while (rclcpp::ok() && !pkg_order_cli_->wait_for_service(std::chrono::seconds(1))) 
-    {
-      RCLCPP_ERROR(this->get_logger(), "PackagingOrder Service not available, waiting again...");
-    }
-  });
+  // std::future_status print_status = print_future.wait_for(500ms);
+  // switch (print_status)
+  // {
+  // case std::future_status::ready:
+  //   break;
+  // case std::future_status::timeout:
+  //   RCLCPP_ERROR(this->get_logger(), "PrintingOrder wait_for timeout");
+  //   return;
+  // default: 
+  //   RCLCPP_ERROR(this->get_logger(), "PrintingOrder wait_for NOT OK");
+  //   return;
+  // }
 
-  std::shared_ptr<PackagingOrder::Request> pkg_order_srv_req = std::make_shared<PackagingOrder::Request>();
-  pkg_order_srv_req->order_id = 0;
-  pkg_order_srv_req->material_box_id = id;
-  pkg_order_srv_req->requester_id = 0;
+  // std::thread pkg_srv_wait_thread_ = std::thread([this]() {
+  //   while (rclcpp::ok() && !pkg_order_cli_->wait_for_service(std::chrono::seconds(1))) 
+  //   {
+  //     RCLCPP_ERROR(this->get_logger(), "PackagingOrder Service not available, waiting again...");
+  //   }
+  // });
 
-  for (size_t i = 0; i < info->slots.size(); ++i) 
-  {
-    pkg_order_srv_req->print_info[i].cn_name = info->patient_info.institute_name;
-    pkg_order_srv_req->print_info[i].en_name = info->patient_info.name;
-    pkg_order_srv_req->print_info[i].date = info->start_date; // FIXME
-    pkg_order_srv_req->print_info[i].time = info->start_time; // FIXME
-    pkg_order_srv_req->print_info[i].qr_code = info->qr_code;
-    pkg_order_srv_req->print_info[i].drugs = {"FIXME 1", "FIXME 2"};
-  }
+  // std::shared_ptr<PackagingOrder::Request> pkg_order_srv_req = std::make_shared<PackagingOrder::Request>();
+  // pkg_order_srv_req->order_id = 0;
+  // pkg_order_srv_req->material_box_id = id;
+  // pkg_order_srv_req->requester_id = 0;
 
-  using PkgServiceResponseFuture = rclcpp::Client<PackagingOrder>::SharedFuture;
-  auto packaging_res_received_cb = [this, &res_json](PkgServiceResponseFuture future) {
-    auto srv_res = future.get();
-    if (srv_res && srv_res->success)
-    {
-      res_json["code"] = 200;
-      res_json["msg"] = "success";
-      RCLCPP_DEBUG(this->get_logger(), "Inside the PrintingOrder Callback OK");
-    }
-    else
-    {
-      RCLCPP_ERROR(this->get_logger(), "Inside the PrintingOrder Callback NOT OK. message: %s", srv_res->message.c_str());
-    }
-  };
+  // for (size_t i = 0; i < info->slots.size(); ++i) 
+  // {
+  //   pkg_order_srv_req->print_info[i].cn_name = info->patient_info.institute_name;
+  //   pkg_order_srv_req->print_info[i].en_name = info->patient_info.name;
+  //   pkg_order_srv_req->print_info[i].date = info->start_date; // FIXME
+  //   pkg_order_srv_req->print_info[i].time = info->start_time; // FIXME
+  //   pkg_order_srv_req->print_info[i].qr_code = info->qr_code;
+  //   pkg_order_srv_req->print_info[i].drugs = {"FIXME 1", "FIXME 2"};
+  // }
 
-  if (pkg_srv_wait_thread_.joinable())
-    pkg_srv_wait_thread_.join();
+  // using PkgServiceResponseFuture = rclcpp::Client<PackagingOrder>::SharedFuture;
+  // auto packaging_res_received_cb = [this, &res_json](PkgServiceResponseFuture future) {
+  //   auto srv_res = future.get();
+  //   if (srv_res && srv_res->success)
+  //   {
+  //     res_json["code"] = 200;
+  //     res_json["msg"] = "success";
+  //     RCLCPP_DEBUG(this->get_logger(), "Inside the PrintingOrder Callback OK");
+  //   }
+  //   else
+  //   {
+  //     RCLCPP_ERROR(this->get_logger(), "Inside the PrintingOrder Callback NOT OK. message: %s", srv_res->message.c_str());
+  //   }
+  // };
+
+  // if (pkg_srv_wait_thread_.joinable())
+  //   pkg_srv_wait_thread_.join();
   
-  auto pkg_future = pkg_order_cli_->async_send_request(pkg_order_srv_req, packaging_res_received_cb);
+  // auto pkg_future = pkg_order_cli_->async_send_request(pkg_order_srv_req, packaging_res_received_cb);
 
-  std::future_status pkg_status = pkg_future.wait_for(500ms);
-  switch (pkg_status)
-  {
-  case std::future_status::ready:
-    break;
-  case std::future_status::timeout:
-    RCLCPP_ERROR(this->get_logger(), "PackagingOrder wait_for timeout");
-    return;
-  default: 
-    RCLCPP_ERROR(this->get_logger(), "PackagingOrder wait_for NOT OK");
-    return;
-  }
+  // std::future_status pkg_status = pkg_future.wait_for(500ms);
+  // switch (pkg_status)
+  // {
+  // case std::future_status::ready:
+  //   break;
+  // case std::future_status::timeout:
+  //   RCLCPP_ERROR(this->get_logger(), "PackagingOrder wait_for timeout");
+  //   return;
+  // default: 
+  //   RCLCPP_ERROR(this->get_logger(), "PackagingOrder wait_for NOT OK");
+  //   return;
+  // }
 
   res.set_content(res_json.dump(), "application/json");
 }
 
-void ProdLineCtrl::packaging_info_handler(
+void ProdLineCtrl::pkg_mac_info_handler(
   const httplib::Request &req, 
   httplib::Response &res)
 {
@@ -403,7 +408,7 @@ void ProdLineCtrl::packaging_info_handler(
   nlohmann::json res_json = {
     { "code", 0 },
     { "msg", "failure" },
-    {"packagingMachines", nlohmann::json::array()}
+    { "packagingMachines", nlohmann::json::array() }
   };
 
   std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
@@ -418,10 +423,45 @@ void ProdLineCtrl::packaging_info_handler(
     status_json["conveyorState"] = status_val.conveyor_state;
     status_json["canopenState"] = status_val.canopen_state;
 
-    res_json["packagingMachines"].push_back(std::move(status_json));
+    res_json["packagingMachines"].push_back(status_json);
   }
   lock.unlock();
   
+  res_json["code"] = 200;
+  res_json["msg"] = "success";
+
+  res.set_content(res_json.dump(), "application/json");
+}
+
+void ProdLineCtrl::init_pkg_mac_handler(
+  const httplib::Request &req, 
+  httplib::Response &res)
+{
+  (void)req;
+
+  nlohmann::json res_json = {
+    { "code", 0 },
+    { "msg", "failure" }
+  };
+
+  if (!req.has_param("packagingMachineId")) 
+  {
+    res_json["msg"] = "packagingMachineId is missing";
+    res.set_content(res_json.dump(), "application/json");
+    return;
+  }
+
+  const auto val = req.get_param_value("packagingMachineId");
+
+  if (!is_number(val)) 
+  {
+    res_json["msg"] = "packagingMachineId is not a number";
+    res.set_content(res_json.dump(), "application/json");
+    return;
+  }
+
+  const uint8_t pkg_mac_id = static_cast<uint8_t>(stoi(val));
+
   res_json["code"] = 200;
   res_json["msg"] = "success";
 
@@ -440,7 +480,7 @@ void ProdLineCtrl::scanner_handler(
 
   if (!req.has_param("materialBoxId")) 
   {
-    res_json["msg"] = "Parameter: materialBoxId is missing";
+    res_json["msg"] = "materialBoxId is missing";
     res.set_content(res_json.dump(), "application/json");
     return;
   }
@@ -468,7 +508,7 @@ void ProdLineCtrl::scanner_handler(
   res.set_content(res_json.dump(), "application/json");
 }
 
-void ProdLineCtrl::order_completion_handler(
+void ProdLineCtrl::order_comp_handler(
   const httplib::Request &req, 
   httplib::Response &res, 
   const httplib::ContentReader &ctx_reader)

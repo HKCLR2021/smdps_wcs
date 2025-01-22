@@ -227,24 +227,24 @@ void DispenserStationNode::create_sub_async()
       );
 
       create_monitored_item_async(response, running_id, "Running", status_->running);
-      create_monitored_item_async(response, paused_id, "Paused", status_->paused);
-      create_monitored_item_async(response, error_id, "Error", status_->error);
+      // create_monitored_item_async(response, paused_id, "Paused", status_->paused);
+      // create_monitored_item_async(response, error_id, "Error", status_->error);
 
 
-      for (size_t i = 0; i < NO_OF_UNITS; i++)
-      {
-        auto &unit_status = status_->unit_status[i];
+      // for (size_t i = 0; i < NO_OF_UNITS; i++)
+      // {
+      //   auto &unit_status = status_->unit_status[i];
 
-        create_monitored_item_async(response, unit_lack_id[i], "Unit" + std::to_string(i+1) + "Lack", unit_status.lack);
-        create_monitored_item_async(response, bin_opening_id[i], "Bin" + std::to_string(i+1) + "Opening", unit_status.bin_opening);
-        create_monitored_item_async(response, bin_opened_id[i], "Bin" + std::to_string(i+1) + "Opened", unit_status.bin_opened);
-        create_monitored_item_async(response, bin_closing_id[i], "Bin" + std::to_string(i+1) + "Closing", unit_status.bin_closing);
-        create_monitored_item_async(response, bin_closed_id[i], "Bin" + std::to_string(i+1) + "Closed", unit_status.bin_closed);
-        create_monitored_item_async(response, baffle_opening_id[i], "Baffle" + std::to_string(i+1) + "Opening", unit_status.baffle_opening);
-        create_monitored_item_async(response, baffle_opened_id[i], "Baffle" + std::to_string(i+1) + "Opened", unit_status.baffle_opened);
-        create_monitored_item_async(response, baffle_closing_id[i], "Baffle" + std::to_string(i+1) + "Closing", unit_status.baffle_closing);
-        create_monitored_item_async(response, baffle_closed_id[i], "Baffle" + std::to_string(i+1) + "Closed", unit_status.baffle_closed);
-      }
+      //   create_monitored_item_async(response, unit_lack_id[i], "Unit" + std::to_string(i+1) + "Lack", unit_status.lack);
+      //   create_monitored_item_async(response, bin_opening_id[i], "Bin" + std::to_string(i+1) + "Opening", unit_status.bin_opening);
+      //   create_monitored_item_async(response, bin_opened_id[i], "Bin" + std::to_string(i+1) + "Opened", unit_status.bin_opened);
+      //   create_monitored_item_async(response, bin_closing_id[i], "Bin" + std::to_string(i+1) + "Closing", unit_status.bin_closing);
+      //   create_monitored_item_async(response, bin_closed_id[i], "Bin" + std::to_string(i+1) + "Closed", unit_status.bin_closed);
+      //   create_monitored_item_async(response, baffle_opening_id[i], "Baffle" + std::to_string(i+1) + "Opening", unit_status.baffle_opening);
+      //   create_monitored_item_async(response, baffle_opened_id[i], "Baffle" + std::to_string(i+1) + "Opened", unit_status.baffle_opened);
+      //   create_monitored_item_async(response, baffle_closing_id[i], "Baffle" + std::to_string(i+1) + "Closing", unit_status.baffle_closing);
+      //   create_monitored_item_async(response, baffle_closed_id[i], "Baffle" + std::to_string(i+1) + "Closed", unit_status.baffle_closed);
+      // }
     }
   );
 

@@ -7,7 +7,7 @@ bool ProdLineCtrl::init_httpcli(void)
     const std::lock_guard<std::mutex> lock(mutex_);
     
     httpcli_ = std::make_shared<httplib::Client>(jinli_ip_, jinli_port_);
-    httpcli_->set_connection_timeout(0, 1000 * 3000); // 3000ms 
+    httpcli_->set_connection_timeout(0, 1000 * 500); // 500ms 
   }
   catch(const std::exception &e)
   {
@@ -23,7 +23,7 @@ bool ProdLineCtrl::init_httpcli(void)
   return true;
 }
 
-bool ProdLineCtrl::get_material_box_info(nlohmann::json &res_json)
+bool ProdLineCtrl::get_mtrl_box_info(nlohmann::json &res_json)
 {
   auto res = httpcli_->Get(mtrl_box_info_url);
   
@@ -40,7 +40,7 @@ bool ProdLineCtrl::get_material_box_info(nlohmann::json &res_json)
   return false;
 }
 
-bool ProdLineCtrl::get_material_box_info_by_id(const httplib::Params &params, nlohmann::json &res_json)
+bool ProdLineCtrl::get_mtrl_box_info_by_id(const httplib::Params &params, nlohmann::json &res_json)
 {
   httplib::Headers headers = {
     { "Content-Type", "text/plain" }
@@ -82,7 +82,28 @@ bool ProdLineCtrl::get_cells_info_by_id(const httplib::Params &params, nlohmann:
   return false;
 }
 
-bool ProdLineCtrl::get_material_box_amt(nlohmann::json &res_json)
+bool ProdLineCtrl::get_cell_info_by_id_and_cell_id(const httplib::Params &params, nlohmann::json &res_json)
+{
+  httplib::Headers headers = {
+    { "Content-Type", "text/plain" }
+  };
+
+  auto res = httpcli_->Get(cell_info_by_id_and_cell_id_url, params, headers);
+  
+  if (res && res->status == httplib::StatusCode::OK_200) 
+  {
+    RCLCPP_DEBUG(this->get_logger(), "%s OK", __FUNCTION__);
+    res_json = nlohmann::json::parse(res->body);
+    return true;
+  } 
+  
+  std::string msg = std::string(__FUNCTION__) + " error occurred. Error code: " + to_string(res.error());
+  res_json["msg"] = msg;
+  RCLCPP_ERROR(this->get_logger(), msg.c_str());
+  return false;
+}
+
+bool ProdLineCtrl::get_mtrl_box_amt(nlohmann::json &res_json)
 {
   auto res = httpcli_->Get(mtrl_box_amt_url);
   
@@ -142,7 +163,7 @@ bool ProdLineCtrl::get_order_by_id(const httplib::Params &params, nlohmann::json
   return false;
 }
 
-bool ProdLineCtrl::dispense_result(const nlohmann::json &req_json, nlohmann::json &res_json)
+bool ProdLineCtrl::dis_result(const nlohmann::json &req_json, nlohmann::json &res_json)
 {
   httplib::Headers headers = {
     { "Content-Type", "application/json" }

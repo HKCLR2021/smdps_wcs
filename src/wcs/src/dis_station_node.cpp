@@ -76,6 +76,8 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
 
+  initiate();
+
   RCLCPP_INFO(this->get_logger(), "OPCUA Server: %s", form_opcua_url().c_str());
   RCLCPP_INFO(this->get_logger(), "Dispenser Station Node [%d] is up", status_->id);
 }

@@ -36,10 +36,13 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
   srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   srv_cli_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   action_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  hc_timer_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  container_timer_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  mtrl_box_info_timer_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-  hc_timer_ = this->create_wall_timer(5s, std::bind(&ProdLineCtrl::hc_cb, this));
-  mtrl_box_amt_timer_ = this->create_wall_timer(5s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this));
-  mtrl_box_info_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this));
+  hc_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::hc_cb, this), hc_timer_cbg_);
+  mtrl_box_amt_timer_ = this->create_wall_timer(5s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this), container_timer_cbg_);
+  mtrl_box_info_timer_ = this->create_wall_timer(5s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this), mtrl_box_info_timer_cbg_);
 
   printing_info_cli_ = this->create_client<PrintingOrder>(
     "printing_order",
@@ -112,7 +115,7 @@ void ProdLineCtrl::hc_cb(void)
   Heartbeat msg;
   msg.state = health_check(res_json);
   msg.header.stamp = this->get_clock()->now();
-  RCLCPP_INFO(this->get_logger(), "jinli server is %s", msg.state ? "OK" : "ERROR");
+  RCLCPP_DEBUG(this->get_logger(), "jinli server is %s", msg.state ? "OK" : "ERROR");
   hc_pub_->publish(msg);
 }
 
@@ -120,71 +123,73 @@ void ProdLineCtrl::mtrl_box_amt_container_cb(void)
 {
   nlohmann::json res_json;
 
-  if (get_material_box_amt(res_json)) 
+  if (!get_mtrl_box_amt(res_json)) 
   {
-    RCLCPP_DEBUG(this->get_logger(), "\n%s", res_json.dump().c_str());
-    ContainerInfo msg;
-    msg.amount = static_cast<uint8_t>(res_json["amount"]);
-    msg.header.stamp = this->get_clock()->now();
-    mtrl_box_amt_pub_->publish(msg);
-  } 
+    RCLCPP_ERROR(this->get_logger(), "%s error ocurred", __FUNCTION__);
+    return;
+  }
+
+  RCLCPP_DEBUG(this->get_logger(), "\n%s", res_json.dump().c_str());
+  ContainerInfo msg;
+  msg.amount = static_cast<uint8_t>(res_json["amount"]);
+  msg.header.stamp = this->get_clock()->now();
+  mtrl_box_amt_pub_->publish(msg);
 }
 
 void ProdLineCtrl::mtrl_box_info_cb(void)
 {
   nlohmann::json res_json;
   
-  if (!get_material_box_info(res_json)) 
+  if (!get_mtrl_box_info(res_json)) 
   {
     RCLCPP_ERROR(this->get_logger(), "%s error ocurred", __FUNCTION__);
     return;
   }
 
-  RCLCPP_INFO(this->get_logger(), "\n%s", res_json.dump().c_str());
-
+  RCLCPP_DEBUG(this->get_logger(), "\n%s", res_json.dump().c_str());
+  
+  const std::string no_order = "0";
   for (const auto &mtrl_box : res_json["materialBoxs"])
   {
-    nlohmann::json mtrl_box_res_json;
-
-    const httplib::Params params = {
-      { "materialBoxId", mtrl_box["id"] },
-      { "isCompleted", "1" }
-    };
-
-    if (!get_cells_info_by_id(params, mtrl_box_res_json))
-    {
-      RCLCPP_ERROR(this->get_logger(), "%s had unknown error", __FUNCTION__);
-      return;
-    }
-
+    if (!no_order.compare(mtrl_box["orderId"].get<std::string>()))
+      continue;
+    
     MaterialBoxStatus msg;
-    if (msg.material_box.slots.size() != mtrl_box_res_json["cells"].size())
+    for (size_t i = 0; i < msg.material_box.slots.size(); i++) 
     {
-      RCLCPP_ERROR(this->get_logger(), "size not equal");
-      return;
+      nlohmann::json mtrl_box_cell_res_json;
+
+      const httplib::Params params = {
+        { "MaterialBoxId", std::to_string(mtrl_box["id"].get<int>()) },
+        { "cellId", std::to_string(i) }
+      };
+
+      if (!get_cell_info_by_id_and_cell_id(params, mtrl_box_cell_res_json))
+      {
+        RCLCPP_ERROR(this->get_logger(), "%s had unknown error", __FUNCTION__);
+        continue;
+      }
+
+      for (const auto &drug : mtrl_box_cell_res_json["cell"]["drugs"])
+      {
+        if (drug["isCompleted"].get<int>() != 0)
+        {
+          DispensingDetail dis_detail_msg;
+          for (const auto &location : drug["locations"]) // The length of locations must be 1
+          {
+            dis_detail_msg.location.dispenser_station = location["dispenserStation"].get<int>();
+            dis_detail_msg.location.dispenser_unit = location["dispenserUnit"].get<int>();
+          }
+          dis_detail_msg.amount = drug["amount"].get<int>();
+          msg.material_box.slots[i].dispensing_detail.push_back(dis_detail_msg);
+        }
+      }
     }
+    
     msg.header.stamp = this->get_clock()->now();
     msg.id = mtrl_box["id"];
     msg.location = mtrl_box["location"];
     msg.status = MaterialBoxStatus::STATUS_ERROR;
-    
-    for (size_t i = 0; i < mtrl_box_res_json["cells"].size(); i++)
-    {
-      MaterialBoxSlot slot;
-      for (const auto &drug : mtrl_box_res_json["cells"]["drugs"])
-      { 
-        DispensingDetail dis_detail_msg;
-        for (const auto &location : drug["locations"]) // The length of locations must be 1
-        {
-          dis_detail_msg.location.dispenser_station = location["dispenserStation"];
-          dis_detail_msg.location.dispenser_unit = location["dispenserUnit"];
-        }
-        dis_detail_msg.amount = drug["amount"];
-        slot.dispensing_detail.push_back(dis_detail_msg);
-      }
-      msg.material_box.slots[i] = slot;
-      RCLCPP_INFO(this->get_logger(), "a cell is added to msg, i: %ld", i);
-    }
 
     mtrl_box_status_pub_->publish(msg);
   }
@@ -196,7 +201,12 @@ void ProdLineCtrl::pkg_mac_status_cb(const PackagingMachineStatus::SharedPtr msg
   pkg_mac_status[msg->packaging_machine_id] = *msg;
 }
 
-void ProdLineCtrl::dis_result_handler(std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs)
+void ProdLineCtrl::init_pkg_mac_srv_handler(const uint8_t pkg_mac_id)
+{
+  RCLCPP_INFO(this->get_logger(), "Started to initiate the packaging machine [%d]", pkg_mac_id);
+}
+
+void ProdLineCtrl::dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs)
 {
   RCLCPP_DEBUG(this->get_logger(), "dis_reqs size: %ld", dis_reqs.size());
 
@@ -228,7 +238,7 @@ void ProdLineCtrl::dis_result_handler(std::map<uint8_t, std::shared_ptr<Dispense
     std::get<1>(tuple) = true;
   }
 
-  std::this_thread::sleep_for(1s);
+  std::this_thread::sleep_for(1.5s);
   
   for (const auto &tuple : futures_tuple)
   {
@@ -238,10 +248,19 @@ void ProdLineCtrl::dis_result_handler(std::map<uint8_t, std::shared_ptr<Dispense
     };
     nlohmann::json result_res_json;
 
-    std::thread(std::bind(&ProdLineCtrl::dispense_result, this, result_req_json, result_req_json)).detach(); 
+    std::thread(std::bind(&ProdLineCtrl::dis_result_until_success, this, result_req_json, result_req_json)).detach(); 
   }
   
   RCLCPP_DEBUG(this->get_logger(), "%s is done.", __FUNCTION__);
+}
+
+void ProdLineCtrl::dis_result_until_success(const nlohmann::json &req_json, nlohmann::json &res_json)
+{
+  while (rclcpp::ok() && !dis_result(req_json, res_json))
+  {
+    res_json.clear();
+    std::this_thread::sleep_for(100ms);
+  }
 }
 
 rclcpp_action::GoalResponse ProdLineCtrl::handle_goal(
@@ -291,6 +310,7 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
     {
       nlohmann::json _drug;
       _drug["amount"] = drugs_j.amount;
+      _drug["drugId"] = drugs_j.drug_id;
 
       for (const auto &location_j : drugs_j.locations)
       {
@@ -334,8 +354,8 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
     {"orderId", res_json["orderId"]}
   };
 
-  uint16_t retries = 0;
-  const uint16_t MAX_RETRY = 60; // FIXME
+  uint32_t retries = 0;
+  const uint32_t MAX_RETRY = 600; // FIXME: this unit is seconds
   rclcpp::Rate loop_rate(1s); 
 
   for (; retries < MAX_RETRY && rclcpp::ok(); ++retries) 
@@ -345,9 +365,10 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
 
     if (get_order_by_id(params, order_by_id_res_json))
     {
-      if (static_cast<int>(order_by_id_res_json["sortBoder"]["borderMaterialBoxId"]) != 0)
+      int id = order_by_id_res_json["materialBoxId"].get<int>();
+      if (id != 0)
       {
-        result->response.material_box_id = static_cast<int>(order_by_id_res_json["sortBoder"]["borderMaterialBoxId"]);
+        result->response.material_box_id = id;
         result->response.success = true;
         break;
       }
