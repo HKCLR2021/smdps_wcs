@@ -203,6 +203,8 @@ void ProdLineCtrl::dis_req_handler(
   catch (const std::exception &e) 
   {
     res_json["msg"] = "JSON parsing error";
+    res.set_content(res_json.dump(), "application/json");
+    return;
   }
 
   RCLCPP_INFO(this->get_logger(), "\n%s", req_body.c_str());
@@ -462,8 +464,42 @@ void ProdLineCtrl::init_pkg_mac_handler(
 
   const uint8_t pkg_mac_id = static_cast<uint8_t>(stoi(val));
 
-  res_json["code"] = 200;
-  res_json["msg"] = "success";
+  while (rclcpp::ok() && !init_pkg_mac_cli_[pkg_mac_id - 1]->wait_for_service(std::chrono::seconds(1))) 
+  {
+    RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine Service not available!");
+  }
+
+  std::shared_ptr<Trigger::Request> srv_req = std::make_shared<Trigger::Request>();
+
+  using ServiceResponseFuture = rclcpp::Client<Trigger>::SharedFuture;
+  auto res_received_cb = [this, &res_json](ServiceResponseFuture future) {
+    auto srv_res = future.get();
+    if (srv_res && srv_res->success)
+    {
+      res_json["code"] = 200;
+      res_json["msg"] = "success";
+      RCLCPP_DEBUG(this->get_logger(), "Inside the Init Packaging Machine Callback OK");
+    }
+    else
+    {
+      RCLCPP_ERROR(this->get_logger(), "Inside the Init Packaging Machine Callback NOT OK. message: %s", srv_res->message.c_str());
+    }
+  };
+  
+  auto future = init_pkg_mac_cli_[pkg_mac_id - 1]->async_send_request(srv_req, res_received_cb);
+
+  std::future_status status = future.wait_for(500ms);
+  switch (status)
+  {
+  case std::future_status::ready:
+    break;
+  case std::future_status::timeout:
+    RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine wait_for timeout");
+    return;
+  default: 
+    RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine wait_for NOT OK");
+    return;
+  }
 
   res.set_content(res_json.dump(), "application/json");
 }

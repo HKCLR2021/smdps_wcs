@@ -58,6 +58,22 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 
   for (size_t i = 0; i < no_of_dis_stations_; i++)
   {
+    auto tmp_cli = this->create_client<Trigger>(
+      "/packaging_machine_" + std::to_string(i + 1) + "/init_package_machine",
+      rmw_qos_profile_services_default,
+      srv_cli_cbg_
+    );
+
+    while (rclcpp::ok() && !tmp_cli->wait_for_service(std::chrono::seconds(1))) 
+    {
+      RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine Service not available!");
+    }
+
+    init_pkg_mac_cli_.push_back(tmp_cli);
+  }
+
+  for (size_t i = 0; i < no_of_dis_stations_; i++)
+  {
     auto tmp_cli = this->create_client<DispenseDrug>(
       "/dispenser_station_" + std::to_string(i + 1) + "/dispense_request",
       rmw_qos_profile_services_default,
@@ -248,10 +264,39 @@ void ProdLineCtrl::dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<Disp
     };
     nlohmann::json result_res_json;
 
-    std::thread(std::bind(&ProdLineCtrl::dis_result_until_success, this, result_req_json, result_req_json)).detach(); 
+    // std::thread(std::bind(&ProdLineCtrl::dis_result_until_success, this, result_req_json, result_req_json)).detach(); 
+    auto func = std::bind(&ProdLineCtrl::dis_result, this, _1, _2);
+    std::thread result_thread(
+      std::bind(&ProdLineCtrl::perform_until_success, 
+        this, 
+        std::cref(result_req_json), 
+        std::ref(result_res_json), 
+        std::ref(func)));
+    result_thread.detach(); 
   }
   
   RCLCPP_DEBUG(this->get_logger(), "%s is done.", __FUNCTION__);
+}
+
+void ProdLineCtrl::perform_until_success(
+  const nlohmann::json &req_json, 
+  nlohmann::json &res_json, 
+  std::function<bool(const nlohmann::json&, nlohmann::json&)> func) 
+{
+  while (rclcpp::ok() && !func(req_json, res_json)) 
+  {
+    res_json.clear();
+    std::this_thread::sleep_for(100ms);
+  }
+}
+
+void ProdLineCtrl::new_order_until_success(const nlohmann::json &req_json, nlohmann::json &res_json)
+{
+  while (rclcpp::ok() && !new_order(req_json, res_json))
+  {
+    res_json.clear();
+    std::this_thread::sleep_for(100ms);
+  }
 }
 
 void ProdLineCtrl::dis_result_until_success(const nlohmann::json &req_json, nlohmann::json &res_json)
@@ -334,19 +379,23 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
   RCLCPP_INFO(this->get_logger(), "A new order json is created. Set running to %s", running ? "true" : "false");
   RCLCPP_INFO(this->get_logger(), "\n%s", req_json.dump().c_str());
 
-  if (!new_order(req_json, res_json))
-  {
-    const std::string msg = "newOrder API is failed";
-    result->response.success = false;
-    result->response.message = msg;
+  auto func = std::bind(&ProdLineCtrl::new_order, this, _1, _2);
+  perform_until_success(req_json, res_json, func);
+  // new_order_until_success(req_json, res_json);
 
-    if (rclcpp::ok()) 
-    {
-      goal_handle->succeed(result);
-      RCLCPP_ERROR(this->get_logger(), msg.c_str());
-    }
-    return;
-  }
+  // if (!new_order(req_json, res_json))
+  // {
+  //   const std::string msg = "newOrder API is failed";
+  //   result->response.success = false;
+  //   result->response.message = msg;
+
+  //   if (rclcpp::ok()) 
+  //   {
+  //     goal_handle->succeed(result);
+  //     RCLCPP_ERROR(this->get_logger(), msg.c_str());
+  //   }
+  //   return;
+  // }
 
   RCLCPP_INFO(this->get_logger(), "A new order is sent, waiting for material box id...");
 

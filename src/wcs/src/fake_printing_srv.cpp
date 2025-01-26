@@ -18,6 +18,8 @@ public:
     service_ = this->create_service<PrintingOrder>(
       "printing_order",
       std::bind(&PrintingService::handle_service, this, std::placeholders::_1, std::placeholders::_2));
+    
+    RCLCPP_INFO(this->get_logger(), "fake_printing_srv is up.");
   }
 
 private:

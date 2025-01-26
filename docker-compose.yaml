@@ -1,0 +1,28 @@
+version: '3.7'
+  
+services:
+  smdps_sys:
+    image: ros2_humble_smdps_sys:v0
+    container_name: smdps_sys
+    hostname: smdps_sys
+    command: "ros2 launch wcs system_bringup.launch.py"
+    volumes:
+      - ./logs:/logs
+    restart: unless-stopped
+    networks:
+      smdps_network:
+        ipv4_address: 10.8.106.2
+    ports:
+      - "8000:8000/tcp"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 4096M
+
+networks:
+  smdps_network:
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.8.106.0/24

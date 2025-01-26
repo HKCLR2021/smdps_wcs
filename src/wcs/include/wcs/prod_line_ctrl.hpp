@@ -8,13 +8,15 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
-#include "std_msgs/msg/string.hpp"
-#include "std_msgs/msg/u_int8.hpp"
 
 #include "wcs/api_endpoints.hpp"
 #include "wcs/prod_line_ctrl.hpp"
 #include "httplib/httplib.h"
 #include "nlohmann/json.hpp"
+
+#include "std_msgs/msg/string.hpp"
+#include "std_msgs/msg/u_int8.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 #include "smdps_msgs/action/new_order.hpp"
 
@@ -45,6 +47,7 @@ using std::placeholders::_3;
 class ProdLineCtrl : public rclcpp::Node
 {
   using UInt8 = std_msgs::msg::UInt8;
+  using Trigger = std_srvs::srv::Trigger;
 
   using NewOrder = smdps_msgs::action::NewOrder;
   using ContainerInfo = smdps_msgs::msg::ContainerInfo;
@@ -106,6 +109,7 @@ private:
 
   rclcpp::Client<PrintingOrder>::SharedPtr printing_info_cli_;
   rclcpp::Client<PackagingOrder>::SharedPtr pkg_order_cli_;
+  std::vector<rclcpp::Client<Trigger>::SharedPtr> init_pkg_mac_cli_;
   std::vector<rclcpp::Client<DispenseDrug>::SharedPtr> dis_req_cli_;
 
   rclcpp_action::Server<NewOrder>::SharedPtr action_server_;
@@ -166,10 +170,16 @@ private:
   bool get_cell_info_by_id_and_cell_id(const httplib::Params &params, nlohmann::json &res_json);
   bool get_mtrl_box_amt(nlohmann::json &res_json);
   bool new_order(const nlohmann::json &req_json, nlohmann::json &res_json);
+  void new_order_until_success(const nlohmann::json &req_json, nlohmann::json &res_json);
   bool get_order_by_id(const httplib::Params &params, nlohmann::json &res_json);
   bool dis_result(const nlohmann::json &req_json, nlohmann::json &res_json);
   void dis_result_until_success(const nlohmann::json &req_json, nlohmann::json &res_json);
   bool health_check(nlohmann::json &res_json);
+
+  void perform_until_success(
+    const nlohmann::json &req_json, 
+    nlohmann::json &res_json, 
+    std::function<bool(const nlohmann::json&, nlohmann::json&)> func);
 
 protected:
   std::shared_ptr<httplib::Server> httpsvr_;

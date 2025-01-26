@@ -1,0 +1,20 @@
+FROM ros2_humble_smdps_dev:v0 
+
+EXPOSE 8000
+
+ENV WS_NAME=smdps_ws
+RUN mkdir -p /${WS_NAME}/src
+
+WORKDIR /${WS_NAME}
+
+COPY ./src ./src
+
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --symlink-install
+
+RUN mkdir -p /logs
+ENV ROS_LOG_DIR=/logs
+VOLUME [ "/logs" ]
+
+COPY --chmod=755 ./docker/entrypoint.sh /
+RUN dos2unix /entrypoint.sh 
+ENTRYPOINT [ "/entrypoint.sh" ]

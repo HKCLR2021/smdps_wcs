@@ -126,7 +126,7 @@ void DispenserStationNode::heartbeat_valid_cb(void)
 
   RCLCPP_DEBUG(this->get_logger(), "Read Heartbeat result with status code: %s, Data: %s", std::to_string(result.code()).c_str(), *val ? "true" : "false");
 
-  if (val && *val == status_->heartbeat) 
+  if (*val == status_->heartbeat) 
   {
     heartbeat_counter_++;
   } 
@@ -147,7 +147,7 @@ void DispenserStationNode::dis_req_handle(
   const std::shared_ptr<DispenseDrug::Request> req, 
   std::shared_ptr<DispenseDrug::Response> res)
 {
-  std::chrono::milliseconds freq = 200ms;
+  std::chrono::milliseconds freq = 250ms;
   rclcpp::Rate loop_rate(freq); 
 
   wait_for_opcua_connection(freq);

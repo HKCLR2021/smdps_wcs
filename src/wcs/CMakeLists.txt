@@ -21,6 +21,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(smdps_msgs REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(open62541pp REQUIRED)
@@ -41,6 +42,7 @@ ament_target_dependencies(prod_line_ctrl
   rclcpp 
   rclcpp_action
   std_msgs
+  std_srvs
   smdps_msgs
 )
 
