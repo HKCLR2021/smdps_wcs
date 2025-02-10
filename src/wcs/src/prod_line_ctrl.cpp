@@ -56,7 +56,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     srv_cli_cbg_
   );
 
-  for (size_t i = 0; i < no_of_dis_stations_; i++)
+  for (size_t i = 0; i < no_of_pkg_mac_; i++)
   {
     auto tmp_cli = this->create_client<Trigger>(
       "/packaging_machine_" + std::to_string(i + 1) + "/init_package_machine",
@@ -66,7 +66,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 
     while (rclcpp::ok() && !tmp_cli->wait_for_service(std::chrono::seconds(1))) 
     {
-      RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine Service not available!");
+      RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine Service not available!, i = %ld", i);
     }
 
     init_pkg_mac_cli_.push_back(tmp_cli);
@@ -258,21 +258,23 @@ void ProdLineCtrl::dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<Disp
   
   for (const auto &tuple : futures_tuple)
   {
-    nlohmann::json result_req_json = {
+    const nlohmann::json result_req_json = {
       { "dispenserStation", std::get<0>(tuple) },
       { "isCompleted", std::get<1>(tuple) ? 1 : 0 }
     };
     nlohmann::json result_res_json;
 
+    auto req_copy = result_req_json;
+    auto res_copy = result_res_json;
+
     // std::thread(std::bind(&ProdLineCtrl::dis_result_until_success, this, result_req_json, result_req_json)).detach(); 
+
     auto func = std::bind(&ProdLineCtrl::dis_result, this, _1, _2);
     std::thread result_thread(
-      std::bind(&ProdLineCtrl::perform_until_success, 
-        this, 
-        std::cref(result_req_json), 
-        std::ref(result_res_json), 
-        std::ref(func)));
-    result_thread.detach(); 
+      [this, req_copy, res_copy, func]() mutable {
+        this->perform_until_success(req_copy, res_copy, func);
+      });
+    result_thread.detach();
   }
   
   RCLCPP_DEBUG(this->get_logger(), "%s is done.", __FUNCTION__);

@@ -46,6 +46,20 @@ private:
 
     for (size_t i = 0; i < 28; i++) 
     {
+      if (i < 7)
+      {
+        MaterialBoxSlot slot;
+        Drug drug;
+        DrugLocation location;
+        location.dispenser_station = 4;
+        location.dispenser_unit = 5;
+        drug.amount = 1;
+        drug.name = "drug_name";
+        drug.drug_id = "drug_id";
+        drug.locations.push_back(location);
+        slot.drugs.push_back(drug);
+        goal_msg.request.material_box.slots[i] = slot;
+      }
       // if (i  == 0)
       // {
       //   MaterialBoxSlot slot;
@@ -244,76 +258,76 @@ private:
       // }
       // else
 
-      if (i < 6) 
-      {
-        MaterialBoxSlot slot;
-        Drug drug;
-        DrugLocation location;
-        location.dispenser_station = 1;
-        location.dispenser_unit = 5;
-        drug.amount = 1;
-        drug.name = "drug_name";
-        drug.drug_id = "drug_id";
-        drug.locations.push_back(location);
-        slot.drugs.push_back(drug);
-        goal_msg.request.material_box.slots[i] = slot;
-      }
-      else if(i >= 6 && i < 17) 
-      {
-        MaterialBoxSlot slot;
-        Drug drug;
-        DrugLocation location;
-        location.dispenser_station = 3;
-        location.dispenser_unit = 6;
-        drug.amount = 1;
-        drug.name = "drug_name";
-        drug.drug_id = "drug_id";
-        drug.locations.push_back(location);
-        slot.drugs.push_back(drug);
-        goal_msg.request.material_box.slots[i] = slot;
-      }
-      else if (i >= 17 && i < 20)
-      {
-        MaterialBoxSlot slot;
-        Drug drug;
-        DrugLocation location;
-        location.dispenser_station = 10;
-        location.dispenser_unit = 3;
-        drug.amount = 1;
-        drug.name = "drug_name";
-        drug.drug_id = "drug_id";
-        drug.locations.push_back(location);
-        slot.drugs.push_back(drug);
-        goal_msg.request.material_box.slots[i] = slot;
-      }
-      else if (i >= 20 && i < 25)
-      {
-        MaterialBoxSlot slot;
-        Drug drug;
-        DrugLocation location;
-        location.dispenser_station = 12;
-        location.dispenser_unit = 7;
-        drug.amount = 1;
-        drug.name = "drug_name";
-        drug.drug_id = "drug_id";
-        drug.locations.push_back(location);
-        slot.drugs.push_back(drug);
-        goal_msg.request.material_box.slots[i] = slot;
-      }
-      else if (i >= 25 && i < 28)
-      {
-        MaterialBoxSlot slot;
-        Drug drug;
-        DrugLocation location;
-        location.dispenser_station = 12;
-        location.dispenser_unit = 7;
-        drug.amount = 1;
-        drug.name = "drug_name";
-        drug.drug_id = "drug_id";
-        drug.locations.push_back(location);
-        slot.drugs.push_back(drug);
-        goal_msg.request.material_box.slots[i] = slot;
-      }
+      // if (i < 6) 
+      // {
+      //   MaterialBoxSlot slot;
+      //   Drug drug;
+      //   DrugLocation location;
+      //   location.dispenser_station = 1;
+      //   location.dispenser_unit = 5;
+      //   drug.amount = 1;
+      //   drug.name = "drug_name";
+      //   drug.drug_id = "drug_id";
+      //   drug.locations.push_back(location);
+      //   slot.drugs.push_back(drug);
+      //   goal_msg.request.material_box.slots[i] = slot;
+      // }
+      // else if(i >= 6 && i < 17) 
+      // {
+      //   MaterialBoxSlot slot;
+      //   Drug drug;
+      //   DrugLocation location;
+      //   location.dispenser_station = 3;
+      //   location.dispenser_unit = 6;
+      //   drug.amount = 1;
+      //   drug.name = "drug_name";
+      //   drug.drug_id = "drug_id";
+      //   drug.locations.push_back(location);
+      //   slot.drugs.push_back(drug);
+      //   goal_msg.request.material_box.slots[i] = slot;
+      // }
+      // else if (i >= 17 && i < 20)
+      // {
+      //   MaterialBoxSlot slot;
+      //   Drug drug;
+      //   DrugLocation location;
+      //   location.dispenser_station = 10;
+      //   location.dispenser_unit = 3;
+      //   drug.amount = 1;
+      //   drug.name = "drug_name";
+      //   drug.drug_id = "drug_id";
+      //   drug.locations.push_back(location);
+      //   slot.drugs.push_back(drug);
+      //   goal_msg.request.material_box.slots[i] = slot;
+      // }
+      // else if (i >= 20 && i < 25)
+      // {
+      //   MaterialBoxSlot slot;
+      //   Drug drug;
+      //   DrugLocation location;
+      //   location.dispenser_station = 12;
+      //   location.dispenser_unit = 7;
+      //   drug.amount = 1;
+      //   drug.name = "drug_name";
+      //   drug.drug_id = "drug_id";
+      //   drug.locations.push_back(location);
+      //   slot.drugs.push_back(drug);
+      //   goal_msg.request.material_box.slots[i] = slot;
+      // }
+      // else if (i >= 25 && i < 28)
+      // {
+      //   MaterialBoxSlot slot;
+      //   Drug drug;
+      //   DrugLocation location;
+      //   location.dispenser_station = 12;
+      //   location.dispenser_unit = 7;
+      //   drug.amount = 1;
+      //   drug.name = "drug_name";
+      //   drug.drug_id = "drug_id";
+      //   drug.locations.push_back(location);
+      //   slot.drugs.push_back(drug);
+      //   goal_msg.request.material_box.slots[i] = slot;
+      // }
 
     }
 

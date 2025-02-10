@@ -5,12 +5,12 @@ def generate_launch_description():
     ld = LaunchDescription()
     
     NUMBER_OF_DISPENSER_STATION = 14
-    NUMBER_OF_PACKAGING_MACHINE = 1
+    NUMBER_OF_PACKAGING_MACHINE = 2
 
     HKCLR_IP = "172.17.0.2"
     # HKCLR_IP = "172.19.46.74" # debug IP
     HKCLR_PORT = 8000
-    JINLI_IP = "192.168.8.210"
+    JINLI_IP = "192.168.8.51"
     JINLI_PORT = 8080
 
     IP_PREFIX = "192.168.8."
