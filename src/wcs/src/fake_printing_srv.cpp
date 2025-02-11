@@ -38,7 +38,7 @@ private:
       drug.drug_id = "id " + std::to_string(i);
       drug.amount = 1;
       drug.name = "fake drug"; 
-      response->info.slots[i].drugs.push_back(std::move(drug));
+      response->info.slots[i].drugs.push_back(drug);
     }
 
     response->success = true;

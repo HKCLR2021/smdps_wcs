@@ -9,7 +9,7 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone --recurse-submodules -j8 https://github.com/samkwok-hkclr/smdps_ws
+git clone --recurse-submodules https://github.com/samkwok-hkclr/smdps_ws
 ```
 
 ### 2. Build the Docker images

@@ -10,7 +10,7 @@ def generate_launch_description():
     HKCLR_IP = "172.17.0.2"
     # HKCLR_IP = "172.19.46.74" # debug IP
     HKCLR_PORT = 8000
-    JINLI_IP = "192.168.8.51"
+    JINLI_IP = "192.168.8.211"
     JINLI_PORT = 8080
 
     IP_PREFIX = "192.168.8."

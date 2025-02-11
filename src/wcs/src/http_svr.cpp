@@ -294,109 +294,135 @@ void ProdLineCtrl::pkg_req_handler(
     return;
   }
 
-  // FIXME: for debugging only
-  res_json["code"] = 200;
-  res_json["msg"] = "success";
+  const uint8_t id = static_cast<uint8_t>(stoi(val));
 
-  // std::thread print_srv_wait_thread_ = std::thread([this]() {
-  //   while (rclcpp::ok() && !printing_info_cli_->wait_for_service(std::chrono::seconds(1)))
-  //   {
-  //     RCLCPP_ERROR(this->get_logger(), "PrintingInfo Service not available, waiting again...");
-  //   }
-  // });
+  std::thread print_srv_wait_thread_ = std::thread([this]() {
+    while (rclcpp::ok() && !printing_info_cli_->wait_for_service(std::chrono::seconds(1)))
+    {
+      RCLCPP_ERROR(this->get_logger(), "PrintingInfo Service not available, waiting again...");
+    }
+  });
 
-  // const uint8_t id = static_cast<uint8_t>(stoi(val));
+  std::shared_ptr<PrintingOrder::Request> printing_info_srv_req = std::make_shared<PrintingOrder::Request>();
+  printing_info_srv_req->material_box_id = id;
 
-  // std::shared_ptr<PrintingOrder::Request> printing_info_srv_req = std::make_shared<PrintingOrder::Request>();
-  // printing_info_srv_req->material_box_id = id;
+  std::shared_ptr<PrintingInfo> info = std::make_shared<PrintingInfo>();
 
-  // std::shared_ptr<PrintingInfo> info = std::make_shared<PrintingInfo>();
+  using ServiceResponseFuture = rclcpp::Client<PrintingOrder>::SharedFuture;
+  auto printing_res_received_cb = [this, info](ServiceResponseFuture future) {
+    auto srv_res = future.get();
+    if (srv_res && srv_res->success) 
+    {
+      *info = srv_res->info;
+      RCLCPP_INFO(this->get_logger(), "Inside the PrintingOrder Callback OK");
+    } else 
+    {
+      RCLCPP_ERROR(this->get_logger(), "Inside the PrintingOrder Callback NOT OK. message: %s", srv_res->message.c_str());
+    }
+  };
 
-  // using ServiceResponseFuture = rclcpp::Client<PrintingOrder>::SharedFuture;
-  // auto printing_res_received_cb = [this, info](ServiceResponseFuture future) {
-  //   auto srv_res = future.get();
-  //   if (srv_res && srv_res->success) 
-  //   {
-  //     *info = srv_res->info;
-  //     RCLCPP_INFO(this->get_logger(), "Inside the PrintingOrder Callback OK");
-  //   } else 
-  //   {
-  //     RCLCPP_ERROR(this->get_logger(), "Inside the PrintingOrder Callback NOT OK. message: %s", srv_res->message.c_str());
-  //   }
-  // };
+  if (print_srv_wait_thread_.joinable())
+    print_srv_wait_thread_.join();
 
-  // if (print_srv_wait_thread_.joinable())
-  //   print_srv_wait_thread_.join();
+  auto print_future = printing_info_cli_->async_send_request(printing_info_srv_req, printing_res_received_cb);
 
-  // auto print_future = printing_info_cli_->async_send_request(printing_info_srv_req, printing_res_received_cb);
+  std::future_status print_status = print_future.wait_for(500ms);
+  switch (print_status)
+  {
+  case std::future_status::ready:
+    break;
+  case std::future_status::timeout:
+    res_json["msg"] = "print_future timeout";
+    RCLCPP_ERROR(this->get_logger(), "PrintingOrder wait_for timeout");
+    return;
+  case std::future_status::deferred: 
+    res_json["msg"] = "print_future deferred";
+    RCLCPP_ERROR(this->get_logger(), "PrintingOrder wait_for deferred");
+    return;
+  }
 
-  // std::future_status print_status = print_future.wait_for(500ms);
-  // switch (print_status)
-  // {
-  // case std::future_status::ready:
-  //   break;
-  // case std::future_status::timeout:
-  //   RCLCPP_ERROR(this->get_logger(), "PrintingOrder wait_for timeout");
-  //   return;
-  // default: 
-  //   RCLCPP_ERROR(this->get_logger(), "PrintingOrder wait_for NOT OK");
-  //   return;
-  // }
+  if (print_status != std::future_status::ready)
+  {
+    res.set_content(res_json.dump(), "application/json");
+    return;
+  }
 
-  // std::thread pkg_srv_wait_thread_ = std::thread([this]() {
-  //   while (rclcpp::ok() && !pkg_order_cli_->wait_for_service(std::chrono::seconds(1))) 
-  //   {
-  //     RCLCPP_ERROR(this->get_logger(), "PackagingOrder Service not available, waiting again...");
-  //   }
-  // });
+  std::thread pkg_srv_wait_thread_ = std::thread([this]() {
+    while (rclcpp::ok() && !pkg_order_cli_->wait_for_service(std::chrono::seconds(1))) 
+    {
+      RCLCPP_ERROR(this->get_logger(), "PackagingOrder Service not available, waiting again...");
+    }
+  });
 
-  // std::shared_ptr<PackagingOrder::Request> pkg_order_srv_req = std::make_shared<PackagingOrder::Request>();
-  // pkg_order_srv_req->order_id = 0;
-  // pkg_order_srv_req->material_box_id = id;
-  // pkg_order_srv_req->requester_id = 0;
-
-  // for (size_t i = 0; i < info->slots.size(); ++i) 
-  // {
-  //   pkg_order_srv_req->print_info[i].cn_name = info->patient_info.institute_name;
-  //   pkg_order_srv_req->print_info[i].en_name = info->patient_info.name;
-  //   pkg_order_srv_req->print_info[i].date = info->start_date; // FIXME
-  //   pkg_order_srv_req->print_info[i].time = info->start_time; // FIXME
-  //   pkg_order_srv_req->print_info[i].qr_code = info->qr_code;
-  //   pkg_order_srv_req->print_info[i].drugs = {"FIXME 1", "FIXME 2"};
-  // }
-
-  // using PkgServiceResponseFuture = rclcpp::Client<PackagingOrder>::SharedFuture;
-  // auto packaging_res_received_cb = [this, &res_json](PkgServiceResponseFuture future) {
-  //   auto srv_res = future.get();
-  //   if (srv_res && srv_res->success)
-  //   {
-  //     res_json["code"] = 200;
-  //     res_json["msg"] = "success";
-  //     RCLCPP_DEBUG(this->get_logger(), "Inside the PrintingOrder Callback OK");
-  //   }
-  //   else
-  //   {
-  //     RCLCPP_ERROR(this->get_logger(), "Inside the PrintingOrder Callback NOT OK. message: %s", srv_res->message.c_str());
-  //   }
-  // };
-
-  // if (pkg_srv_wait_thread_.joinable())
-  //   pkg_srv_wait_thread_.join();
+  std::shared_ptr<PackagingOrder::Request> pkg_order_srv_req = std::make_shared<PackagingOrder::Request>();
+  pkg_order_srv_req->order_id = this->get_clock()->now().nanoseconds() / 1000000;
+  pkg_order_srv_req->material_box_id = id;
+  pkg_order_srv_req->requester_id = 1234;
   
-  // auto pkg_future = pkg_order_cli_->async_send_request(pkg_order_srv_req, packaging_res_received_cb);
+  for (size_t i = 0; i < info->slots.size(); ++i) 
+  {
+    nlohmann::json mtrl_box_cell_res_json;
 
-  // std::future_status pkg_status = pkg_future.wait_for(500ms);
-  // switch (pkg_status)
-  // {
-  // case std::future_status::ready:
-  //   break;
-  // case std::future_status::timeout:
-  //   RCLCPP_ERROR(this->get_logger(), "PackagingOrder wait_for timeout");
-  //   return;
-  // default: 
-  //   RCLCPP_ERROR(this->get_logger(), "PackagingOrder wait_for NOT OK");
-  //   return;
-  // }
+    const httplib::Params params = {
+      { "MaterialBoxId", std::to_string(id) },
+      { "cellId", std::to_string(i) }
+    };
+
+    // if (!get_cell_info_by_id_and_cell_id(params, mtrl_box_cell_res_json))
+    // {
+    //   RCLCPP_ERROR(this->get_logger(), "%s had unknown error", __FUNCTION__);
+    //   continue;
+    // }
+
+    // if (mtrl_box_cell_res_json["cell"]["drugs"]["isCompleted"] == 0)
+    //   continue;
+
+    pkg_order_srv_req->print_info[i].cn_name = info->patient_info.institute_name;
+    pkg_order_srv_req->print_info[i].en_name = info->patient_info.name;
+    pkg_order_srv_req->print_info[i].date = info->start_date;
+    pkg_order_srv_req->print_info[i].time = info->start_time;
+    pkg_order_srv_req->print_info[i].qr_code = info->qr_code;
+
+    // for (const auto &drug : mtrl_box_cell_res_json["cell"]["drugs"])
+    // {
+    //   pkg_order_srv_req->print_info[i].drugs.push_back("XXXX --- " + std::to_string(drug["amount"].get<int>()) + "EA");
+    // }
+  }
+
+  using PkgServiceResponseFuture = rclcpp::Client<PackagingOrder>::SharedFuture;
+  auto packaging_res_received_cb = [this, &res_json](PkgServiceResponseFuture future) {
+    auto srv_res = future.get();
+    if (srv_res && srv_res->success)
+    {
+      res_json["code"] = 200;
+      res_json["msg"] = "success";
+      RCLCPP_DEBUG(this->get_logger(), "Inside the PrintingOrder Callback OK");
+    }
+    else
+    {
+      RCLCPP_ERROR(this->get_logger(), "Inside the PrintingOrder Callback NOT OK. message: %s", srv_res->message.c_str());
+    }
+  };
+
+  if (pkg_srv_wait_thread_.joinable())
+    pkg_srv_wait_thread_.join();
+  
+  auto pkg_future = pkg_order_cli_->async_send_request(pkg_order_srv_req, packaging_res_received_cb);
+
+  std::future_status pkg_status = pkg_future.wait_for(500ms);
+  switch (pkg_status)
+  {
+  case std::future_status::ready:
+    break;
+  case std::future_status::timeout:
+    res_json["msg"] = "pkg_future timeout";
+    RCLCPP_ERROR(this->get_logger(), "PackagingOrder wait_for timeout");
+    break;
+  case std::future_status::deferred: 
+    res_json["msg"] = "pkg_future deferred";
+    RCLCPP_ERROR(this->get_logger(), "PackagingOrder wait_for deferred");
+    break;
+  }
 
   res.set_content(res_json.dump(), "application/json");
 }
@@ -496,8 +522,8 @@ void ProdLineCtrl::init_pkg_mac_handler(
   case std::future_status::timeout:
     RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine wait_for timeout");
     return;
-  default: 
-    RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine wait_for NOT OK");
+  case std::future_status::deferred: 
+    RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine wait_for deferred");
     return;
   }
 
@@ -536,7 +562,7 @@ void ProdLineCtrl::scanner_handler(
   msg.material_box_id = mtrl_box_id;
   msg.location = location;
   msg.header.stamp = this->get_clock()->now();
-  cleaning_mac_scan_pub_->publish(msg);
+  scan_pub_->publish(msg);
 
   res_json["code"] = 200;
   res_json["msg"] = "success";

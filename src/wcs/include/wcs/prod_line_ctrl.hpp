@@ -101,7 +101,7 @@ private:
   rclcpp::Publisher<Heartbeat>::SharedPtr hc_pub_;
   rclcpp::Publisher<ContainerInfo>::SharedPtr mtrl_box_amt_pub_;
   rclcpp::Publisher<DispensingError>::SharedPtr dis_err_pub_;
-  rclcpp::Publisher<ScannerTrigger>::SharedPtr cleaning_mac_scan_pub_;
+  rclcpp::Publisher<ScannerTrigger>::SharedPtr scan_pub_;
   rclcpp::Publisher<OrderCompletion>::SharedPtr order_compl_pub_;
   rclcpp::Publisher<MaterialBoxStatus>::SharedPtr mtrl_box_status_pub_;
 

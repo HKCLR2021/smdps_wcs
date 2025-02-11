@@ -23,7 +23,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 
   hc_pub_ = this->create_publisher<Heartbeat>("jinli_heartbeat", 10);
   dis_err_pub_ = this->create_publisher<DispensingError>("dispensing_error", 10);
-  cleaning_mac_scan_pub_ = this->create_publisher<ScannerTrigger>("scanner_trigger", 10);
+  scan_pub_ = this->create_publisher<ScannerTrigger>("scanner_trigger", 10);
   order_compl_pub_ = this->create_publisher<OrderCompletion>("order_completion", 10);
   mtrl_box_amt_pub_ = this->create_publisher<ContainerInfo>("container_info", 10);
   mtrl_box_status_pub_ = this->create_publisher<MaterialBoxStatus>("material_box_status", 10);
