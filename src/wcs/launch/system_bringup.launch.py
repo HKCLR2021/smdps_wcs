@@ -10,7 +10,7 @@ def generate_launch_description():
     HKCLR_IP = "172.17.0.2"
     # HKCLR_IP = "172.19.46.74" # debug IP
     HKCLR_PORT = 8000
-    JINLI_IP = "192.168.8.211"
+    JINLI_IP = "192.168.8.51"
     JINLI_PORT = 8080
 
     IP_PREFIX = "192.168.8."
@@ -21,14 +21,14 @@ def generate_launch_description():
             package="wcs",
             namespace=f"dispenser_station_{i + 1}",
             executable="dis_station_node",
-            # name=f"packaging_machine_node_{i}",
+            name="dis_sta_node",
             parameters=[
                 {"id": i + 1},
                 {"ip": IP_PREFIX + str(100 + i + 1)}, 
                 {"port": OPCUA_PORT},
             ],
             respawn=True,
-            respawn_delay=1,
+            respawn_delay=2.0,
             output="screen",
           )
         ld.add_action(node)
@@ -36,7 +36,7 @@ def generate_launch_description():
     prod_line_ctrl = Node(
         package="wcs",
         executable="prod_line_ctrl",
-        # name="prod_line_ctrl",
+        name="prod_line_ctrl",
         parameters=[
             {"hkclr_ip": HKCLR_IP},
             {"hkclr_port": HKCLR_PORT},
@@ -50,7 +50,5 @@ def generate_launch_description():
         output="screen",
       )
     ld.add_action(prod_line_ctrl)
-
-
 
     return ld

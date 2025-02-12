@@ -7,7 +7,7 @@ bool ProdLineCtrl::init_httpcli(void)
     const std::lock_guard<std::mutex> lock(mutex_);
     
     httpcli_ = std::make_shared<httplib::Client>(jinli_ip_, jinli_port_);
-    httpcli_->set_connection_timeout(0, 1000 * 500); // 500ms 
+    httpcli_->set_connection_timeout(0, 1000 * 200); // 200ms 
   }
   catch(const std::exception &e)
   {

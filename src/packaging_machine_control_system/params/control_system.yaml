@@ -1,0 +1,24 @@
+manager:
+  ros__parameters:
+    to_be_done: 0 # No parameters
+
+/**/pkg_mac_node:
+  ros__parameters:
+    # the index of the list below is representing that ID
+    default_states: [1, 1] # IDLE = 1, BUSY = 2, ERROR = 4
+    ports: [6, 5] # physical port of USB
+    
+    vendor_id: 0x471
+    product_id: 0x55
+    serial: "0003B0000000"
+    endpoint_in: 0x82
+    endpoint_out: 0x02
+    timeout: 1000
+    dots_per_mm: 12
+    direction: 0
+    total: 0
+    interval: 1000
+    offset_x: False
+    offset_y: False
+
+    simulation: False

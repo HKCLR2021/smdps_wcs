@@ -1,28 +1,80 @@
-version: '3.7'
-  
+version: "3.8"
+
+x-common-variables: &common-variables
+  NO_OF_DIS_STA: 14
+  NO_OF_PKG_MAC: 2
+
 services:
-  smdps_sys:
-    image: ros2_humble_smdps_sys:v0
-    container_name: smdps_sys
-    hostname: smdps_sys
-    command: "ros2 launch wcs system_bringup.launch.py"
+  pkg_mac_comm:
+    image: ros2_humble_pkg_sys:v0
+    container_name: pkg_mac_comm
+    hostname: pkg_mac_comm
+    command: ["sh", "-c", "ros2 launch packaging_machine_comm futian_setup.launch.py"]
     volumes:
       - ./logs:/logs
     restart: unless-stopped
-    networks:
-      smdps_network:
-        ipv4_address: 10.8.106.2
-    ports:
-      - "8000:8000/tcp"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 4096M
+    network_mode: host
+  
+  pkg_mac_manager:
+    image: ros2_humble_pkg_sys:v0
+    container_name: pkg_mac_manager
+    hostname: pkg_mac_manager
+    depends_on:
+      - pkg_mac_comm
+    environment: *common-variables
+    command: ["sh", "-c", "ros2 launch packaging_machine_control_system manager.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
+    volumes:
+      - ./logs:/logs
+    restart: unless-stopped
+    network_mode: host
 
-networks:
-  smdps_network:
-    ipam:
-      driver: default
-      config:
-        - subnet: 10.8.106.0/24
+  pkg_macs:
+    image: ros2_humble_pkg_sys:v0
+    container_name: pkg_macs
+    hostname: pkg_macs
+    depends_on:
+      - pkg_mac_comm
+    environment: *common-variables
+    command: ["sh", "-c", "ros2 launch packaging_machine_control_system pkg_mac.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
+    privileged: true
+    volumes:
+      - ./logs:/logs
+      - /dev/bus:/dev/bus
+      - /dev/serial:/dev/serial
+    restart: unless-stopped
+    network_mode: host
+
+  pkg_mac_bridge:
+    image: ros2_humble_pkg_sys:v0
+    container_name: pkg_mac_bridge
+    hostname: pkg_mac_bridge
+    depends_on:
+      - pkg_mac_comm
+      - pkg_mac_manager
+      - pkg_macs
+    command: ["sh", "-c", "ros2 launch rosbridge_server rosbridge_websocket_launch.xml"]
+    network_mode: host
+    volumes:
+      - ./logs:/logs
+    restart: unless-stopped
+
+  smdps:
+    image: ros2_humble_smdps_sys:v0
+    container_name: smdps
+    hostname: smdps
+    depends_on:
+      - pkg_mac_manager
+      - pkg_macs
+    environment: *common-variables
+    command: ["sh", "-c", "ros2 launch wcs bringup.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
+    volumes:
+      - ./logs:/logs
+    restart: unless-stopped
+    network_mode: host
+
+# networks:
+#   smdps_network:
+#     ipam:
+#       driver: default
+#       config:
+#         - subnet: 10.8.106.0/24

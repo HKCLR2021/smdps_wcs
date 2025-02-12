@@ -6,15 +6,26 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   cli_started_(std::atomic<bool>{false})
 {
   this->declare_parameter<uint8_t>("id", 0);
-  this->declare_parameter<std::string>("ip", "");
+  this->declare_parameter<std::string>("ip_start", "");
   this->declare_parameter<std::string>("port", "");
   this->declare_parameter<bool>("simulation", false);
 
+  std::string ip_start;
+
   this->get_parameter("id", status_->id);
-  this->get_parameter("ip", ip_);
+  this->get_parameter("ip_start", ip_start);
   this->get_parameter("port", port_);
   this->get_parameter("simulation", sim_);
 
+  size_t last_dot_pos = ip_start.rfind(".");
+  if (last_dot_pos != std::string::npos)
+  {
+    std::string last_octet_str = ip_start.substr(last_dot_pos + 1);
+    int last_octet = std::stoi(last_octet_str);
+    last_octet += status_->id;
+    ip_ = ip_start.substr(0, last_dot_pos + 1) + std::to_string(last_octet);
+  }
+ 
   for (size_t i = 0; i < status_->unit_status.size(); i++)
   {
     status_->unit_status[i].id = i + 1;

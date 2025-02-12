@@ -69,7 +69,6 @@ void ProdLineCtrl::start_http_server(void)
   }
 }
 
-
 void ProdLineCtrl::health_handler(
   const httplib::Request &req, 
   httplib::Response &res)
@@ -358,7 +357,7 @@ void ProdLineCtrl::pkg_req_handler(
   pkg_order_srv_req->order_id = this->get_clock()->now().nanoseconds() / 1000000;
   pkg_order_srv_req->material_box_id = id;
   pkg_order_srv_req->requester_id = 1234;
-  
+
   for (size_t i = 0; i < info->slots.size(); ++i) 
   {
     nlohmann::json mtrl_box_cell_res_json;
@@ -368,14 +367,17 @@ void ProdLineCtrl::pkg_req_handler(
       { "cellId", std::to_string(i) }
     };
 
-    // if (!get_cell_info_by_id_and_cell_id(params, mtrl_box_cell_res_json))
-    // {
-    //   RCLCPP_ERROR(this->get_logger(), "%s had unknown error", __FUNCTION__);
-    //   continue;
-    // }
+    if (!get_cell_info_by_id_and_cell_id(params, mtrl_box_cell_res_json))
+    {
+      RCLCPP_ERROR(this->get_logger(), "%s had unknown error", __FUNCTION__);
+      continue;
+    }
 
-    // if (mtrl_box_cell_res_json["cell"]["drugs"]["isCompleted"] == 0)
-    //   continue;
+    if (mtrl_box_cell_res_json["cell"]["drugs"].is_null())
+    {
+      RCLCPP_INFO(this->get_logger(), "The index [%ld] cell is empty.", i + 1);
+      continue;
+    }
 
     pkg_order_srv_req->print_info[i].cn_name = info->patient_info.institute_name;
     pkg_order_srv_req->print_info[i].en_name = info->patient_info.name;
@@ -383,10 +385,12 @@ void ProdLineCtrl::pkg_req_handler(
     pkg_order_srv_req->print_info[i].time = info->start_time;
     pkg_order_srv_req->print_info[i].qr_code = info->qr_code;
 
-    // for (const auto &drug : mtrl_box_cell_res_json["cell"]["drugs"])
-    // {
-    //   pkg_order_srv_req->print_info[i].drugs.push_back("XXXX --- " + std::to_string(drug["amount"].get<int>()) + "EA");
-    // }
+    for (const auto &drug : mtrl_box_cell_res_json["cell"]["drugs"])
+    {
+      const std::string drug_str = drug["drugId"].get<std::string>() + " --- " + std::to_string(drug["amount"].get<int>()) + "EA";
+      RCLCPP_INFO(this->get_logger(), "%s", drug_str.c_str());
+      pkg_order_srv_req->print_info[i].drugs.push_back(drug_str);
+    }
   }
 
   using PkgServiceResponseFuture = rclcpp::Client<PackagingOrder>::SharedFuture;

@@ -82,7 +82,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     
     while (rclcpp::ok() && !tmp_cli->wait_for_service(std::chrono::seconds(1))) 
     {
-      RCLCPP_ERROR(this->get_logger(), "Dispense Request Service not available!");
+      RCLCPP_ERROR(this->get_logger(), "Dispense Request Service not available! [%ld]", i + 1);
     }
 
     dis_req_cli_.push_back(tmp_cli);

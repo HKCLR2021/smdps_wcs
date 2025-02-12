@@ -1,0 +1,19 @@
+docker start ros2_humble_dev_2
+
+docker exec -it ros2_humble_dev_2 bash
+
+cd ~/smdps_wcs && source /opt/ros/humble/setup.bash && source install/setup.bash
+
+ros2 launch packaging_machine_comm futian_lifecycle_setup.launch.py
+
+ros2 launch packaging_machine_control_system bringup.launch.py no_of_pkg_mac:=2
+
+ros2 launch wcs system_bringup.launch.py
+
+ros2 service call /packaging_machine_1/init_package_machine std_srvs/srv/Trigger "{}"
+
+colcon build --packages-select packaging_machine_control_system
+
+ros2 run packaging_machine_control_system packaging_order_client
+
+ros2 topic echo /packaging_machine_1/info

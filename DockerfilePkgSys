@@ -1,0 +1,25 @@
+FROM ros2_humble_pkg_mac_dev:v0 
+
+EXPOSE 8000 9090 11811
+
+ENV WS_NAME=packaging_system
+RUN mkdir -p /${WS_NAME}/src
+
+WORKDIR /${WS_NAME}
+
+COPY ./src ./src
+
+# RUN rosdep init
+# RUN rosdep update
+# RUN rosdep install --from-paths /${WS_NAME}/src/ros2_canopen --ignore-src -r -y
+
+# -DCMAKE_BUILD_TYPE=Release
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build
+
+RUN mkdir -p /logs
+ENV ROS_LOG_DIR=/logs
+VOLUME [ "/logs", "/dev/bus", "/dev/serial" ]
+
+COPY --chmod=755 ./docker/entrypoint.sh /
+RUN dos2unix /entrypoint.sh 
+ENTRYPOINT [ "/entrypoint.sh" ]

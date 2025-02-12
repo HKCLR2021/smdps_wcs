@@ -1,0 +1,52 @@
+FROM ros2_humble_smdps_dev:v0 
+
+RUN ros-${ROS_DISTRO}-rosbridge-server \
+    ros-${ROS_DISTRO}-controller-interface \ 
+    ros-${ROS_DISTRO}-diagnostic-updater \
+    ros-${ROS_DISTRO}-controller-manager \
+    libusb-1.0-0-dev \
+    autoconf automake autotools-dev gfortran gfortran-11 ibverbs-providers \
+    icu-devtools libboost-all-dev libboost-atomic-dev libboost-atomic1.74-dev \
+    libboost-atomic1.74.0 libboost-chrono-dev libboost-chrono1.74-dev \
+    libboost-chrono1.74.0 libboost-container-dev libboost-container1.74-dev \
+    libboost-container1.74.0 libboost-context-dev libboost-context1.74-dev \
+    libboost-context1.74.0 libboost-coroutine-dev libboost-coroutine1.74-dev \
+    libboost-coroutine1.74.0 libboost-date-time-dev libboost-date-time1.74-dev \
+    libboost-date-time1.74.0 libboost-dev libboost-exception-dev \
+    libboost-exception1.74-dev libboost-fiber-dev libboost-fiber1.74-dev \
+    libboost-fiber1.74.0 libboost-filesystem-dev libboost-filesystem1.74-dev \
+    libboost-filesystem1.74.0 libboost-graph-dev libboost-graph-parallel-dev \
+    libboost-graph-parallel1.74-dev libboost-graph-parallel1.74.0 \
+    libboost-graph1.74-dev libboost-graph1.74.0 libboost-iostreams-dev \
+    libboost-iostreams1.74-dev libboost-iostreams1.74.0 libboost-locale-dev \
+    libboost-locale1.74-dev libboost-locale1.74.0 libboost-log-dev \
+    libboost-log1.74-dev libboost-log1.74.0 libboost-math-dev \
+    libboost-math1.74-dev libboost-math1.74.0 libboost-mpi-dev \
+    libboost-mpi-python-dev libboost-mpi-python1.74-dev \
+    libboost-mpi-python1.74.0 libboost-mpi1.74-dev libboost-mpi1.74.0 \
+    libboost-nowide-dev libboost-nowide1.74-dev libboost-nowide1.74.0 \
+    libboost-numpy-dev libboost-numpy1.74-dev libboost-numpy1.74.0 \
+    libboost-program-options-dev libboost-program-options1.74-dev \
+    libboost-program-options1.74.0 libboost-python-dev libboost-python1.74-dev \
+    libboost-python1.74.0 libboost-random-dev libboost-random1.74-dev \
+    libboost-random1.74.0 libboost-regex-dev libboost-regex1.74-dev \
+    libboost-regex1.74.0 libboost-serialization-dev \
+    libboost-serialization1.74-dev libboost-serialization1.74.0 \
+    libboost-stacktrace-dev libboost-stacktrace1.74-dev \
+    libboost-stacktrace1.74.0 libboost-system-dev libboost-system1.74-dev \
+    libboost-system1.74.0 libboost-test-dev libboost-test1.74-dev \
+    libboost-test1.74.0 libboost-thread-dev libboost-thread1.74-dev \
+    libboost-thread1.74.0 libboost-timer-dev libboost-timer1.74-dev \
+    libboost-timer1.74.0 libboost-tools-dev libboost-type-erasure-dev \
+    libboost-type-erasure1.74-dev libboost-type-erasure1.74.0 libboost-wave-dev \
+    libboost-wave1.74-dev libboost-wave1.74.0 libboost1.74-dev \
+    libboost1.74-tools-dev libcaf-openmpi-3 libcoarrays-dev \
+    libcoarrays-openmpi-dev libevent-2.1-7 libevent-core-2.1-7 libevent-dev \
+    libevent-extra-2.1-7 libevent-openssl-2.1-7 libevent-pthreads-2.1-7 \
+    libfabric1 libgfortran-11-dev libhwloc-dev libhwloc-plugins libhwloc15 \
+    libibverbs-dev libibverbs1 libicu-dev libjs-jquery-ui libltdl-dev \
+    libnl-3-200 libnl-3-dev libnl-route-3-200 libnl-route-3-dev libnuma-dev \
+    libnuma1 libopenmpi-dev libopenmpi3 libpciaccess0 libpmix-dev libpmix2 \
+    libpsm-infinipath1 libpsm2-2 librdmacm1 libsigsegv2 libtool libucx0 \
+    libxnvctrl0 m4 mpi-default-bin mpi-default-dev ocl-icd-libopencl1 \
+    openmpi-bin openmpi-common libtool-bin
