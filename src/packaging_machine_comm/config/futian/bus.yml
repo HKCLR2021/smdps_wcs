@@ -35,7 +35,7 @@ nodes:
     # revision_number: 0
     # polling: true
     dcf: "packaging_machine.eds"
-    driver: "ros2_canopen::MasterDriver" 
+    driver: "ros2_canopen::ProxyDriver" 
     package: "canopen_proxy_driver"
     reset_communication: false
     boot: false
@@ -43,7 +43,7 @@ nodes:
   packaging_machine_1_squeezer:
     node_id: 60
     dcf: "C20-120L2C_V1.02.eds"
-    driver: "ros2_canopen::MasterDriver" 
+    driver: "ros2_canopen::ProxyDriver" 
     package: "canopen_proxy_driver"
     reset_communication: false
     boot: false
@@ -52,7 +52,7 @@ nodes:
   packaging_machine_1_conveyer:
     node_id: 61
     dcf: "C20-120L2C_V1.02.eds"
-    driver: "ros2_canopen::MasterDriver" 
+    driver: "ros2_canopen::ProxyDriver" 
     package: "canopen_proxy_driver"
     reset_communication: false
     boot: false
@@ -64,7 +64,7 @@ nodes:
   packaging_machine_2_squeezer:
     node_id: 62
     dcf: "C20-120L2C_V1.02.eds"
-    driver: "ros2_canopen::MasterDriver" 
+    driver: "ros2_canopen::ProxyDriver" 
     package: "canopen_proxy_driver"
     reset_communication: false
     boot: false
@@ -73,7 +73,7 @@ nodes:
   packaging_machine_2_conveyer:
     node_id: 63
     dcf: "C20-120L2C_V1.02.eds"
-    driver: "ros2_canopen::MasterDriver" 
+    driver: "ros2_canopen::ProxyDriver" 
     package: "canopen_proxy_driver"
     reset_communication: false
     boot: false   
