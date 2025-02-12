@@ -14,7 +14,7 @@ COPY ./src/smdps_msgs ./src/smdps_msgs
 
 COPY ./src/ros2_canopen ./src/ros2_canopen
 
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --symlink-install
 
 RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs
