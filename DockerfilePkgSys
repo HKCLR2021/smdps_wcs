@@ -1,4 +1,4 @@
-FROM ros2_humble_pkg_mac_dev:v0 
+FROM ros2_humble_canopen_build:v0 
 
 EXPOSE 8000 9090 11811
 
@@ -7,14 +7,14 @@ RUN mkdir -p /${WS_NAME}/src
 
 WORKDIR /${WS_NAME}
 
-COPY ./src ./src
+COPY ./src/packaging_machine_comm ./src/packaging_machine_comm
+COPY ./src/packaging_machine_control_system ./src/packaging_machine_control_system
 
-# RUN rosdep init
-# RUN rosdep update
-# RUN rosdep install --from-paths /${WS_NAME}/src/ros2_canopen --ignore-src -r -y
+COPY ./src/smdps_msgs ./src/smdps_msgs
 
-# -DCMAKE_BUILD_TYPE=Release
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build
+COPY ./src/ros2_canopen ./src/ros2_canopen
+
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs

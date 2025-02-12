@@ -1,4 +1,4 @@
-FROM ros2_humble_smdps_dev:v0 
+FROM ros2_humble_build:v0 
 
 RUN ros-${ROS_DISTRO}-rosbridge-server \
     ros-${ROS_DISTRO}-controller-interface \ 
