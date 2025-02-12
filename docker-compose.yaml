@@ -11,7 +11,7 @@ services:
       tags: 
         - "ros2_img:latest"
       target: ros2_img
-      # progress: plain
+    entrypoint: ["sh", "-c", "exit"]
 
   ros2_canopen:
     build:
@@ -19,19 +19,20 @@ services:
       tags: 
         - "ros2_canopen_img:latest"
       target: ros2_canopen_img
-      # progress: plain
     depends_on:
-      - ros2_base
+      ros2_base:
+        condition: service_completed_successfully
+    entrypoint: ["sh", "-c", "exit"]
 
   pkg_mac_comm:
     build:
       context: .
       target: pkg_mac_sys
-      # progress: plain
     container_name: pkg_mac_comm
     hostname: pkg_mac_comm
     depends_on:
-      - ros2_canopen
+      ros2_canopen:
+        condition: service_completed_successfully
     command: ["sh", "-c", "ros2 launch packaging_machine_comm futian_setup.launch.py"]
     volumes:
       - ./logs:/logs
@@ -42,7 +43,6 @@ services:
     build:
       context: .
       target: pkg_mac_sys
-      # progress: plain
     container_name: pkg_mac_manager
     hostname: pkg_mac_manager
     depends_on:
@@ -59,7 +59,6 @@ services:
     build:
       context: .
       target: pkg_mac_sys
-      # progress: plain
     container_name: pkg_mac
     hostname: pkg_mac
     depends_on:
@@ -79,7 +78,6 @@ services:
     build:
       context: .
       target: pkg_mac_sys
-      # progress: plain
     container_name: pkg_mac_bridge
     hostname: pkg_mac_bridge
     depends_on:
@@ -97,7 +95,6 @@ services:
     build:
       context: .
       target: prod_line_sys
-      # progress: plain
     container_name: smdps
     hostname: smdps
     depends_on:
