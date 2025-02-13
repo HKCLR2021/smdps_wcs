@@ -3,26 +3,27 @@ version: "3.8"
 x-common-variables: &common-variables
   NO_OF_DIS_STA: 14
   NO_OF_PKG_MAC: 2
+  UID: 1000
 
 services:
-  ros2_base:
-    build:
-      context: .
-      tags: 
-        - "ros2_img:latest"
-      target: ros2_img
-    entrypoint: ["sh", "-c", "exit"]
+  # ros2_base:
+  #   build:
+  #     context: .
+  #     tags: 
+  #       - "ros2_img:latest"
+  #     target: ros2_img
+  #   entrypoint: ["sh", "-c", "exit"]
 
-  ros2_canopen:
-    build:
-      context: .
-      tags: 
-        - "ros2_canopen_img:latest"
-      target: ros2_canopen_img
-    depends_on:
-      ros2_base:
-        condition: service_completed_successfully
-    entrypoint: ["sh", "-c", "exit"]
+  # ros2_canopen:
+  #   build:
+  #     context: .
+  #     tags: 
+  #       - "ros2_canopen_img:latest"
+  #     target: ros2_canopen_img
+  #   depends_on:
+  #     ros2_base:
+  #       condition: service_completed_successfully
+  #   entrypoint: ["sh", "-c", "exit"]
 
   pkg_mac_comm:
     build:
@@ -30,14 +31,39 @@ services:
       target: pkg_mac_sys
     container_name: pkg_mac_comm
     hostname: pkg_mac_comm
-    depends_on:
-      ros2_canopen:
-        condition: service_completed_successfully
-    command: ["sh", "-c", "ros2 launch packaging_machine_comm futian_setup.launch.py"]
+    # depends_on:
+    #   ros2_canopen:
+    #     condition: service_completed_successfully
+    environment:
+      - UID=1000
+    command: ["sh", "-c", "ros2 launch packaging_machine_comm futian_lifecycle_setup.launch.py"]
+    privileged: true
     volumes:
       - ./logs:/logs
+      - /dev/shm:/dev/shm
     restart: unless-stopped
-    network_mode: host
+    network_mode: "host"
+    ipc: host
+    pid: host
+
+  activate_can:
+    build:
+      context: .
+      target: pkg_mac_sys
+    container_name: activate_can
+    hostname: activate_can
+    depends_on:
+      # - ros2_canopen
+      - pkg_mac_comm
+    environment: 
+      - UID=1000
+    command: ["sh", "-c", "ros2 lifecycle set /lifecycle_manager configure && sleep 1 && ros2 lifecycle set /lifecycle_manager activate"]
+    privileged: true
+    volumes:
+      - /dev/shm:/dev/shm
+    network_mode: "host"
+    ipc: host
+    pid: host
   
   pkg_mac_manager:
     build:
@@ -46,14 +72,19 @@ services:
     container_name: pkg_mac_manager
     hostname: pkg_mac_manager
     depends_on:
-      - ros2_canopen
+      # - ros2_canopen
+      - activate_can
       - pkg_mac_comm
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch packaging_machine_control_system manager.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
+    privileged: true
     volumes:
       - ./logs:/logs
+      - /dev/shm:/dev/shm
     restart: unless-stopped
-    network_mode: host
+    network_mode: "host"
+    ipc: host
+    pid: host
 
   pkg_mac:
     build:
@@ -62,7 +93,8 @@ services:
     container_name: pkg_mac
     hostname: pkg_mac
     depends_on:
-      - ros2_canopen
+      # - ros2_canopen
+      - activate_can
       - pkg_mac_comm
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch packaging_machine_control_system pkg_mac.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
@@ -71,42 +103,47 @@ services:
       - ./logs:/logs
       - /dev/bus:/dev/bus
       - /dev/serial:/dev/serial
+      - /dev/shm:/dev/shm
     restart: unless-stopped
-    network_mode: host
+    network_mode: "host"
+    ipc: host
+    pid: host
 
-  pkg_mac_bridge:
-    build:
-      context: .
-      target: pkg_mac_sys
-    container_name: pkg_mac_bridge
-    hostname: pkg_mac_bridge
-    depends_on:
-      - ros2_canopen
-      - pkg_mac_comm
-      - pkg_mac_manager
-      - pkg_mac
-    command: ["sh", "-c", "ros2 launch rosbridge_server rosbridge_websocket_launch.xml"]
-    network_mode: host
-    volumes:
-      - ./logs:/logs
-    restart: unless-stopped
+  # pkg_mac_bridge:
+  #   build:
+  #     context: .
+  #     target: pkg_mac_sys
+  #   container_name: pkg_mac_bridge
+  #   hostname: pkg_mac_bridge
+  #   depends_on:
+  #     # - ros2_canopen
+  #     - pkg_mac_comm
+  #     - pkg_mac_manager
+  #     - pkg_mac
+  #   command: ["sh", "-c", "ros2 launch rosbridge_server rosbridge_websocket_launch.xml"]
+  #   network_mode: "host"
+    #   ipc: host
+    # pid: host
+  #   volumes:
+  #     - ./logs:/logs
+  #   restart: unless-stopped
 
-  prod_line:
-    build:
-      context: .
-      target: prod_line_sys
-    container_name: smdps
-    hostname: smdps
-    depends_on:
-      - ros2_base
-      - pkg_mac_manager
-      - pkg_mac
-    environment: *common-variables
-    command: ["sh", "-c", "ros2 launch wcs bringup.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
-    volumes:
-      - ./logs:/logs
-    restart: unless-stopped
-    network_mode: host
+  # prod_line:
+  #   build:
+  #     context: .
+  #     target: prod_line_sys
+  #   container_name: smdps
+  #   hostname: smdps
+  #   depends_on:
+  #     # - ros2_base
+  #     - pkg_mac_manager
+  #     - pkg_mac
+  #   environment: *common-variables
+  #   command: ["sh", "-c", "ros2 launch wcs bringup.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
+  #   volumes:
+  #     - ./logs:/logs
+  #   restart: unless-stopped
+  #   network_mode: "host"
 
 # networks:
 #   smdps_network:

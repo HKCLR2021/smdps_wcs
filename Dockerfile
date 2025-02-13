@@ -96,7 +96,7 @@ COPY ./src/smdps_msgs ./src/smdps_msgs
 
 COPY ./src/ros2_canopen ./src/ros2_canopen
 
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --symlink-install
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs
@@ -122,7 +122,7 @@ COPY ./src/smdps_msgs ./src/smdps_msgs
 COPY ./src/nlohmann ./src/nlohmann
 COPY ./src/open62541pp ./src/open62541pp
 
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --symlink-install
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs
