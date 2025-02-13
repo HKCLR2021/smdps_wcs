@@ -84,7 +84,9 @@ def generate_launch_description():
         executable="prod_line_ctrl",
         name="prod_line_ctrl",
         parameters=[
-            params_file
+            params_file,
+            {"no_of_dis_station": no_of_dis_station},
+            {"no_of_pkg_mac": no_of_pkg_mac},
         ],
         respawn=use_respawn,
         respawn_delay=3.0,

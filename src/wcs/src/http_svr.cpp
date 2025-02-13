@@ -364,7 +364,7 @@ void ProdLineCtrl::pkg_req_handler(
 
     const httplib::Params params = {
       { "MaterialBoxId", std::to_string(id) },
-      { "cellId", std::to_string(i) }
+      { "cellId", std::to_string(map_index(i)) }
     };
 
     if (!get_cell_info_by_id_and_cell_id(params, mtrl_box_cell_res_json))
@@ -492,9 +492,17 @@ void ProdLineCtrl::init_pkg_mac_handler(
     return;
   }
 
-  const uint8_t pkg_mac_id = static_cast<uint8_t>(stoi(val));
+  const int pkg_mac_id = static_cast<uint8_t>(stoi(val));
+  const size_t cli_index = pkg_mac_id - 1;
 
-  while (rclcpp::ok() && !init_pkg_mac_cli_[pkg_mac_id - 1]->wait_for_service(std::chrono::seconds(1))) 
+  if (cli_index >= init_pkg_mac_cli_.size())
+  {
+    res_json["msg"] = "cli_index > init_pkg_mac_cli_.size()";
+    res.set_content(res_json.dump(), "application/json");
+    return;
+  }
+
+  while (rclcpp::ok() && !init_pkg_mac_cli_[cli_index]->wait_for_service(std::chrono::seconds(1))) 
   {
     RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine Service not available!");
   }
@@ -502,6 +510,7 @@ void ProdLineCtrl::init_pkg_mac_handler(
   std::shared_ptr<Trigger::Request> srv_req = std::make_shared<Trigger::Request>();
 
   using ServiceResponseFuture = rclcpp::Client<Trigger>::SharedFuture;
+  
   auto res_received_cb = [this, &res_json](ServiceResponseFuture future) {
     auto srv_res = future.get();
     if (srv_res && srv_res->success)
@@ -516,7 +525,7 @@ void ProdLineCtrl::init_pkg_mac_handler(
     }
   };
   
-  auto future = init_pkg_mac_cli_[pkg_mac_id - 1]->async_send_request(srv_req, res_received_cb);
+  auto future = init_pkg_mac_cli_[cli_index]->async_send_request(srv_req, res_received_cb);
 
   std::future_status status = future.wait_for(500ms);
   switch (status)
@@ -641,6 +650,11 @@ inline bool ProdLineCtrl::verify_params(const httplib::Request &req, const std::
 inline bool ProdLineCtrl::is_number(const std::string &s) 
 {
   return !s.empty() && std::all_of(s.begin(), s.end(), [](unsigned char c) { return std::isdigit(c); });
+}
+
+size_t ProdLineCtrl::map_index(size_t index) 
+{
+  return (index / 4) + (index % 4) * 7;
 }
 
 void ProdLineCtrl::logger_handler(const httplib::Request &req, const httplib::Response &res)

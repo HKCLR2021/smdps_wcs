@@ -19,7 +19,7 @@ def generate_launch_description():
 
     declare_no_of_dis_station_cmd = DeclareLaunchArgument(
         "no_of_dis_station",
-        default_value="True",
+        default_value="0",
         description="Number of Dispenser Station",
     )
 
@@ -31,7 +31,7 @@ def generate_launch_description():
 
     declare_params_file_cmd = DeclareLaunchArgument(
         "params_file",
-        default_value=os.path.join(bringup_dir, "params", "control_system.yaml"),
+        default_value=os.path.join(bringup_dir, "params", "wcs.yaml"),
         description="Full path to the ROS2 parameters file to use for all launched nodes",
     )
 
@@ -47,8 +47,8 @@ def generate_launch_description():
                 executable="dis_station_node",
                 name="dis_sta_node",
                 parameters=[
+                    params_file,
                     {"id": i + 1},
-                    params_file
                 ],
                 respawn=use_respawn,
                 respawn_delay=3.0,

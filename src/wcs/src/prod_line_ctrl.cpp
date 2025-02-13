@@ -8,18 +8,20 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
   this->declare_parameter<int>("hkclr_port", 0);
   this->declare_parameter<std::string>("jinli_ip", "");
   this->declare_parameter<int>("jinli_port", 0);
-  this->declare_parameter<int>("no_of_dispenser_stations", 0);
-  this->declare_parameter<int>("no_of_packaging_machine", 0);
+  this->declare_parameter<int>("no_of_dis_station", 0);
+  this->declare_parameter<int>("no_of_pkg_mac", 0);
 
   this->get_parameter("hkclr_ip", httpsvr_ip_);
   this->get_parameter("hkclr_port", httpsvr_port_);
   this->get_parameter("jinli_ip", jinli_ip_);
   this->get_parameter("jinli_port", jinli_port_);
-  this->get_parameter("no_of_dispenser_stations", no_of_dis_stations_);
-  this->get_parameter("no_of_packaging_machine", no_of_pkg_mac_);
+  this->get_parameter("no_of_dis_station", no_of_dis_stations_);
+  this->get_parameter("no_of_pkg_mac", no_of_pkg_mac_);
 
   RCLCPP_INFO(this->get_logger(), "jinli HTTP server: %s:%d", jinli_ip_.c_str(), jinli_port_);
   RCLCPP_INFO(this->get_logger(), "hkclr HTTP server: %s:%d", httpsvr_ip_.c_str(), httpsvr_port_);
+  RCLCPP_INFO(this->get_logger(), "Number of Dispenser Station: %d", no_of_dis_stations_);
+  RCLCPP_INFO(this->get_logger(), "Number of Packaging Machine: %d", no_of_pkg_mac_);
 
   hc_pub_ = this->create_publisher<Heartbeat>("jinli_heartbeat", 10);
   dis_err_pub_ = this->create_publisher<DispensingError>("dispensing_error", 10);
@@ -70,6 +72,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     }
 
     init_pkg_mac_cli_.push_back(tmp_cli);
+    RCLCPP_INFO(this->get_logger(), "Added a Initiate Packaging Machine Client, i = %ld", i);
   }
 
   for (size_t i = 0; i < no_of_dis_stations_; i++)
@@ -86,6 +89,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     }
 
     dis_req_cli_.push_back(tmp_cli);
+    RCLCPP_INFO(this->get_logger(), "Added a Dispense Drug Client, i = %ld", i);
   }  
 
   this->action_server_ = rclcpp_action::create_server<NewOrder>(
@@ -177,7 +181,7 @@ void ProdLineCtrl::mtrl_box_info_cb(void)
 
       const httplib::Params params = {
         { "MaterialBoxId", std::to_string(mtrl_box["id"].get<int>()) },
-        { "cellId", std::to_string(i) }
+        { "cellId", std::to_string(map_index(i)) }
       };
 
       if (!get_cell_info_by_id_and_cell_id(params, mtrl_box_cell_res_json))
@@ -383,21 +387,6 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
 
   auto func = std::bind(&ProdLineCtrl::new_order, this, _1, _2);
   perform_until_success(req_json, res_json, func);
-  // new_order_until_success(req_json, res_json);
-
-  // if (!new_order(req_json, res_json))
-  // {
-  //   const std::string msg = "newOrder API is failed";
-  //   result->response.success = false;
-  //   result->response.message = msg;
-
-  //   if (rclcpp::ok()) 
-  //   {
-  //     goal_handle->succeed(result);
-  //     RCLCPP_ERROR(this->get_logger(), msg.c_str());
-  //   }
-  //   return;
-  // }
 
   RCLCPP_INFO(this->get_logger(), "A new order is sent, waiting for material box id...");
 

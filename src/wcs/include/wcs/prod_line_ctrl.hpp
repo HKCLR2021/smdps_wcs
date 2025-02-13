@@ -82,6 +82,7 @@ public:
   std::string dump_multipart_files(const httplib::MultipartFormDataMap &files);
   inline bool verify_params(const httplib::Request &req, const std::vector<std::string> &keys);
   inline bool is_number(const std::string &s);
+  size_t map_index(size_t index);
 
 private:
   std::mutex mutex_;

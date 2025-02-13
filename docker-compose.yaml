@@ -6,24 +6,24 @@ x-common-variables: &common-variables
   UID: 1000
 
 services:
-  # ros2_base:
-  #   build:
-  #     context: .
-  #     tags: 
-  #       - "ros2_img:latest"
-  #     target: ros2_img
-  #   entrypoint: ["sh", "-c", "exit"]
+  ros2_base:
+    build:
+      context: .
+      tags: 
+        - "ros2_img:latest"
+      target: ros2_img
+    entrypoint: ["sh", "-c", "exit"]
 
-  # ros2_canopen:
-  #   build:
-  #     context: .
-  #     tags: 
-  #       - "ros2_canopen_img:latest"
-  #     target: ros2_canopen_img
-  #   depends_on:
-  #     ros2_base:
-  #       condition: service_completed_successfully
-  #   entrypoint: ["sh", "-c", "exit"]
+  ros2_canopen:
+    build:
+      context: .
+      tags: 
+        - "ros2_canopen_img:latest"
+      target: ros2_canopen_img
+    depends_on:
+      ros2_base:
+        condition: service_completed_successfully
+    entrypoint: ["sh", "-c", "exit"]
 
   pkg_mac_comm:
     build:
@@ -31,13 +31,14 @@ services:
       target: pkg_mac_sys
     container_name: pkg_mac_comm
     hostname: pkg_mac_comm
-    # depends_on:
-    #   ros2_canopen:
-    #     condition: service_completed_successfully
-    environment:
-      - UID=1000
-    command: ["sh", "-c", "ros2 launch packaging_machine_comm futian_lifecycle_setup.launch.py"]
+    depends_on:
+      ros2_canopen:
+        condition: service_completed_successfully
     privileged: true
+    environment:
+      - CAN_CHANNEL=can0
+      - UID=1000
+    command: ["sh", "-c", "ros2 launch packaging_machine_comm futian_lifecycle_setup.launch.py can_channel:=$${CAN_CHANNEL}"]
     volumes:
       - ./logs:/logs
       - /dev/shm:/dev/shm
@@ -53,12 +54,13 @@ services:
     container_name: activate_can
     hostname: activate_can
     depends_on:
-      # - ros2_canopen
       - pkg_mac_comm
-    environment: 
+    environment:
       - UID=1000
-    command: ["sh", "-c", "ros2 lifecycle set /lifecycle_manager configure && sleep 1 && ros2 lifecycle set /lifecycle_manager activate"]
-    privileged: true
+    command: ["sh", "-c", "\
+              ros2 lifecycle set /lifecycle_manager configure && \
+              sleep 2 && \
+              ros2 lifecycle set /lifecycle_manager activate"]
     volumes:
       - /dev/shm:/dev/shm
     network_mode: "host"
@@ -72,12 +74,10 @@ services:
     container_name: pkg_mac_manager
     hostname: pkg_mac_manager
     depends_on:
-      # - ros2_canopen
-      - activate_can
-      - pkg_mac_comm
+      activate_can:
+        condition: service_completed_successfully
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch packaging_machine_control_system manager.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
-    privileged: true
     volumes:
       - ./logs:/logs
       - /dev/shm:/dev/shm
@@ -93,9 +93,8 @@ services:
     container_name: pkg_mac
     hostname: pkg_mac
     depends_on:
-      # - ros2_canopen
-      - activate_can
-      - pkg_mac_comm
+      activate_can:
+        condition: service_completed_successfully
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch packaging_machine_control_system pkg_mac.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
     privileged: true
@@ -109,6 +108,55 @@ services:
     ipc: host
     pid: host
 
+  prod_line:
+    build:
+      context: .
+      target: prod_line_sys
+    container_name: prod_line
+    hostname: prod_line
+    depends_on:
+      ros2_base:
+        condition: service_completed_successfully
+      activate_can:
+        condition: service_completed_successfully
+      # dis_station:
+      #   condition: service_started
+    environment: *common-variables
+    command: ["sh", "-c", "ros2 launch wcs prod_line.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
+    volumes:
+      - ./logs:/logs
+      - /dev/shm:/dev/shm
+    restart: unless-stopped
+    network_mode: "host"
+    ipc: host
+    pid: host
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail 192.168.8.51:8000/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  dis_station:
+    build:
+      context: .
+      target: prod_line_sys
+    container_name: dis_station
+    hostname: dis_station
+    depends_on:
+      ros2_base:
+        condition: service_completed_successfully
+      activate_can:
+        condition: service_completed_successfully
+    environment: *common-variables
+    command: ["sh", "-c", "ros2 launch wcs dis_station.launch.py no_of_dis_station:=$${NO_OF_DIS_STA}"]
+    volumes:
+      - ./logs:/logs
+      - /dev/shm:/dev/shm
+    restart: unless-stopped
+    network_mode: "host"
+    ipc: host
+    pid: host
+
   # pkg_mac_bridge:
   #   build:
   #     context: .
@@ -116,38 +164,14 @@ services:
   #   container_name: pkg_mac_bridge
   #   hostname: pkg_mac_bridge
   #   depends_on:
-  #     # - ros2_canopen
   #     - pkg_mac_comm
   #     - pkg_mac_manager
   #     - pkg_mac
   #   command: ["sh", "-c", "ros2 launch rosbridge_server rosbridge_websocket_launch.xml"]
-  #   network_mode: "host"
-    #   ipc: host
-    # pid: host
   #   volumes:
   #     - ./logs:/logs
-  #   restart: unless-stopped
-
-  # prod_line:
-  #   build:
-  #     context: .
-  #     target: prod_line_sys
-  #   container_name: smdps
-  #   hostname: smdps
-  #   depends_on:
-  #     # - ros2_base
-  #     - pkg_mac_manager
-  #     - pkg_mac
-  #   environment: *common-variables
-  #   command: ["sh", "-c", "ros2 launch wcs bringup.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
-  #   volumes:
-  #     - ./logs:/logs
+  #     - /dev/shm:/dev/shm
   #   restart: unless-stopped
   #   network_mode: "host"
-
-# networks:
-#   smdps_network:
-#     ipam:
-#       driver: default
-#       config:
-#         - subnet: 10.8.106.0/24
+  #   ipc: host
+  #   pid: host

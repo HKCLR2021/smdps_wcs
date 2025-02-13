@@ -1,8 +1,8 @@
 prod_line_ctrl:
   ros__parameters:
-    hkclr_ip: 127.0.0.1
+    hkclr_ip: 192.168.8.51
     hkclr_port: 8000
-    jinli_ip: 127.0.0.1
+    jinli_ip: 192.168.8.51
     jinli_port: 8080
 
 /**/dis_sta_node:

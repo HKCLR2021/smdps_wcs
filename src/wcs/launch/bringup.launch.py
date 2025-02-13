@@ -23,14 +23,14 @@ def generate_launch_description():
 
     declare_no_of_dis_station_cmd = DeclareLaunchArgument(
         "no_of_dis_station",
-        default_value="True",
+        default_value="0",
         description="Number of Dispenser Station",
     )
 
     declare_no_of_pkg_mac_cmd = DeclareLaunchArgument(
         "no_of_pkg_mac",
-        default_value="True",
-        description="Number of Dispenser Station",
+        default_value="0",
+        description="Number of Packaging Machine",
     )
 
     declare_use_respawn_cmd = DeclareLaunchArgument(
