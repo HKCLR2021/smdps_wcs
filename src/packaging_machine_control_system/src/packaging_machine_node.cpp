@@ -171,6 +171,9 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   {
     co_read_wait_for_service();
     co_write_wait_for_service();
+    
+    ctrl_heater(HEATER_ON);
+    std::this_thread::sleep_for(DELAY_GENERAL_STEP);
 
     RCLCPP_INFO(this->get_logger(), "The CO Service client is up.");
   }

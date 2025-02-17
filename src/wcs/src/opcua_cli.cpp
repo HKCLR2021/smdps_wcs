@@ -25,6 +25,14 @@ void DispenserStationNode::start_opcua_cli(void)
     {
       cli.connectAsync(form_opcua_url());
       cli.run();
+      // while (true)
+      // {
+      //   {
+      //     const std::lock_guard<std::mutex> lock(mutex_);
+      //     cli.runIterate(10);
+      //   }
+      //   std::this_thread::sleep_for(10ms);
+      // }
     }
     catch (const opcua::BadStatus& e) 
     {
@@ -188,7 +196,7 @@ void DispenserStationNode::initiate(void)
 void DispenserStationNode::create_sub_async()
 {
   opcua::SubscriptionParameters sub_params{};
-  sub_params.publishingInterval = 100;
+  sub_params.publishingInterval = 200;
 
   opcua::services::createSubscriptionAsync(
     cli,
@@ -202,7 +210,7 @@ void DispenserStationNode::create_sub_async()
       RCLCPP_INFO(this->get_logger(), ">>>> - subscription id: %s", std::to_string(response.subscriptionId()).c_str());
 
       opcua::MonitoringParametersEx monitoring_params{};
-      monitoring_params.samplingInterval = 100.0;
+      monitoring_params.samplingInterval = 200.0;
 
       opcua::services::createMonitoredItemDataChangeAsync(
         cli,

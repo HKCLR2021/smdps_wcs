@@ -96,6 +96,12 @@ COPY ./src/smdps_msgs ./src/smdps_msgs
 
 COPY ./src/ros2_canopen ./src/ros2_canopen
 
+COPY ./fastdds_profiles.xml ./
+ENV FASTRTPS_DEFAULT_PROFILES_FILE=/${WS_NAME}/fastdds_profiles.xml
+ENV ROS_LOCALHOST_ONLY=0
+ENV ROS_VERSION=2
+ENV ROS_PYTHON_VERSION=3
+
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 RUN mkdir -p /logs
@@ -121,6 +127,12 @@ COPY ./src/smdps_msgs ./src/smdps_msgs
 
 COPY ./src/nlohmann ./src/nlohmann
 COPY ./src/open62541pp ./src/open62541pp
+
+COPY ./fastdds_profiles.xml ./
+ENV FASTRTPS_DEFAULT_PROFILES_FILE=/${WS_NAME}/fastdds_profiles.xml
+ENV ROS_LOCALHOST_ONLY=0
+ENV ROS_VERSION=2
+ENV ROS_PYTHON_VERSION=3
 
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 

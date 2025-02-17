@@ -364,7 +364,7 @@ void ProdLineCtrl::pkg_req_handler(
 
     const httplib::Params params = {
       { "MaterialBoxId", std::to_string(id) },
-      { "cellId", std::to_string(map_index(i)) }
+      { "cellId", std::to_string(map_index(i) + 1) }
     };
 
     if (!get_cell_info_by_id_and_cell_id(params, mtrl_box_cell_res_json))

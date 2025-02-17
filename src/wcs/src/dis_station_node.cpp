@@ -61,7 +61,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
 
   srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-  status_pub_ = this->create_publisher<DispenserStationStatus>("status", 10);
+  status_pub_ = this->create_publisher<DispenserStationStatus>("/dispenser_station_status", 10);
 
   cli_thread_ = std::thread(std::bind(&DispenserStationNode::start_opcua_cli, this)); 
   wait_for_opcua_connection(200ms);

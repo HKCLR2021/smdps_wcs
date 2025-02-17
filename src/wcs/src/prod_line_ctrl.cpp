@@ -20,8 +20,8 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 
   RCLCPP_INFO(this->get_logger(), "jinli HTTP server: %s:%d", jinli_ip_.c_str(), jinli_port_);
   RCLCPP_INFO(this->get_logger(), "hkclr HTTP server: %s:%d", httpsvr_ip_.c_str(), httpsvr_port_);
-  RCLCPP_INFO(this->get_logger(), "Number of Dispenser Station: %d", no_of_dis_stations_);
-  RCLCPP_INFO(this->get_logger(), "Number of Packaging Machine: %d", no_of_pkg_mac_);
+  RCLCPP_INFO(this->get_logger(), "Number of Dispenser Station: %ld", no_of_dis_stations_);
+  RCLCPP_INFO(this->get_logger(), "Number of Packaging Machine: %ld", no_of_pkg_mac_);
 
   hc_pub_ = this->create_publisher<Heartbeat>("jinli_heartbeat", 10);
   dis_err_pub_ = this->create_publisher<DispensingError>("dispensing_error", 10);
@@ -44,7 +44,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 
   hc_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::hc_cb, this), hc_timer_cbg_);
   mtrl_box_amt_timer_ = this->create_wall_timer(5s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this), container_timer_cbg_);
-  mtrl_box_info_timer_ = this->create_wall_timer(5s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this), mtrl_box_info_timer_cbg_);
+  mtrl_box_info_timer_ = this->create_wall_timer(2s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this), mtrl_box_info_timer_cbg_);
 
   printing_info_cli_ = this->create_client<PrintingOrder>(
     "printing_order",
@@ -181,7 +181,7 @@ void ProdLineCtrl::mtrl_box_info_cb(void)
 
       const httplib::Params params = {
         { "MaterialBoxId", std::to_string(mtrl_box["id"].get<int>()) },
-        { "cellId", std::to_string(map_index(i)) }
+        { "cellId", std::to_string(map_index(i) + 1) }
       };
 
       if (!get_cell_info_by_id_and_cell_id(params, mtrl_box_cell_res_json))
@@ -351,7 +351,7 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
   auto result = std::make_shared<NewOrder::Result>();
   RCLCPP_INFO(this->get_logger(), "Executing goal");
   
-  nlohmann::json req_json, res_json;
+  nlohmann::json req_json_temp, req_json, res_json;
   for (size_t i = 0; i < goal->request.material_box.slots.size(); i++) 
   {
     auto &slots_i = goal->request.material_box.slots[i];
@@ -379,6 +379,13 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
     req_json["cells"].push_back(_cell);
     RCLCPP_INFO(this->get_logger(), "a cell is added to req_json, i: %ld", i);
   }
+
+  // for (size_t i = 0; i < req_json_temp["cells"].size(); i++) 
+  // {
+  //   req_json["cells"][map_index(i)] = req_json_temp["cells"][i];
+  // }
+
+  // req_json_temp.clear();
 
   running = true;
   goal_handle->publish_feedback(feedback);

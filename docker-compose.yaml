@@ -41,9 +41,8 @@ services:
     command: ["sh", "-c", "ros2 launch packaging_machine_comm futian_lifecycle_setup.launch.py can_channel:=$${CAN_CHANNEL}"]
     volumes:
       - ./logs:/logs
-      - /dev/shm:/dev/shm
-    restart: unless-stopped
-    network_mode: "host"
+    restart: no
+    network_mode: host
     ipc: host
     pid: host
 
@@ -55,15 +54,15 @@ services:
     hostname: activate_can
     depends_on:
       - pkg_mac_comm
+    privileged: true
     environment:
       - UID=1000
     command: ["sh", "-c", "\
+              sleep 3 && \
               ros2 lifecycle set /lifecycle_manager configure && \
-              sleep 2 && \
+              sleep 3 && \
               ros2 lifecycle set /lifecycle_manager activate"]
-    volumes:
-      - /dev/shm:/dev/shm
-    network_mode: "host"
+    network_mode: host
     ipc: host
     pid: host
   
@@ -76,13 +75,13 @@ services:
     depends_on:
       activate_can:
         condition: service_completed_successfully
+    privileged: true
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch packaging_machine_control_system manager.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
     volumes:
       - ./logs:/logs
-      - /dev/shm:/dev/shm
-    restart: unless-stopped
-    network_mode: "host"
+    restart: no
+    network_mode: host
     ipc: host
     pid: host
 
@@ -95,16 +94,15 @@ services:
     depends_on:
       activate_can:
         condition: service_completed_successfully
+    privileged: true
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch packaging_machine_control_system pkg_mac.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
-    privileged: true
     volumes:
       - ./logs:/logs
       - /dev/bus:/dev/bus
       - /dev/serial:/dev/serial
-      - /dev/shm:/dev/shm
-    restart: unless-stopped
-    network_mode: "host"
+    restart: no
+    network_mode: host
     ipc: host
     pid: host
 
@@ -121,13 +119,13 @@ services:
         condition: service_completed_successfully
       # dis_station:
       #   condition: service_started
+    privileged: true
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch wcs prod_line.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
     volumes:
       - ./logs:/logs
-      - /dev/shm:/dev/shm
-    restart: unless-stopped
-    network_mode: "host"
+    restart: no
+    network_mode: host
     ipc: host
     pid: host
     healthcheck:
@@ -147,13 +145,34 @@ services:
         condition: service_completed_successfully
       activate_can:
         condition: service_completed_successfully
+    privileged: true
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch wcs dis_station.launch.py no_of_dis_station:=$${NO_OF_DIS_STA}"]
     volumes:
       - ./logs:/logs
-      - /dev/shm:/dev/shm
-    restart: unless-stopped
-    network_mode: "host"
+    restart: no
+    network_mode: host
+    ipc: host
+    pid: host
+
+  fake_printing_ser:
+    build:
+      context: .
+      target: prod_line_sys
+    container_name: fake_printing_ser
+    hostname: fake_printing_ser
+    depends_on:
+      ros2_base:
+        condition: service_completed_successfully
+      activate_can:
+        condition: service_completed_successfully
+    privileged: true
+    environment: *common-variables
+    command: ["sh", "-c", "ros2 run wcs fake_printing_srv_node"]
+    volumes:
+      - ./logs:/logs
+    restart: no
+    network_mode: host
     ipc: host
     pid: host
 
@@ -172,6 +191,6 @@ services:
   #     - ./logs:/logs
   #     - /dev/shm:/dev/shm
   #   restart: unless-stopped
-  #   network_mode: "host"
+  #   network_mode: host
   #   ipc: host
   #   pid: host

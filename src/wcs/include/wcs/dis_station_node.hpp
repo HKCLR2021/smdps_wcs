@@ -76,7 +76,7 @@ private:
   rclcpp::CallbackGroup::SharedPtr srv_ser_cbg_;
 
   uint32_t heartbeat_counter_ = 0;
-  const uint32_t OPCUA_TIMEOUT = 1000; // 1000ms
+  const uint32_t OPCUA_TIMEOUT = 5000; // 5000ms
 
   std::shared_ptr<DispenserStationStatus> status_;
 
