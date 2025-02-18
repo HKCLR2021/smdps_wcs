@@ -120,7 +120,6 @@ private:
   void mtrl_box_info_cb(void);
   void pkg_mac_status_cb(const PackagingMachineStatus::SharedPtr msg);
 
-  void init_pkg_mac_srv_handler(const uint8_t pkg_mac_id);
   void dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs);
 
   rclcpp_action::GoalResponse handle_goal(
@@ -186,6 +185,7 @@ protected:
   std::shared_ptr<httplib::Server> httpsvr_;
   std::shared_ptr<httplib::Client> httpcli_;
   std::atomic<bool> svr_started_;
+  bool jinli_ser_state_;
   std::thread httpsvr_thread_;
 };
 

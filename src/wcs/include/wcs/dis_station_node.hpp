@@ -57,14 +57,18 @@ public:
   void inactive_cb(void);
 
   void create_sub_async(void);
-  void create_monitored_item_async(const opcua::CreateSubscriptionResponse &response, const opcua::NodeId &id, const std::string &name, bool &ref);
+  void create_mon_item_async(
+    const opcua::CreateSubscriptionResponse &res, 
+    const opcua::NodeId &id, 
+    const std::string name, 
+    std::shared_ptr<bool> ptr);
   void sub_status_change_cb(uint32_t sub_id, opcua::StatusChangeNotification &notification);
   void sub_deleted_cb(uint32_t sub_id);
   void monitored_item_deleted_cb(uint32_t sub_id, uint32_t mon_id, std::string name);
   void monitored_item_created_cb(opcua::MonitoredItemCreateResult &result, std::string name);
 
   void heartbeat_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
-  void general_bool_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name, bool &bool_ref);
+  void general_bool_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name, std::shared_ptr<bool> ptr);
   void alm_code_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
 

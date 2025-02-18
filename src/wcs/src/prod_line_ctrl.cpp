@@ -2,7 +2,8 @@
 
 ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 : Node("prod_line_ctrl", options), 
-  svr_started_(std::atomic<bool>{false})
+  svr_started_(std::atomic<bool>{false}),
+  jinli_ser_state_(false)
 {
   this->declare_parameter<std::string>("hkclr_ip", "");
   this->declare_parameter<int>("hkclr_port", 0);
@@ -135,21 +136,26 @@ void ProdLineCtrl::hc_cb(void)
   Heartbeat msg;
   msg.state = health_check(res_json);
   msg.header.stamp = this->get_clock()->now();
-  RCLCPP_DEBUG(this->get_logger(), "jinli server is %s", msg.state ? "OK" : "ERROR");
   hc_pub_->publish(msg);
+  RCLCPP_DEBUG(this->get_logger(), "jinli server is %s", msg.state ? "OK" : "ERROR");
+
+  const std::lock_guard<std::mutex> lock(mutex_);
+  jinli_ser_state_ = msg.state;
 }
 
 void ProdLineCtrl::mtrl_box_amt_container_cb(void)
 {
-  nlohmann::json res_json;
+  if (!jinli_ser_state_)
+    return;
 
+  nlohmann::json res_json;
   if (!get_mtrl_box_amt(res_json)) 
   {
     RCLCPP_ERROR(this->get_logger(), "%s error ocurred", __FUNCTION__);
     return;
   }
-
   RCLCPP_DEBUG(this->get_logger(), "\n%s", res_json.dump().c_str());
+
   ContainerInfo msg;
   msg.amount = static_cast<uint8_t>(res_json["amount"]);
   msg.header.stamp = this->get_clock()->now();
@@ -158,14 +164,15 @@ void ProdLineCtrl::mtrl_box_amt_container_cb(void)
 
 void ProdLineCtrl::mtrl_box_info_cb(void)
 {
+  if (!jinli_ser_state_)
+    return;
+
   nlohmann::json res_json;
-  
   if (!get_mtrl_box_info(res_json)) 
   {
     RCLCPP_ERROR(this->get_logger(), "%s error ocurred", __FUNCTION__);
     return;
   }
-
   RCLCPP_DEBUG(this->get_logger(), "\n%s", res_json.dump().c_str());
   
   const std::string no_order = "0";
@@ -221,11 +228,6 @@ void ProdLineCtrl::pkg_mac_status_cb(const PackagingMachineStatus::SharedPtr msg
   pkg_mac_status[msg->packaging_machine_id] = *msg;
 }
 
-void ProdLineCtrl::init_pkg_mac_srv_handler(const uint8_t pkg_mac_id)
-{
-  RCLCPP_INFO(this->get_logger(), "Started to initiate the packaging machine [%d]", pkg_mac_id);
-}
-
 void ProdLineCtrl::dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs)
 {
   RCLCPP_DEBUG(this->get_logger(), "dis_reqs size: %ld", dis_reqs.size());
@@ -253,7 +255,7 @@ void ProdLineCtrl::dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<Disp
 
   for (auto &tuple : futures_tuple)
   {
-    RCLCPP_DEBUG(this->get_logger(), "start to wait a future");
+    RCLCPP_DEBUG(this->get_logger(), "started to wait a future");
     std::get<2>(tuple).wait(); // wait forever until the future is done
     std::get<1>(tuple) = true;
   }
@@ -271,8 +273,7 @@ void ProdLineCtrl::dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<Disp
     auto req_copy = result_req_json;
     auto res_copy = result_res_json;
 
-    // std::thread(std::bind(&ProdLineCtrl::dis_result_until_success, this, result_req_json, result_req_json)).detach(); 
-
+    // std::thread(std::bind(&ProdLineCtrl::dis_result_until_success, this, result_req_json, result_req_json)).detach();
     auto func = std::bind(&ProdLineCtrl::dis_result, this, _1, _2);
     std::thread result_thread(
       [this, req_copy, res_copy, func]() mutable {
@@ -322,8 +323,7 @@ rclcpp_action::GoalResponse ProdLineCtrl::handle_goal(
   (void)goal;
   RCLCPP_INFO(this->get_logger(), "Received a goal, start to proceess");
 
-  // FIXME: quick fix, assume no error
-  if (0)
+  if (!jinli_ser_state_)
     return rclcpp_action::GoalResponse::REJECT;
 
   return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
@@ -376,16 +376,15 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
       _cell["drugs"].push_back(_drug);
     }
 
-    req_json["cells"].push_back(_cell);
-    RCLCPP_INFO(this->get_logger(), "a cell is added to req_json, i: %ld", i);
+    req_json_temp["cells"].push_back(_cell);
+    RCLCPP_INFO(this->get_logger(), "a cell is added to req_json_temp, i: %ld", i);
   }
 
-  // for (size_t i = 0; i < req_json_temp["cells"].size(); i++) 
-  // {
-  //   req_json["cells"][map_index(i)] = req_json_temp["cells"][i];
-  // }
-
-  // req_json_temp.clear();
+  for (size_t i = 0; i < req_json_temp["cells"].size(); i++) 
+  {
+    req_json["cells"].push_back(req_json_temp["cells"][map_index(i)]);
+  }
+  req_json_temp.clear();
 
   running = true;
   goal_handle->publish_feedback(feedback);

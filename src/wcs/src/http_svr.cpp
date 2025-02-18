@@ -561,7 +561,6 @@ void ProdLineCtrl::scanner_handler(
   }
 
   const auto val = req.get_param_value("materialBoxId");
-
   if (!is_number(val)) 
   {
     res_json["msg"] = "materialBoxId is not a number";
@@ -691,7 +690,8 @@ void ProdLineCtrl::error_handler(const httplib::Request &req, httplib::Response 
 {
   (void)req;
   nlohmann::json res_json;
-
+  res_json["code"] = 0;
+  res_json["msg"] = "failure";
   res_json["errorStatus"] = res.status;
 
   res.set_content(res_json.dump(), "application/json");
@@ -701,6 +701,8 @@ void ProdLineCtrl::exception_handler(const httplib::Request &req, httplib::Respo
 {
   (void)req;
   nlohmann::json res_json;
+  res_json["code"] = 0;
+  res_json["msg"] = "failure";
 
   try 
   {
@@ -708,11 +710,11 @@ void ProdLineCtrl::exception_handler(const httplib::Request &req, httplib::Respo
   } 
   catch (std::exception &e) 
   {
-    res_json["error"] = e.what();
+    res_json["exception"] = e.what();
   } 
   catch (...) 
   { 
-    res_json["error"] = "Unknown Exception";
+    res_json["exception"] = "Unknown Exception";
   }
 
   res.set_content(res_json.dump(), "application/json");
