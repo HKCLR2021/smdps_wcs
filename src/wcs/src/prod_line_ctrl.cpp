@@ -260,7 +260,7 @@ void ProdLineCtrl::dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<Disp
     std::get<1>(tuple) = true;
   }
 
-  std::this_thread::sleep_for(1.5s);
+  std::this_thread::sleep_for(1s);
   
   for (const auto &tuple : futures_tuple)
   {

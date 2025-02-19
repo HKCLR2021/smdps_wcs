@@ -575,6 +575,7 @@ void ProdLineCtrl::scanner_handler(
   msg.location = location;
   msg.header.stamp = this->get_clock()->now();
   scan_pub_->publish(msg);
+  RCLCPP_INFO(this->get_logger(), "Material box [%d] was passed through the location [%s]", mtrl_box_id, location.c_str());
 
   res_json["code"] = 200;
   res_json["msg"] = "success";

@@ -20,7 +20,8 @@
 #include "smdps_msgs/srv/unit_request.hpp"
 
 #define NO_OF_UNITS 12
-#define MAX_HB_COUNT 5 * 4
+// #define MAX_HB_COUNT 5 * 4
+#define MAX_HB_COUNT 5
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;

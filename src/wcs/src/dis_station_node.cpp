@@ -67,7 +67,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   wait_for_opcua_connection(200ms);
 
   status_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::dis_station_status_cb, this));
-  opcua_heartbeat_timer_ = this->create_wall_timer(250ms, std::bind(&DispenserStationNode::heartbeat_valid_cb, this));
+  opcua_heartbeat_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::heartbeat_valid_cb, this));
 
   dis_req_srv_ = this->create_service<DispenseDrug>(
     "dispense_request", 
@@ -115,38 +115,41 @@ void DispenserStationNode::dis_station_status_cb(void)
 
 void DispenserStationNode::heartbeat_valid_cb(void)
 {
-  std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, heartbeat_id, opcua::useFuture);
-  future.wait();
-  const opcua::Result<opcua::Variant> &result = future.get();
+  // std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, heartbeat_id, opcua::useFuture);
+  // future.wait();
+  // const opcua::Result<opcua::Variant> &result = future.get();
 
-  if (result.code() != UA_STATUSCODE_GOOD) 
-  {
-    RCLCPP_ERROR(this->get_logger(), "Error reading heartbeat: %s", std::to_string(result.code()).c_str());
-    return;
-  }
+  // if (result.code() != UA_STATUSCODE_GOOD) 
+  // {
+  //   RCLCPP_ERROR(this->get_logger(), "Error reading heartbeat: %s", std::to_string(result.code()).c_str());
+  //   return;
+  // }
 
-  std::optional<bool> val = result.value().scalar<bool>();
+  // std::optional<bool> val = result.value().scalar<bool>();
+
+  // const std::lock_guard<std::mutex> lock(mutex_);
+  // if (!val)
+  // {
+  //   status_->heartbeat = false;
+  //   RCLCPP_ERROR(this->get_logger(), "Heartbeat value is not available");
+  //   return;
+  // }
+
+  // RCLCPP_DEBUG(this->get_logger(), "Read Heartbeat result with status code: %s, Data: %s", std::to_string(result.code()).c_str(), *val ? "true" : "false");
+
+  // if (*val == status_->heartbeat) 
+  // {
+  //   heartbeat_counter_++;
+  // } 
+  // else 
+  // {
+  //   status_->heartbeat = true;
+  //   heartbeat_counter_ = 0;
+  // }
 
   const std::lock_guard<std::mutex> lock(mutex_);
-  if (!val)
-  {
-    status_->heartbeat = false;
-    RCLCPP_ERROR(this->get_logger(), "Heartbeat value is not available");
-    return;
-  }
-
-  RCLCPP_DEBUG(this->get_logger(), "Read Heartbeat result with status code: %s, Data: %s", std::to_string(result.code()).c_str(), *val ? "true" : "false");
-
-  if (*val == status_->heartbeat) 
-  {
-    heartbeat_counter_++;
-  } 
-  else 
-  {
-    status_->heartbeat = true;
-    heartbeat_counter_ = 0;
-  }
-
+  heartbeat_counter_++;
+  
   if (heartbeat_counter_ > MAX_HB_COUNT)
   {
     status_->heartbeat = false;

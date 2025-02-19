@@ -1,7 +1,7 @@
 version: "3.8"
 
 x-common-variables: &common-variables
-  NO_OF_DIS_STA: 14
+  NO_OF_DIS_STA: 13
   NO_OF_PKG_MAC: 2
   UID: 1000
 
@@ -25,14 +25,34 @@ services:
         condition: service_completed_successfully
     entrypoint: ["sh", "-c", "exit"]
 
-  pkg_mac_comm:
+  build_prod_line_sys:
+    image: prod_line_sys
+    build:
+      context: .
+      target: prod_line_sys
+      tags: 
+        - "prod_line_sys:latest"
+    depends_on:
+      ros2_base:
+        condition: service_completed_successfully
+
+  build_pkg_mac_sys:
+    image: pkg_mac_sys
     build:
       context: .
       target: pkg_mac_sys
+      tags: 
+        - "pkg_mac_sys:latest"
+    depends_on:
+      ros2_canopen:
+        condition: service_completed_successfully
+
+  pkg_mac_comm:
+    image: pkg_mac_sys:latest
     container_name: pkg_mac_comm
     hostname: pkg_mac_comm
     depends_on:
-      ros2_canopen:
+      build_pkg_mac_sys:
         condition: service_completed_successfully
     privileged: true
     environment:
@@ -47,14 +67,11 @@ services:
     pid: host
 
   activate_can:
-    build:
-      context: .
-      target: pkg_mac_sys
+    image: pkg_mac_sys:latest
     container_name: activate_can
     hostname: activate_can
     depends_on:
       - pkg_mac_comm
-    privileged: true
     environment:
       - UID=1000
     command: ["sh", "-c", "\
@@ -67,15 +84,12 @@ services:
     pid: host
   
   pkg_mac_manager:
-    build:
-      context: .
-      target: pkg_mac_sys
+    image: pkg_mac_sys:latest
     container_name: pkg_mac_manager
     hostname: pkg_mac_manager
     depends_on:
       activate_can:
         condition: service_completed_successfully
-    privileged: true
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch packaging_machine_control_system manager.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
     volumes:
@@ -86,9 +100,7 @@ services:
     pid: host
 
   pkg_mac:
-    build:
-      context: .
-      target: pkg_mac_sys
+    image: pkg_mac_sys:latest
     container_name: pkg_mac
     hostname: pkg_mac
     depends_on:
@@ -107,19 +119,16 @@ services:
     pid: host
 
   prod_line:
-    build:
-      context: .
-      target: prod_line_sys
+    image: prod_line_sys:latest
     container_name: prod_line
     hostname: prod_line
     depends_on:
-      ros2_base:
+      build_prod_line_sys:
         condition: service_completed_successfully
       activate_can:
         condition: service_completed_successfully
-      # dis_station:
-      #   condition: service_started
-    privileged: true
+      dis_station:
+        condition: service_started
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch wcs prod_line.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
     volumes:
@@ -135,17 +144,14 @@ services:
       retries: 3
 
   dis_station:
-    build:
-      context: .
-      target: prod_line_sys
+    image: prod_line_sys:latest
     container_name: dis_station
     hostname: dis_station
     depends_on:
-      ros2_base:
+      build_prod_line_sys:
         condition: service_completed_successfully
       activate_can:
         condition: service_completed_successfully
-    privileged: true
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch wcs dis_station.launch.py no_of_dis_station:=$${NO_OF_DIS_STA}"]
     volumes:
@@ -156,17 +162,14 @@ services:
     pid: host
 
   fake_printing_ser:
-    build:
-      context: .
-      target: prod_line_sys
+    image: prod_line_sys:latest
     container_name: fake_printing_ser
     hostname: fake_printing_ser
     depends_on:
-      ros2_base:
+      build_prod_line_sys:
         condition: service_completed_successfully
       activate_can:
         condition: service_completed_successfully
-    privileged: true
     environment: *common-variables
     command: ["sh", "-c", "ros2 run wcs fake_printing_srv_node"]
     volumes:
