@@ -23,7 +23,7 @@
 
 #include "smdps_msgs/msg/packaging_machine_status.hpp"
 #include "smdps_msgs/msg/packaging_result.hpp"
-#include "smdps_msgs/msg/unbind_order_id.hpp"
+#include "smdps_msgs/msg/unbind_request.hpp"
 
 #include "smdps_msgs/srv/packaging_order.hpp"
 
@@ -41,7 +41,7 @@ public:
   
   using PackagingMachineStatus = smdps_msgs::msg::PackagingMachineStatus;
   using PackagingResult = smdps_msgs::msg::PackagingResult;
-  using UnbindOrderId = smdps_msgs::msg::UnbindOrderId;
+  using UnbindRequest = smdps_msgs::msg::UnbindRequest;
 
   using PackagingOrderSrv = smdps_msgs::srv::PackagingOrder;
 
@@ -74,7 +74,7 @@ private:
   rclcpp::Subscription<PackagingMachineStatus>::SharedPtr status_sub_;
   rclcpp::Subscription<PackagingResult>::SharedPtr packaging_result_sub_;
 
-  rclcpp::Publisher<UnbindOrderId>::SharedPtr unbind_order_id_pub_;
+  rclcpp::Publisher<UnbindRequest>::SharedPtr unbind_order_id_pub_;
   
   rclcpp::Client<LoadNode>::SharedPtr load_node_client_;
   rclcpp::Client<UnloadNode>::SharedPtr unload_node_client_;

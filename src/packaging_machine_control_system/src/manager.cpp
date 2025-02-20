@@ -34,7 +34,7 @@ PackagingMachineManager::PackagingMachineManager(
     packaging_order_service_name, 
     std::bind(&PackagingMachineManager::packaging_order_handle, this, _1, _2));
 
-  unbind_order_id_pub_ = this->create_publisher<UnbindOrderId>("unbind_order_id", 10); 
+  unbind_order_id_pub_ = this->create_publisher<UnbindRequest>("unbind_order_id", 10); 
 
   load_node_client_ = this->create_client<LoadNode>(
     load_node_service_name,
@@ -212,7 +212,7 @@ void PackagingMachineManager::packaging_result_cb(const PackagingResult::SharedP
       return entry.first == msg->order_id;
   });
 
-  UnbindOrderId unbind_msg;
+  UnbindRequest unbind_msg;
   unbind_msg.packaging_machine_id = msg->packaging_machine_id;
   unbind_msg.order_id = msg->order_id;
   unbind_msg.material_box_id = msg->material_box_id;

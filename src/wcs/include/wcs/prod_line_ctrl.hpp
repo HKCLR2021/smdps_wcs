@@ -34,6 +34,7 @@
 #include "smdps_msgs/msg/packaging_machine_status.hpp"
 #include "smdps_msgs/msg/printing_info.hpp"
 #include "smdps_msgs/msg/scanner_trigger.hpp"
+#include "smdps_msgs/msg/unbind_request.hpp"
 
 #include "smdps_msgs/srv/dispense_drug.hpp"
 #include "smdps_msgs/srv/packaging_order.hpp"
@@ -64,6 +65,7 @@ class ProdLineCtrl : public rclcpp::Node
   using PackagingMachineStatus = smdps_msgs::msg::PackagingMachineStatus;
   using PrintingInfo = smdps_msgs::msg::PrintingInfo;
   using ScannerTrigger = smdps_msgs::msg::ScannerTrigger;
+  using UnbindRequest = smdps_msgs::msg::UnbindRequest;
 
   using GaolHandlerNewOrder = rclcpp_action::ServerGoalHandle<NewOrder>;
 
@@ -86,7 +88,9 @@ public:
 
 private:
   std::mutex mutex_;
-  std::map<uint8_t, PackagingMachineStatus> pkg_mac_status;
+  std::map<uint8_t, PackagingMachineStatus> pkg_mac_status_;
+
+  std::map<uint8_t, OrderRequest> orders_;
 
   rclcpp::TimerBase::SharedPtr hc_timer_;
   rclcpp::TimerBase::SharedPtr mtrl_box_amt_timer_;
@@ -107,6 +111,7 @@ private:
   rclcpp::Publisher<MaterialBoxStatus>::SharedPtr mtrl_box_status_pub_;
 
   rclcpp::Subscription<PackagingMachineStatus>::SharedPtr pkg_mac_status_sub_;
+  rclcpp::Subscription<UnbindRequest>::SharedPtr unbind_mtrl_id_sub_;
 
   rclcpp::Client<PrintingOrder>::SharedPtr printing_info_cli_;
   rclcpp::Client<PackagingOrder>::SharedPtr pkg_order_cli_;
@@ -119,6 +124,7 @@ private:
   void mtrl_box_amt_container_cb(void);
   void mtrl_box_info_cb(void);
   void pkg_mac_status_cb(const PackagingMachineStatus::SharedPtr msg);
+  void unbind_mtrl_id_cb(const UnbindRequest::SharedPtr msg);
 
   void dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs);
 

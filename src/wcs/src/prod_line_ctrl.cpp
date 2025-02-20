@@ -36,6 +36,11 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     10, 
     std::bind(&ProdLineCtrl::pkg_mac_status_cb, this, _1));
 
+  unbind_mtrl_id_sub_ = this->create_subscription<UnbindRequest>(
+    "unbind_material_box_id", 
+    10, 
+    std::bind(&ProdLineCtrl::unbind_mtrl_id_cb, this, _1));
+
   srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   srv_cli_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   action_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -45,7 +50,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 
   hc_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::hc_cb, this), hc_timer_cbg_);
   mtrl_box_amt_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this), container_timer_cbg_);
-  mtrl_box_info_timer_ = this->create_wall_timer(2s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this), mtrl_box_info_timer_cbg_);
+  mtrl_box_info_timer_ = this->create_wall_timer(3s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this), mtrl_box_info_timer_cbg_);
 
   printing_info_cli_ = this->create_client<PrintingOrder>(
     "printing_order",
@@ -71,10 +76,10 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
 
     while (rclcpp::ok() && !init_pkg_mac_cli_[pkg_mac_id]->wait_for_service(std::chrono::seconds(1))) 
     {
-      RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine Service not available!, id = %ld", pkg_mac_id);
+      RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine Service not available!, id = %d", pkg_mac_id);
     }
 
-    RCLCPP_INFO(this->get_logger(), "Added a Initiate Packaging Machine Client, id = %ld", pkg_mac_id);
+    RCLCPP_INFO(this->get_logger(), "Added a Initiate Packaging Machine Client, id = %d", pkg_mac_id);
   }
 
   for (uint8_t i = 0; i < no_of_dis_stations_; i++)
@@ -89,10 +94,10 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     
     while (rclcpp::ok() && !dis_req_cli_[dis_station_id]->wait_for_service(std::chrono::seconds(1))) 
     {
-      RCLCPP_ERROR(this->get_logger(), "Dispense Request Service not available! id = %ld", dis_station_id);
+      RCLCPP_ERROR(this->get_logger(), "Dispense Request Service not available! id = %d", dis_station_id);
     }
 
-    RCLCPP_INFO(this->get_logger(), "Added a Dispense Drug Client, id = %ld", dis_station_id);
+    RCLCPP_INFO(this->get_logger(), "Added a Dispense Drug Client, id = %d", dis_station_id);
   }  
 
   this->action_server_ = rclcpp_action::create_server<NewOrder>(
@@ -218,9 +223,11 @@ void ProdLineCtrl::mtrl_box_info_cb(void)
     msg.header.stamp = this->get_clock()->now();
     msg.id = mtrl_box["id"];
     msg.location = mtrl_box["location"];
-    if (mtrl_box["state"].compare("idle"))
+
+    const std::string state = mtrl_box["state"].get<std::string>();
+    if (state.compare("idle"))
       msg.status = MaterialBoxStatus::STATUS_IN_STORAGE;
-    else if (mtrl_box["state"].compare("execute"))
+    else if (state.compare("execute"))
       msg.status = MaterialBoxStatus::STATUS_PROCESSING;
     else
       msg.status = MaterialBoxStatus::STATUS_ERROR;
@@ -232,7 +239,14 @@ void ProdLineCtrl::mtrl_box_info_cb(void)
 void ProdLineCtrl::pkg_mac_status_cb(const PackagingMachineStatus::SharedPtr msg)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
-  pkg_mac_status[msg->packaging_machine_id] = *msg;
+  pkg_mac_status_[msg->packaging_machine_id] = *msg;
+}
+
+void ProdLineCtrl::unbind_mtrl_id_cb(const UnbindRequest::SharedPtr msg)
+{
+  const std::lock_guard<std::mutex> lock(mutex_);
+  orders_.erase(msg->material_box_id);
+  RCLCPP_INFO(this->get_logger(), "Recvied a unbind order id");
 }
 
 void ProdLineCtrl::dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs)
@@ -299,6 +313,7 @@ void ProdLineCtrl::perform_until_success(
 {
   while (rclcpp::ok() && !func(req_json, res_json)) 
   {
+    RCLCPP_ERROR(this->get_logger(), "HTTP request failed, waiting for retry...");
     res_json.clear();
     std::this_thread::sleep_for(100ms);
   }
@@ -358,7 +373,7 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
   auto result = std::make_shared<NewOrder::Result>();
   RCLCPP_INFO(this->get_logger(), "Executing goal");
   
-  nlohmann::json req_json_temp, req_json, res_json;
+  nlohmann::json req_json, res_json; // req_json_temp
   for (size_t i = 0; i < goal->request.material_box.slots.size(); i++) 
   {
     auto &slots_i = goal->request.material_box.slots[i];
@@ -383,15 +398,15 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
       _cell["drugs"].push_back(_drug);
     }
 
-    req_json_temp["cells"].push_back(_cell);
-    RCLCPP_INFO(this->get_logger(), "a cell is added to req_json_temp, i: %ld", i);
+    req_json["cells"].push_back(_cell);
+    RCLCPP_INFO(this->get_logger(), "a cell is added to req_json, i: %ld", i);
   }
 
-  for (size_t i = 0; i < req_json_temp["cells"].size(); i++) 
-  {
-    req_json["cells"].push_back(req_json_temp["cells"][map_index(i)]);
-  }
-  req_json_temp.clear();
+  // for (size_t i = 0; i < req_json_temp["cells"].size(); i++) 
+  // {
+  //   req_json["cells"].push_back(req_json_temp["cells"][map_index(i)]);
+  // }
+  // req_json_temp.clear();
 
   running = true;
   goal_handle->publish_feedback(feedback);
@@ -423,6 +438,8 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
       {
         result->response.material_box_id = id;
         result->response.success = true;
+        const std::lock_guard<std::mutex> lock(mutex_);
+        orders_[id] = std::move(goal->request);
         break;
       }
       else

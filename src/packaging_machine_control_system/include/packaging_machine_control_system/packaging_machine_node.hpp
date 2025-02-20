@@ -66,6 +66,7 @@ public:
   ~PackagingMachineNode() = default;
 
   void pub_status_cb(void);
+  void heater_cb(void);
 
   void co_read_wait_for_service(void);
   void co_write_wait_for_service(void);
@@ -139,6 +140,7 @@ private:
   std::shared_ptr<Config> printer_config_;
 
   bool sim_;
+  bool skip_pkg_;
   std::shared_ptr<PackagingMachineStatus> status_;
   std::shared_ptr<MotorStatus> motor_status_;
   std::shared_ptr<PackagingMachineInfo> info_;
@@ -150,9 +152,12 @@ private:
   rclcpp::CallbackGroup::SharedPtr srv_ser_cbg_;
 
   rclcpp::TimerBase::SharedPtr status_timer_;
+  rclcpp::TimerBase::SharedPtr heater_timer_;
+
   rclcpp::Publisher<PackagingMachineStatus>::SharedPtr status_publisher_;
   rclcpp::Publisher<MotorStatus>::SharedPtr motor_status_publisher_;
   rclcpp::Publisher<PackagingMachineInfo>::SharedPtr info_publisher_;
+  rclcpp::Publisher<UnbindRequest>::SharedPtr unbind_mtrl_box_publisher_;
 
   rclcpp::Publisher<COData>::SharedPtr tpdo_pub_;
   rclcpp::Subscription<COData>::SharedPtr rpdo_sub_;
@@ -167,6 +172,7 @@ private:
   rclcpp::Service<Trigger>::SharedPtr squeezer_service_;
   rclcpp::Service<Trigger>::SharedPtr print_one_pkg_service_;
   rclcpp::Service<SetBool>::SharedPtr state_ctrl_service_;
+  rclcpp::Service<SetBool>::SharedPtr skip_pkg_service_;
 
   rclcpp::Client<CORead>::SharedPtr co_read_client_;
   rclcpp::Client<COWrite>::SharedPtr co_write_client_;
@@ -181,7 +187,7 @@ private:
   void handle_accepted(const std::shared_ptr<GaolHandlerPackagingOrder> goal_handle);
 
   void order_execute(const std::shared_ptr<GaolHandlerPackagingOrder> goal_handle);
-  void order_execute_v2(const std::shared_ptr<GaolHandlerPackagingOrder> goal_handle);
+  void skip_order_execute(const std::shared_ptr<GaolHandlerPackagingOrder> goal_handle);
   
   void init_handle(
     const std::shared_ptr<Trigger::Request> request, 
@@ -211,6 +217,9 @@ private:
     const std::shared_ptr<Trigger::Request> request, 
     std::shared_ptr<Trigger::Response> response);
   void state_ctrl_handle(
+    const std::shared_ptr<SetBool::Request> request, 
+    std::shared_ptr<SetBool::Response> response);
+  void skip_pkg_ctrl_handle(
     const std::shared_ptr<SetBool::Request> request, 
     std::shared_ptr<SetBool::Response> response);
 

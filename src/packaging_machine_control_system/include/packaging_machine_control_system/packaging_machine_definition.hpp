@@ -25,7 +25,7 @@
 #define PKG_DIS_RADIUS        18   // in mm unit
 #define PKG_DIS_FEED_DIR      1
 #define PKG_DIS_UNFEED_DIR    0    // should not be used
-#define PKG_DIS_MARGIN_FACTOR 1.08
+#define PKG_DIS_MARGIN_FACTOR 1.065
 
 #define PILL_GATE_RADIUS              10   // in mm unit
 #define PILL_GATE_WIDTH               44   // in mm unit
@@ -37,7 +37,7 @@
 
 #define CONVEYOR_FWD 1
 #define CONVEYOR_REV 0      // should not be used
-#define CONVEYOR_SPEED 300
+#define CONVEYOR_SPEED 250
 #define SQUEEZER_SPEED 1100
 
 #define HEATER_ON  1

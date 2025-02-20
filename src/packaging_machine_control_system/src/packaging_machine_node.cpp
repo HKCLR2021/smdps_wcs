@@ -16,6 +16,8 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   this->get_parameter("packaging_machine_id", status_->packaging_machine_id);
   this->get_parameter("simulation", sim_);
 
+  skip_pkg_ = false;
+
   std::vector<long int> default_states = this->get_parameter("default_states").as_integer_array();
   status_->packaging_machine_state = default_states[status_->packaging_machine_id - 1];
 
@@ -73,10 +75,13 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   rpdo_options.callback_group = rpdo_cbg_;
 
   status_timer_ = this->create_wall_timer(1s, std::bind(&PackagingMachineNode::pub_status_cb, this), status_cbg_);
+  heater_timer_ = this->create_wall_timer(10s, std::bind(&PackagingMachineNode::heater_cb, this));
+
   // add a "/" prefix to topic name avoid adding a namespace
   status_publisher_ = this->create_publisher<PackagingMachineStatus>("/packaging_machine_status", 10); 
   motor_status_publisher_ = this->create_publisher<MotorStatus>("motor_status", 10); 
   info_publisher_ = this->create_publisher<PackagingMachineInfo>("info", 10); 
+  unbind_mtrl_box_publisher_ = this->create_publisher<UnbindRequest>("unbind_material_box_id", 10); 
 
   tpdo_pub_ = this->create_publisher<COData>(
     "/packaging_machine_" + std::to_string(status_->packaging_machine_id) + "/tpdo", 
@@ -156,6 +161,12 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
 
+    skip_pkg_service_ = this->create_service<SetBool>(
+    "skip_packaging_control", 
+    std::bind(&PackagingMachineNode::skip_pkg_ctrl_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
   this->action_server_ = rclcpp_action::create_server<PackagingOrder>(
     this,
     "packaging_order",
@@ -172,9 +183,6 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
     co_read_wait_for_service();
     co_write_wait_for_service();
     
-    ctrl_heater(HEATER_ON);
-    std::this_thread::sleep_for(DELAY_GENERAL_STEP);
-
     RCLCPP_INFO(this->get_logger(), "The CO Service client is up.");
   }
 }
@@ -185,6 +193,15 @@ void PackagingMachineNode::pub_status_cb(void)
   status_publisher_->publish(*status_);
   motor_status_publisher_->publish(*motor_status_);
   info_publisher_->publish(*info_);
+}
+
+void PackagingMachineNode::heater_cb(void)
+{
+  if (info_->temperature < MIN_TEMP)
+  {
+    RCLCPP_INFO(this->get_logger(), "Current heater temperature: %d", info_->temperature);
+    ctrl_heater(HEATER_ON);
+  }
 }
 
 void PackagingMachineNode::rpdo_cb(const COData::SharedPtr msg)
@@ -545,6 +562,17 @@ void PackagingMachineNode::state_ctrl_handle(
   response->success = true;
 }
 
+// This service is designed for testing only
+// It should not be used in normal case
+void PackagingMachineNode::skip_pkg_ctrl_handle(
+  const std::shared_ptr<SetBool::Request> request, 
+  std::shared_ptr<SetBool::Response> response)
+{
+  const std::lock_guard<std::mutex> lock(mutex_);
+  skip_pkg_ = request->data;
+  response->success = true;
+}
+
 // ===================================== Action =====================================
 rclcpp_action::GoalResponse PackagingMachineNode::handle_goal(
   const rclcpp_action::GoalUUID & uuid,
@@ -618,8 +646,10 @@ rclcpp_action::CancelResponse PackagingMachineNode::handle_cancel(
 
 void PackagingMachineNode::handle_accepted(const std::shared_ptr<GaolHandlerPackagingOrder> goal_handle)
 {
-  std::thread{std::bind(&PackagingMachineNode::order_execute_v2, this, _1), goal_handle}.detach();
-  // PackagingMachineNode::order_execute_v2(goal_handle);
+  if (skip_pkg_)
+    std::thread{std::bind(&PackagingMachineNode::skip_order_execute, this, _1), goal_handle}.detach();
+  else
+    std::thread{std::bind(&PackagingMachineNode::order_execute, this, _1), goal_handle}.detach();
 }
 
 int main(int argc, char **argv)
