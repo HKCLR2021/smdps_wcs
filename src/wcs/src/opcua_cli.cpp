@@ -132,7 +132,6 @@ void DispenserStationNode::alm_code_cb(uint32_t sub_id, uint32_t mon_id, const o
 void DispenserStationNode::completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
 {
   std::optional<bool> val = value.value().scalar<bool>();
-  // std::thread init_thread;
 
   if (val && *val)
   {
@@ -143,9 +142,6 @@ void DispenserStationNode::completed_cb(uint32_t sub_id, uint32_t mon_id, const 
   RCLCPP_INFO(this->get_logger(), ">>>> Completed data change notification, value: %s", *val ? "true" : "false");
   RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
   RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-
-  // if (init_thread.joinable())
-  //   init_thread.join();
 }
 
 void DispenserStationNode::initiate(void)
@@ -160,7 +156,7 @@ void DispenserStationNode::initiate(void)
   if (stop_code != UA_STATUSCODE_GOOD)
     RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
 
-  std::chrono::milliseconds freq = 100ms;
+  std::chrono::milliseconds freq = 10ms;
   rclcpp::Rate loop_rate(freq); 
   while (rclcpp::ok())
   {

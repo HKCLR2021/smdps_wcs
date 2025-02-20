@@ -44,7 +44,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
   mtrl_box_info_timer_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
   hc_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::hc_cb, this), hc_timer_cbg_);
-  mtrl_box_amt_timer_ = this->create_wall_timer(5s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this), container_timer_cbg_);
+  mtrl_box_amt_timer_ = this->create_wall_timer(1s, std::bind(&ProdLineCtrl::mtrl_box_amt_container_cb, this), container_timer_cbg_);
   mtrl_box_info_timer_ = this->create_wall_timer(2s, std::bind(&ProdLineCtrl::mtrl_box_info_cb, this), mtrl_box_info_timer_cbg_);
 
   printing_info_cli_ = this->create_client<PrintingOrder>(
@@ -59,38 +59,40 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     srv_cli_cbg_
   );
 
-  for (size_t i = 0; i < no_of_pkg_mac_; i++)
+  for (uint8_t i = 0; i < no_of_pkg_mac_; i++)
   {
-    auto tmp_cli = this->create_client<Trigger>(
-      "/packaging_machine_" + std::to_string(i + 1) + "/init_package_machine",
+    const uint8_t pkg_mac_id = i + 1;
+
+    init_pkg_mac_cli_[pkg_mac_id] = this->create_client<Trigger>(
+      "/packaging_machine_" + std::to_string(pkg_mac_id) + "/init_package_machine",
       rmw_qos_profile_services_default,
       srv_cli_cbg_
     );
 
-    while (rclcpp::ok() && !tmp_cli->wait_for_service(std::chrono::seconds(1))) 
+    while (rclcpp::ok() && !init_pkg_mac_cli_[pkg_mac_id]->wait_for_service(std::chrono::seconds(1))) 
     {
-      RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine Service not available!, i = %ld", i);
+      RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine Service not available!, id = %ld", pkg_mac_id);
     }
 
-    init_pkg_mac_cli_.push_back(tmp_cli);
-    RCLCPP_INFO(this->get_logger(), "Added a Initiate Packaging Machine Client, i = %ld", i);
+    RCLCPP_INFO(this->get_logger(), "Added a Initiate Packaging Machine Client, id = %ld", pkg_mac_id);
   }
 
-  for (size_t i = 0; i < no_of_dis_stations_; i++)
+  for (uint8_t i = 0; i < no_of_dis_stations_; i++)
   {
-    auto tmp_cli = this->create_client<DispenseDrug>(
-      "/dispenser_station_" + std::to_string(i + 1) + "/dispense_request",
+    const uint8_t dis_station_id = i + 1;
+
+    dis_req_cli_[dis_station_id] = this->create_client<DispenseDrug>(
+      "/dispenser_station_" + std::to_string(dis_station_id) + "/dispense_request",
       rmw_qos_profile_services_default,
       srv_cli_cbg_
     );
     
-    while (rclcpp::ok() && !tmp_cli->wait_for_service(std::chrono::seconds(1))) 
+    while (rclcpp::ok() && !dis_req_cli_[dis_station_id]->wait_for_service(std::chrono::seconds(1))) 
     {
-      RCLCPP_ERROR(this->get_logger(), "Dispense Request Service not available! [%ld]", i + 1);
+      RCLCPP_ERROR(this->get_logger(), "Dispense Request Service not available! id = %ld", dis_station_id);
     }
 
-    dis_req_cli_.push_back(tmp_cli);
-    RCLCPP_INFO(this->get_logger(), "Added a Dispense Drug Client, i = %ld", i);
+    RCLCPP_INFO(this->get_logger(), "Added a Dispense Drug Client, id = %ld", dis_station_id);
   }  
 
   this->action_server_ = rclcpp_action::create_server<NewOrder>(
@@ -216,7 +218,12 @@ void ProdLineCtrl::mtrl_box_info_cb(void)
     msg.header.stamp = this->get_clock()->now();
     msg.id = mtrl_box["id"];
     msg.location = mtrl_box["location"];
-    msg.status = MaterialBoxStatus::STATUS_ERROR;
+    if (mtrl_box["state"].compare("idle"))
+      msg.status = MaterialBoxStatus::STATUS_IN_STORAGE;
+    else if (mtrl_box["state"].compare("execute"))
+      msg.status = MaterialBoxStatus::STATUS_PROCESSING;
+    else
+      msg.status = MaterialBoxStatus::STATUS_ERROR;
 
     mtrl_box_status_pub_->publish(msg);
   }
@@ -249,7 +256,7 @@ void ProdLineCtrl::dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<Disp
       }
     };
     
-    auto future = dis_req_cli_[req_pair.first - 1]->async_send_request(req_pair.second, response_received_cb);
+    auto future = dis_req_cli_[req_pair.first]->async_send_request(req_pair.second, response_received_cb);
     futures_tuple.push_back(std::make_tuple(req_pair.first, false, std::move(future)));
   }
 

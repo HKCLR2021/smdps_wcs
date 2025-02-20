@@ -325,7 +325,7 @@ void ProdLineCtrl::pkg_req_handler(
 
   auto print_future = printing_info_cli_->async_send_request(printing_info_srv_req, printing_res_received_cb);
 
-  std::future_status print_status = print_future.wait_for(500ms);
+  std::future_status print_status = print_future.wait_for(1s);
   switch (print_status)
   {
   case std::future_status::ready:
@@ -373,6 +373,7 @@ void ProdLineCtrl::pkg_req_handler(
       continue;
     }
 
+    RCLCPP_INFO(this->get_logger(), "======== %ld =======", i);
     if (mtrl_box_cell_res_json["cell"]["drugs"].is_null())
     {
       RCLCPP_INFO(this->get_logger(), "The index [%ld] cell is empty.", i + 1);
@@ -384,7 +385,7 @@ void ProdLineCtrl::pkg_req_handler(
     pkg_order_srv_req->print_info[i].date = info->start_date;
     pkg_order_srv_req->print_info[i].time = info->start_time;
     pkg_order_srv_req->print_info[i].qr_code = info->qr_code;
-
+    
     for (const auto &drug : mtrl_box_cell_res_json["cell"]["drugs"])
     {
       const std::string drug_str = drug["drugId"].get<std::string>() + " --- " + std::to_string(drug["amount"].get<int>()) + "EA";
@@ -413,7 +414,7 @@ void ProdLineCtrl::pkg_req_handler(
   
   auto pkg_future = pkg_order_cli_->async_send_request(pkg_order_srv_req, packaging_res_received_cb);
 
-  std::future_status pkg_status = pkg_future.wait_for(500ms);
+  std::future_status pkg_status = pkg_future.wait_for(1s);
   switch (pkg_status)
   {
   case std::future_status::ready:
@@ -492,17 +493,9 @@ void ProdLineCtrl::init_pkg_mac_handler(
     return;
   }
 
-  const int pkg_mac_id = static_cast<uint8_t>(stoi(val));
-  const size_t cli_index = pkg_mac_id - 1;
+  const uint8_t pkg_mac_id = static_cast<uint8_t>(stoi(val));
 
-  if (cli_index >= init_pkg_mac_cli_.size())
-  {
-    res_json["msg"] = "cli_index > init_pkg_mac_cli_.size()";
-    res.set_content(res_json.dump(), "application/json");
-    return;
-  }
-
-  while (rclcpp::ok() && !init_pkg_mac_cli_[cli_index]->wait_for_service(std::chrono::seconds(1))) 
+  while (rclcpp::ok() && !init_pkg_mac_cli_[pkg_mac_id]->wait_for_service(std::chrono::seconds(1))) 
   {
     RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine Service not available!");
   }
@@ -525,7 +518,7 @@ void ProdLineCtrl::init_pkg_mac_handler(
     }
   };
   
-  auto future = init_pkg_mac_cli_[cli_index]->async_send_request(srv_req, res_received_cb);
+  auto future = init_pkg_mac_cli_[pkg_mac_id]->async_send_request(srv_req, res_received_cb);
 
   std::future_status status = future.wait_for(500ms);
   switch (status)

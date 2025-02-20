@@ -1,7 +1,7 @@
 version: "3.8"
 
 x-common-variables: &common-variables
-  NO_OF_DIS_STA: 13
+  NO_OF_DIS_STA: 14
   NO_OF_PKG_MAC: 2
   UID: 1000
 

@@ -110,8 +110,8 @@ private:
 
   rclcpp::Client<PrintingOrder>::SharedPtr printing_info_cli_;
   rclcpp::Client<PackagingOrder>::SharedPtr pkg_order_cli_;
-  std::vector<rclcpp::Client<Trigger>::SharedPtr> init_pkg_mac_cli_;
-  std::vector<rclcpp::Client<DispenseDrug>::SharedPtr> dis_req_cli_;
+  std::map<uint8_t, rclcpp::Client<Trigger>::SharedPtr> init_pkg_mac_cli_;
+  std::map<uint8_t, rclcpp::Client<DispenseDrug>::SharedPtr> dis_req_cli_;
 
   rclcpp_action::Server<NewOrder>::SharedPtr action_server_;
 
