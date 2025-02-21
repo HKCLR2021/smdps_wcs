@@ -225,9 +225,9 @@ void ProdLineCtrl::mtrl_box_info_cb(void)
     msg.location = mtrl_box["location"];
 
     const std::string state = mtrl_box["state"].get<std::string>();
-    if (state.compare("idle"))
+    if (!state.compare("idle"))
       msg.status = MaterialBoxStatus::STATUS_IN_STORAGE;
-    else if (state.compare("execute"))
+    else if (!state.compare("execute"))
       msg.status = MaterialBoxStatus::STATUS_PROCESSING;
     else
       msg.status = MaterialBoxStatus::STATUS_ERROR;
@@ -246,12 +246,12 @@ void ProdLineCtrl::unbind_mtrl_id_cb(const UnbindRequest::SharedPtr msg)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
   orders_.erase(msg->material_box_id);
-  RCLCPP_INFO(this->get_logger(), "Recvied a unbind order id");
+  RCLCPP_INFO(this->get_logger(), "Received a unbind material box id");
 }
 
 void ProdLineCtrl::dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<DispenseDrug::Request>> dis_reqs)
 {
-  RCLCPP_DEBUG(this->get_logger(), "dis_reqs size: %ld", dis_reqs.size());
+  RCLCPP_INFO(this->get_logger(), "%s, dis_reqs size: %ld", __FUNCTION__, dis_reqs.size());
 
   using ServiceSharedFutureAndRequestId = rclcpp::Client<DispenseDrug>::SharedFutureAndRequestId;
   // tuple<station_id, result, future>
@@ -373,7 +373,8 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
   auto result = std::make_shared<NewOrder::Result>();
   RCLCPP_INFO(this->get_logger(), "Executing goal");
   
-  nlohmann::json req_json, res_json; // req_json_temp
+  nlohmann::json req_json, res_json;
+  nlohmann::json req_json_temp;
   for (size_t i = 0; i < goal->request.material_box.slots.size(); i++) 
   {
     auto &slots_i = goal->request.material_box.slots[i];
@@ -398,19 +399,28 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
       _cell["drugs"].push_back(_drug);
     }
 
-    req_json["cells"].push_back(_cell);
-    RCLCPP_INFO(this->get_logger(), "a cell is added to req_json, i: %ld", i);
+    req_json_temp["cells"].push_back(_cell);
+    RCLCPP_INFO(this->get_logger(), "a cell is added to req_json_temp, i: %ld", i);
+  }
+  RCLCPP_INFO(this->get_logger(), "req_json_temp:");
+  RCLCPP_INFO(this->get_logger(), "\n%s", req_json_temp.dump().c_str());
+
+  req_json["cells"] = nlohmann::json::array();
+  for (size_t i = 0; i < req_json_temp["cells"].size(); i++)
+  {
+    req_json["cells"].push_back(nullptr); 
   }
 
-  // for (size_t i = 0; i < req_json_temp["cells"].size(); i++) 
-  // {
-  //   req_json["cells"].push_back(req_json_temp["cells"][map_index(i)]);
-  // }
-  // req_json_temp.clear();
+  for (size_t i = 0; i < req_json_temp["cells"].size(); i++) 
+  {
+    req_json["cells"][map_index(i)] = req_json_temp["cells"][i];
+  }
+  req_json_temp.clear();
 
   running = true;
   goal_handle->publish_feedback(feedback);
   RCLCPP_INFO(this->get_logger(), "A new order json is created. Set running to %s", running ? "true" : "false");
+  RCLCPP_INFO(this->get_logger(), "req_json:");
   RCLCPP_INFO(this->get_logger(), "\n%s", req_json.dump().c_str());
 
   auto func = std::bind(&ProdLineCtrl::new_order, this, _1, _2);

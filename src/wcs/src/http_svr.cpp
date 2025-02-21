@@ -230,13 +230,14 @@ void ProdLineCtrl::dis_req_handler(
     }
   }
 
-  RCLCPP_INFO(this->get_logger(), "dis_reqs size: %ld", dis_reqs.size());
-
-  auto dis_reqs_ptr = std::make_unique<decltype(dis_reqs)>(dis_reqs);
-  std::thread(std::bind(&ProdLineCtrl::dis_result_srv_handler, this, *dis_reqs_ptr)).detach(); 
-
-  res_json["code"] = 200;
-  res_json["msg"] = "success";
+  RCLCPP_INFO(this->get_logger(), "%s, dis_reqs size: %ld", __FUNCTION__, dis_reqs.size());
+  if (dis_reqs.size() > 0)
+  {
+    std::thread(&ProdLineCtrl::dis_result_srv_handler, this, std::move(dis_reqs)).detach();
+  
+    res_json["code"] = 200;
+    res_json["msg"] = "success";
+  }
 
   res.set_content(res_json.dump(), "application/json");
 }
@@ -407,7 +408,7 @@ void ProdLineCtrl::pkg_req_handler(
 
     for (const auto &drug : orders_[id].material_box.slots[i].drugs)
     {
-      const std::string drug_str = drug.name;
+      const std::string drug_str = drug.name + "   " + std::to_string(drug.amount);
       RCLCPP_INFO(this->get_logger(), "%s", drug_str.c_str());
       pkg_order_srv_req->print_info[i].drugs.push_back(drug_str);
     }

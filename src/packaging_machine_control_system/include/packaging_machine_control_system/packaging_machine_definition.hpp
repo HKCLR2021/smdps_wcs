@@ -37,7 +37,7 @@
 
 #define CONVEYOR_FWD 1
 #define CONVEYOR_REV 0      // should not be used
-#define CONVEYOR_SPEED 250
+#define CONVEYOR_SPEED 220
 #define SQUEEZER_SPEED 1100
 
 #define HEATER_ON  1

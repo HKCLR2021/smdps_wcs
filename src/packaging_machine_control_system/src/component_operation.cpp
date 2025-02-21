@@ -320,7 +320,8 @@ void PackagingMachineNode::init_printer_config()
   printer_->configure(printer_config_->endpoint_in, printer_config_->endpoint_out, printer_config_->timeout);
   printer_->addDefaultConfig("SIZE", "75 mm,80 mm");
   printer_->addDefaultConfig("GAP", "0 mm, 0mm");
-  // printer_->addDefaultConfig("SPEED", "1");
+  printer_->addDefaultConfig("SPEED", "1");
+  printer_->addDefaultConfig("DENSITY", "10");
   printer_->addDefaultConfig("DIRECTION", "0, 0");
   printer_->addDefaultConfig("REFERENCE", "-90, -120"); // FIXME
   printer_->addDefaultConfig("OFFSET", "0 mm");
