@@ -115,38 +115,6 @@ void DispenserStationNode::dis_station_status_cb(void)
 
 void DispenserStationNode::heartbeat_valid_cb(void)
 {
-  // std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, heartbeat_id, opcua::useFuture);
-  // future.wait();
-  // const opcua::Result<opcua::Variant> &result = future.get();
-
-  // if (result.code() != UA_STATUSCODE_GOOD) 
-  // {
-  //   RCLCPP_ERROR(this->get_logger(), "Error reading heartbeat: %s", std::to_string(result.code()).c_str());
-  //   return;
-  // }
-
-  // std::optional<bool> val = result.value().scalar<bool>();
-
-  // const std::lock_guard<std::mutex> lock(mutex_);
-  // if (!val)
-  // {
-  //   status_->heartbeat = false;
-  //   RCLCPP_ERROR(this->get_logger(), "Heartbeat value is not available");
-  //   return;
-  // }
-
-  // RCLCPP_DEBUG(this->get_logger(), "Read Heartbeat result with status code: %s, Data: %s", std::to_string(result.code()).c_str(), *val ? "true" : "false");
-
-  // if (*val == status_->heartbeat) 
-  // {
-  //   heartbeat_counter_++;
-  // } 
-  // else 
-  // {
-  //   status_->heartbeat = true;
-  //   heartbeat_counter_ = 0;
-  // }
-
   const std::lock_guard<std::mutex> lock(mutex_);
   heartbeat_counter_++;
   
@@ -161,7 +129,7 @@ void DispenserStationNode::dis_req_handle(
   const std::shared_ptr<DispenseDrug::Request> req, 
   std::shared_ptr<DispenseDrug::Response> res)
 {
-  std::chrono::milliseconds freq = 250ms;
+  std::chrono::milliseconds freq = 100ms;
   rclcpp::Rate loop_rate(freq); 
 
   wait_for_opcua_connection(freq);

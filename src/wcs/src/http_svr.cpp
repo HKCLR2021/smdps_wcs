@@ -296,57 +296,6 @@ void ProdLineCtrl::pkg_req_handler(
 
   const uint8_t id = static_cast<uint8_t>(stoi(val));
 
-  // std::thread print_srv_wait_thread_ = std::thread([this]() {
-  //   while (rclcpp::ok() && !printing_info_cli_->wait_for_service(std::chrono::seconds(1)))
-  //   {
-  //     RCLCPP_ERROR(this->get_logger(), "PrintingInfo Service not available, waiting again...");
-  //   }
-  // });
-
-  // std::shared_ptr<PrintingOrder::Request> printing_info_srv_req = std::make_shared<PrintingOrder::Request>();
-  // printing_info_srv_req->material_box_id = id;
-
-  // std::shared_ptr<PrintingInfo> info = std::make_shared<PrintingInfo>();
-
-  // using ServiceResponseFuture = rclcpp::Client<PrintingOrder>::SharedFuture;
-  // auto printing_res_received_cb = [this, info](ServiceResponseFuture future) {
-  //   auto srv_res = future.get();
-  //   if (srv_res && srv_res->success) 
-  //   {
-  //     *info = srv_res->info;
-  //     RCLCPP_INFO(this->get_logger(), "Inside the PrintingOrder Callback OK");
-  //   } else 
-  //   {
-  //     RCLCPP_ERROR(this->get_logger(), "Inside the PrintingOrder Callback NOT OK. message: %s", srv_res->message.c_str());
-  //   }
-  // };
-
-  // if (print_srv_wait_thread_.joinable())
-  //   print_srv_wait_thread_.join();
-
-  // auto print_future = printing_info_cli_->async_send_request(printing_info_srv_req, printing_res_received_cb);
-
-  // std::future_status print_status = print_future.wait_for(1s);
-  // switch (print_status)
-  // {
-  // case std::future_status::ready:
-  //   break;
-  // case std::future_status::timeout:
-  //   res_json["msg"] = "print_future timeout";
-  //   RCLCPP_ERROR(this->get_logger(), "PrintingOrder wait_for timeout");
-  //   return;
-  // case std::future_status::deferred: 
-  //   res_json["msg"] = "print_future deferred";
-  //   RCLCPP_ERROR(this->get_logger(), "PrintingOrder wait_for deferred");
-  //   return;
-  // }
-
-  // if (print_status != std::future_status::ready)
-  // {
-  //   res.set_content(res_json.dump(), "application/json");
-  //   return;
-  // }
-
   std::thread pkg_srv_wait_thread_ = std::thread([this]() {
     while (rclcpp::ok() && !pkg_order_cli_->wait_for_service(std::chrono::seconds(1))) 
     {
@@ -361,32 +310,13 @@ void ProdLineCtrl::pkg_req_handler(
 
   for (size_t i = 0; i < pkg_order_srv_req->print_info.size(); ++i) 
   {
-    // nlohmann::json mtrl_box_cell_res_json;
-
-    // const httplib::Params params = {
-    //   { "MaterialBoxId", std::to_string(id) },
-    //   { "cellId", std::to_string(map_index(i) + 1) }
-    // };
-
-    // if (!get_cell_info_by_id_and_cell_id(params, mtrl_box_cell_res_json))
-    // {
-    //   RCLCPP_ERROR(this->get_logger(), "%s had unknown error", __FUNCTION__);
-    //   continue;
-    // }
-
-    // RCLCPP_INFO(this->get_logger(), "======== %ld =======", i);
-    // if (mtrl_box_cell_res_json["cell"]["drugs"].is_null())
-    // {
-    //   RCLCPP_INFO(this->get_logger(), "The index [%ld] cell is empty.", i + 1);
-    //   continue;
-    // }
-    if (orders_[id].material_box.slots[i].drugs.empty())
+    if (std::get<0>(orders_[id]).material_box.slots[i].drugs.empty())
       continue;
 
-    pkg_order_srv_req->print_info[i].cn_name = orders_[id].patient.institute_name;
-    pkg_order_srv_req->print_info[i].en_name = orders_[id].patient.name;
+    pkg_order_srv_req->print_info[i].cn_name = std::get<0>(orders_[id]).patient.institute_name;
+    pkg_order_srv_req->print_info[i].en_name = std::get<0>(orders_[id]).patient.name;
     
-    const uint8_t curr_meal = (orders_[id].start_meal + i) % 4;
+    const uint8_t curr_meal = (std::get<0>(orders_[id]).start_meal + i) % 4;
     switch (curr_meal)
     {
     case OrderRequest::MEAL_MORNING:
@@ -403,21 +333,29 @@ void ProdLineCtrl::pkg_req_handler(
       break;
     }
     
-    pkg_order_srv_req->print_info[i].date = "Date: TBD";
+    const std::string date = std::get<0>(orders_[id]).start_date;
+    std::tm t{};
+    std::istringstream ss(date);
+
+    ss >> std::get_time(&t, "%Y-%m-%d");
+    if (ss.fail()) 
+      throw std::runtime_error{"failed to parse time string"};
+    
+    std::time_t timestamp = mktime(&t);
+    timestamp += ((std::get<0>(orders_[id]).start_meal + i) / 4) * 86400;
+
+    char mbstr[100];
+    std::strftime(mbstr, sizeof(mbstr), "%Y/%m/%d", std::localtime(&timestamp));
+
+    pkg_order_srv_req->print_info[i].date = "Date: " + std::string(mbstr); 
     pkg_order_srv_req->print_info[i].qr_code = "https://www.hkclr.hk";
 
-    for (const auto &drug : orders_[id].material_box.slots[i].drugs)
+    for (const auto &drug : std::get<0>(orders_[id]).material_box.slots[i].drugs)
     {
       const std::string drug_str = drug.name + "   " + std::to_string(drug.amount);
       RCLCPP_INFO(this->get_logger(), "%s", drug_str.c_str());
       pkg_order_srv_req->print_info[i].drugs.push_back(drug_str);
     }
-    // for (const auto &drug : mtrl_box_cell_res_json["cell"]["drugs"])
-    // {
-    //   const std::string drug_str = drug["drugId"].get<std::string>() + " --- " + std::to_string(drug["amount"].get<int>()) + "EA";
-    //   RCLCPP_INFO(this->get_logger(), "%s", drug_str.c_str());
-    //   pkg_order_srv_req->print_info[i].drugs.push_back(drug_str);
-    // }
   }
 
   using PkgServiceResponseFuture = rclcpp::Client<PackagingOrder>::SharedFuture;
@@ -440,7 +378,7 @@ void ProdLineCtrl::pkg_req_handler(
   
   auto pkg_future = pkg_order_cli_->async_send_request(pkg_order_srv_req, packaging_res_received_cb);
 
-  std::future_status pkg_status = pkg_future.wait_for(500ms);
+  std::future_status pkg_status = pkg_future.wait_for(1s);
   switch (pkg_status)
   {
   case std::future_status::ready:

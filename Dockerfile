@@ -1,3 +1,4 @@
+# ========== ros2_img ========== 
 FROM ubuntu:22.04 AS ros2_img
 
 RUN apt update
@@ -26,6 +27,7 @@ RUN apt install -y ros-${ROS_DISTRO}-ros-base
 RUN apt install -y build-essential cmake git wget dos2unix \
     python3-colcon-common-extensions python3-pip python3-rosdep python3-vcstool
 
+# ========== ros2_canopen_img ========== 
 FROM ros2_img:latest AS ros2_canopen_img
 
 RUN apt install -y \
@@ -80,29 +82,53 @@ RUN apt install -y \
     libxnvctrl0 m4 mpi-default-bin mpi-default-dev ocl-icd-libopencl1 \
     openmpi-bin openmpi-common libtool-bin
     
-FROM ros2_canopen_img:latest AS pkg_mac_sys
-
-EXPOSE 9090 11811
-
-ENV WS_NAME=packaging_system
+ENV WS_NAME=smdps_wcs
 RUN mkdir -p /${WS_NAME}/src
 
 WORKDIR /${WS_NAME}
 
-COPY ./src/packaging_machine_comm ./src/packaging_machine_comm
-COPY ./src/packaging_machine_control_system ./src/packaging_machine_control_system
-
 COPY ./src/smdps_msgs ./src/smdps_msgs
-
 COPY ./src/ros2_canopen ./src/ros2_canopen
 
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+RUN rm -rf ./src/smdps_msgs ./src/ros2_canopen
+
+# ========== prod_line_img ========== 
+FROM ros2_img:latest AS prod_line_img
+
+ENV WS_NAME=smdps_wcs
+RUN mkdir -p /${WS_NAME}/src
+
+WORKDIR /${WS_NAME}
+
+COPY ./src/smdps_msgs ./src/smdps_msgs
+COPY ./src/nlohmann ./src/nlohmann
+COPY ./src/open62541pp ./src/open62541pp
+
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+RUN rm -rf ./src/smdps_msgs ./src/nlohmann ./src/open62541pp
+
+# ========== pkg_mac_sys ========== 
+FROM ros2_canopen_img AS pkg_mac_sys
+
+EXPOSE 9090
+
+COPY ./src/packaging_machine_comm ./src/packaging_machine_comm
+COPY ./src/packaging_machine_control_system ./src/packaging_machine_control_system
 COPY ./fastdds_profiles.xml ./
+
 ENV FASTRTPS_DEFAULT_PROFILES_FILE=/${WS_NAME}/fastdds_profiles.xml
 ENV ROS_LOCALHOST_ONLY=0
 ENV ROS_VERSION=2
 ENV ROS_PYTHON_VERSION=3
 
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
+    . install/setup.sh && \
+    colcon build \
+    --packages-select packaging_machine_comm packaging_machine_control_system \
+    --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs
@@ -112,29 +138,24 @@ COPY --chmod=755 ./docker/entrypoint.sh /
 RUN dos2unix /entrypoint.sh 
 ENTRYPOINT [ "/entrypoint.sh" ]
 
-FROM ros2_img:latest AS prod_line_sys
+# ========== prod_line_sys ========== 
+FROM prod_line_img AS prod_line_sys
 
 EXPOSE 8000
 
-ENV WS_NAME=smdps_wcs
-RUN mkdir -p /${WS_NAME}/src
-
-WORKDIR /${WS_NAME}
-
 COPY ./src/wcs ./src/wcs
-
-COPY ./src/smdps_msgs ./src/smdps_msgs
-
-COPY ./src/nlohmann ./src/nlohmann
-COPY ./src/open62541pp ./src/open62541pp
-
 COPY ./fastdds_profiles.xml ./
+
 ENV FASTRTPS_DEFAULT_PROFILES_FILE=/${WS_NAME}/fastdds_profiles.xml
 ENV ROS_LOCALHOST_ONLY=0
 ENV ROS_VERSION=2
 ENV ROS_PYTHON_VERSION=3
 
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
+    . install/setup.sh && \
+    colcon build \
+    --packages-select wcs \
+    --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs

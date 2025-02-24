@@ -3,7 +3,7 @@
 ## Prerequisites
 
 * A host PC with Docker and Git installed.
-* SocketCAN supported.
+* CAN Module installed.
 
 ## Installation
 
@@ -16,5 +16,5 @@ git clone --recurse-submodules https://github.com/samkwok-hkclr/smdps_wcs
 ### 2. Build and Run the Containers
 
 ```bash
-docker compose up --build
+docker compose up --build --force-recreate
 ```

@@ -4,6 +4,8 @@ x-common-variables: &common-variables
   NO_OF_DIS_STA: 14
   NO_OF_PKG_MAC: 2
   UID: 1000
+  RCUTILS_CONSOLE_OUTPUT_FORMAT: "[{severity}] {message}"
+  CAN_CHANNEL: can0
 
 services:
   ros2_base:
@@ -25,17 +27,6 @@ services:
         condition: service_completed_successfully
     entrypoint: ["sh", "-c", "exit"]
 
-  build_prod_line_sys:
-    image: prod_line_sys
-    build:
-      context: .
-      target: prod_line_sys
-      tags: 
-        - "prod_line_sys:latest"
-    depends_on:
-      ros2_base:
-        condition: service_completed_successfully
-
   build_pkg_mac_sys:
     image: pkg_mac_sys
     build:
@@ -47,6 +38,17 @@ services:
       ros2_canopen:
         condition: service_completed_successfully
 
+  build_prod_line_sys:
+    image: prod_line_sys
+    build:
+      context: .
+      target: prod_line_sys
+      tags: 
+        - "prod_line_sys:latest"
+    depends_on:
+      ros2_base:
+        condition: service_completed_successfully
+
   pkg_mac_comm:
     image: pkg_mac_sys:latest
     container_name: pkg_mac_comm
@@ -55,9 +57,7 @@ services:
       build_pkg_mac_sys:
         condition: service_completed_successfully
     privileged: true
-    environment:
-      - CAN_CHANNEL=can0
-      - UID=1000
+    environment: *common-variables 
     command: ["sh", "-c", "ros2 launch packaging_machine_comm futian_lifecycle_setup.launch.py can_channel:=$${CAN_CHANNEL}"]
     volumes:
       - ./logs:/logs
@@ -90,7 +90,7 @@ services:
     depends_on:
       activate_can:
         condition: service_completed_successfully
-    environment: *common-variables
+    environment: *common-variables 
     command: ["sh", "-c", "ros2 launch packaging_machine_control_system manager.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
     volumes:
       - ./logs:/logs
@@ -154,24 +154,6 @@ services:
         condition: service_completed_successfully
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch wcs dis_station.launch.py no_of_dis_station:=$${NO_OF_DIS_STA}"]
-    volumes:
-      - ./logs:/logs
-    restart: no
-    network_mode: host
-    ipc: host
-    pid: host
-
-  fake_printing_ser:
-    image: prod_line_sys:latest
-    container_name: fake_printing_ser
-    hostname: fake_printing_ser
-    depends_on:
-      build_prod_line_sys:
-        condition: service_completed_successfully
-      activate_can:
-        condition: service_completed_successfully
-    environment: *common-variables
-    command: ["sh", "-c", "ros2 run wcs fake_printing_srv_node"]
     volumes:
       - ./logs:/logs
     restart: no

@@ -449,7 +449,7 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
         result->response.material_box_id = id;
         result->response.success = true;
         const std::lock_guard<std::mutex> lock(mutex_);
-        orders_[id] = std::move(goal->request);
+        orders_[id] = std::move(std::tuple(goal->request, MaterialBoxStatus::STATUS_INITIALIZING));
         break;
       }
       else
