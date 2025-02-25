@@ -15,7 +15,17 @@ PackagingMachineManager::PackagingMachineManager(
     "packaging_machine_status", 
     10, 
     std::bind(&PackagingMachineManager::status_cb, this, _1));
-  
+
+  motor_status_sub_ = this->create_subscription<MotorStatus>(
+    "motor_status", 
+    10, 
+    std::bind(&PackagingMachineManager::motor_status_cb, this, _1)); 
+
+  info_sub_ = this->create_subscription<PackagingMachineInfo>(
+    "info", 
+    10, 
+    std::bind(&PackagingMachineManager::info_cb, this, _1)); 
+
   packaging_result_sub_ = this->create_subscription<PackagingResult>(
     "packaging_result", 
     10, 
@@ -29,10 +39,19 @@ PackagingMachineManager::PackagingMachineManager(
   executor_->add_node(action_client_manager_);
 
   srv_cli_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
   service_ = this->create_service<PackagingOrderSrv>(
     packaging_order_service_name, 
-    std::bind(&PackagingMachineManager::packaging_order_handle, this, _1, _2));
+    std::bind(&PackagingMachineManager::packaging_order_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
+  release_blk_srv_ = this->create_service<Trigger>(
+    "release_blocking", 
+    std::bind(&PackagingMachineManager::release_blocking_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
 
   unbind_order_id_pub_ = this->create_publisher<UnbindRequest>("unbind_order_id", 10); 
 
@@ -53,17 +72,9 @@ PackagingMachineManager::PackagingMachineManager(
   {
     const std::string con_op_str = "/packaging_machine_" + std::to_string(i + 1) + "/conveyor_operation";
     const std::string stop_op_str = "/packaging_machine_" + std::to_string(i + 1) + "/stopper_operation";
-    conveyor_stopper_client_.push_back(
-      std::make_pair(
-        this->create_client<SetBool>(
-          con_op_str,
-          rmw_qos_profile_services_default,
-          srv_cli_cbg_),
-        this->create_client<SetBool>(
-          stop_op_str,
-          rmw_qos_profile_services_default,
-          srv_cli_cbg_)
-      )
+    conveyor_stopper_client_[i + 1] = std::make_pair(
+      this->create_client<SetBool>(con_op_str, rmw_qos_profile_services_default, srv_cli_cbg_),
+      this->create_client<SetBool>(stop_op_str, rmw_qos_profile_services_default, srv_cli_cbg_)
     );
     RCLCPP_DEBUG(this->get_logger(), "Conveyor Service %s Client is created", con_op_str.c_str());
     RCLCPP_DEBUG(this->get_logger(), "Stopper Service %s Client is created", stop_op_str.c_str());
@@ -82,20 +93,20 @@ PackagingMachineManager::PackagingMachineManager(
     RCLCPP_ERROR(this->get_logger(), "List Nodes Service not available!");
   }
 
-  for (size_t i = 0; i < conveyor_stopper_client_.size(); i++)
+  for (const auto &cli_pair : conveyor_stopper_client_)
   {
-    while (rclcpp::ok() && !conveyor_stopper_client_[i].first->wait_for_service(1s)) 
+    while (rclcpp::ok() && !cli_pair.second.first->wait_for_service(1s)) 
     {
-      RCLCPP_ERROR(this->get_logger(), "Machine [%ld] Conveyor Service not available!", i + 1);
+      RCLCPP_ERROR(this->get_logger(), "Machine [%d] Conveyor Service not available!", cli_pair.first);
     }
-    while (rclcpp::ok() && !conveyor_stopper_client_[i].second->wait_for_service(1s)) 
+    while (rclcpp::ok() && !cli_pair.second.second->wait_for_service(1s)) 
     {
-      RCLCPP_ERROR(this->get_logger(), "Machine [%ld] Stopper Service not available!", i + 1);
+      RCLCPP_ERROR(this->get_logger(), "Machine [%d] Stopper Service not available!", cli_pair.first);
     }
   }
 
   conveyor_stopper_timer_ = this->create_wall_timer(
-    5s, 
+    1s, 
     std::bind(&PackagingMachineManager::conveyor_stopper_cb, this));
 
   RCLCPP_INFO(this->get_logger(), "Packaging Machine Manager is up.");
@@ -104,102 +115,105 @@ PackagingMachineManager::PackagingMachineManager(
 
 void PackagingMachineManager::conveyor_stopper_cb(void)
 {
-  using ServiceSharedFutureAndRequestId = rclcpp::Client<SetBool>::SharedFutureAndRequestId;
-  std::vector<ServiceSharedFutureAndRequestId> futures;
-  const size_t MAX_RETRIES = 2;
+  if (release_blk_signal.empty())
+    return;
 
-  for (size_t i = 0; i < conveyor_stopper_client_.size(); i++)
+  const std::lock_guard<std::mutex> lock(mutex_);
+
+  auto iter = packaging_machine_status_.rbegin();
+  for (; iter != packaging_machine_status_.rend(); iter++) 
   {
-    size_t reties = 0;
-    while (rclcpp::ok() && !conveyor_stopper_client_[i].first->wait_for_service(1s)) 
-    {
-      RCLCPP_ERROR(this->get_logger(), "Machine [%ld] Conveyor Service is not available!", i + 1);
-      reties++;
-      if (reties > MAX_RETRIES)
-      {
-        RCLCPP_ERROR(this->get_logger(), "Break because Machine [%ld] Conveyor Service not available", i + 1);
-        return;
-      }
-    }
-    reties = 0;
-    while (rclcpp::ok() && !conveyor_stopper_client_[i].second->wait_for_service(1s)) 
-    {
-      RCLCPP_ERROR(this->get_logger(), "Machine [%ld] Stopper Service is not available!", i + 1);
-      reties++;
-      if (reties > MAX_RETRIES)
-      {
-        RCLCPP_ERROR(this->get_logger(), "Break because Machine [%ld] Conveyor Service not available", i + 1);
-        return;
-      }
-    }
-    
-    const std::lock_guard<std::mutex> lock(this->mutex_);
-    
-    if (packaging_machine_status_[i + 1].packaging_machine_state == PackagingMachineStatus::IDLE)
-    {      
-      using ServiceResponseFuture = rclcpp::Client<SetBool>::SharedFuture;
-      auto response_received_cb = [this](ServiceResponseFuture future) {
-        auto response = future.get();
-        if (response) 
-        {
-          RCLCPP_DEBUG(this->get_logger(), "Sent a operation request.");
-        } 
-        else 
-        {
-          const std::string err_msg = "Service call failed or returned no result";
-          RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
-        }
-      };
-
-      std::shared_ptr<SetBool::Request> conveyor_request = std::make_shared<SetBool::Request>();
-      conveyor_request->data = true;
-      auto conveyor_future = conveyor_stopper_client_[i].first->async_send_request(
-        conveyor_request,
-        response_received_cb);
-      futures.push_back(std::move(conveyor_future));
-
-      std::shared_ptr<SetBool::Request> stopper_request = std::make_shared<SetBool::Request>();
-      stopper_request->data = false;
-      auto stopper_future = conveyor_stopper_client_[i].second->async_send_request(
-        stopper_request,
-        response_received_cb);
-      futures.push_back(std::move(stopper_future));
-
-      RCLCPP_DEBUG(this->get_logger(), "Packaging Machine [%ld] Service is called", i + 1);
-    }
+    if (iter->second.packaging_machine_state == PackagingMachineStatus::UNAVAILABLE)
+      break;
   }
 
+  if (iter == packaging_machine_status_.rend())
+  {
+    RCLCPP_DEBUG(this->get_logger(), "Packaging Machines Conveyor State are available!");
+    return;
+  }
+
+  const uint8_t target_id = iter->first;
+  const auto &cli_pair = conveyor_stopper_client_[target_id];
+
+  using ServiceSharedFutureAndRequestId = rclcpp::Client<SetBool>::SharedFutureAndRequestId;
+  std::vector<ServiceSharedFutureAndRequestId> futures;
+
+  using ServiceResponseFuture = rclcpp::Client<SetBool>::SharedFuture;
+  auto response_received_cb = [this](ServiceResponseFuture future) {
+    auto response = future.get();
+    if (response) 
+      RCLCPP_DEBUG(this->get_logger(), "Sent a operation request.");
+    else 
+    {
+      const std::string err_msg = "Service call failed or returned no result";
+      RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+    }
+  };
+
+  std::shared_ptr<SetBool::Request> conveyor_request = std::make_shared<SetBool::Request>();
+  conveyor_request->data = true;
+  auto conveyor_future = cli_pair.first->async_send_request(conveyor_request, response_received_cb);
+  futures.push_back(std::move(conveyor_future));
+
+  std::shared_ptr<SetBool::Request> stopper_request = std::make_shared<SetBool::Request>();
+  stopper_request->data = false;
+  auto stopper_future = cli_pair.second->async_send_request(stopper_request, response_received_cb);
+  futures.push_back(std::move(stopper_future));
+
+  RCLCPP_INFO(this->get_logger(), "Packaging Machine [%d] Conveyor and Stopper Service are called", target_id);
+
+  bool success = true;
   for (const auto &future : futures)
   {
     std::future_status status = future.wait_for(200ms);
     switch (status)
     {
     case std::future_status::ready:
-      RCLCPP_DEBUG(this->get_logger(), "OK");
+      success &= true;
       break; 
     case std::future_status::timeout: {
+      success &= false;
       const std::string err_msg = "The Operation Service is timeout.";
       RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
       break; 
     }
     case std::future_status::deferred: {
+      success &= false;
       const std::string err_msg = "The Operation Service is deferred.";
       RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
       break;
     }
     }
   }
+
+  if (success)
+    RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is released successfully", target_id);
+  else
+    RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is released unsuccessfully", target_id);
 }
 
 void PackagingMachineManager::status_cb(const PackagingMachineStatus::SharedPtr msg)
 {
-  const std::lock_guard<std::mutex> lock(this->mutex_);
+  const std::lock_guard<std::mutex> lock(mutex_);
   packaging_machine_status_[msg->packaging_machine_id] = *msg;
+}
+
+void PackagingMachineManager::motor_status_cb(const MotorStatus::SharedPtr msg)
+{
+  const std::lock_guard<std::mutex> lock(mutex_);
+  motor_status_[msg->id] = *msg;
+}
+
+void PackagingMachineManager::info_cb(const PackagingMachineInfo::SharedPtr msg)
+{
+  const std::lock_guard<std::mutex> lock(mutex_);
+  info_[msg->id] = *msg;
 }
 
 void PackagingMachineManager::packaging_result_cb(const PackagingResult::SharedPtr msg)
 {
-  const std::lock_guard<std::mutex> lock(this->mutex_);
+  const std::lock_guard<std::mutex> lock(mutex_);
   if (!msg->success)
   {
     RCLCPP_ERROR(this->get_logger(), "A packaging order return error.");
@@ -274,7 +288,7 @@ void PackagingMachineManager::packaging_order_handle(
   std::shared_ptr<PackagingOrderSrv::Response> response)
 {
   RCLCPP_INFO(this->get_logger(), "service handle");
-  const std::lock_guard<std::mutex> lock(this->mutex_);
+  const std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = std::find_if(packaging_machine_status_.rbegin(), packaging_machine_status_.rend(),
     [](const auto& entry) {
@@ -398,7 +412,7 @@ void PackagingMachineManager::packaging_order_handle(
     if (srv_result) 
     {
       std::pair<uint32_t, uint64_t> _pair(request->order_id, srv_result->unique_id);
-      const std::lock_guard<std::mutex> lock(this->mutex_);
+      const std::lock_guard<std::mutex> lock(mutex_);
       curr_client_.push_back(_pair);
       RCLCPP_INFO(this->get_logger(), "Loaded a action client. unique_id: %ld ", srv_result->unique_id);
     } else 
@@ -425,6 +439,16 @@ void PackagingMachineManager::packaging_order_handle(
     break;
   }
   }
+}
+
+void PackagingMachineManager::release_blocking_handle(
+  const std::shared_ptr<Trigger::Request> request, 
+  std::shared_ptr<Trigger::Response> response)
+{
+  (void)request;
+  response->success = true;
+  const std::lock_guard<std::mutex> lock(mutex_);
+  release_blk_signal.push(true);
 }
 
 int main(int argc, char **argv)

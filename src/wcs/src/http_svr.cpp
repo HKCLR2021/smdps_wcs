@@ -27,6 +27,9 @@ bool ProdLineCtrl::init_httpsvr(void)
     httpsvr_->Get(from_url(scanner + mtrl_box_con_scan), std::bind(&ProdLineCtrl::scanner_handler, this, _1, _2, mtrl_box_con_loc));
     httpsvr_->Get(from_url(scanner + pkg_mac_scan), std::bind(&ProdLineCtrl::scanner_handler, this, _1, _2, pkg_mac_loc));
     httpsvr_->Get(from_url(scanner + vis_inps_sys_scan), std::bind(&ProdLineCtrl::scanner_handler, this, _1, _2, vis_inps_sys_loc));
+    
+    httpsvr_->Get(from_url(con_ready), std::bind(&ProdLineCtrl::con_ready_handler, this, _1, _2));
+    httpsvr_->Get(from_url(vis_stopper), std::bind(&ProdLineCtrl::vis_stopper_handler, this, _1, _2));
 
     httpsvr_thread_ = std::thread(std::bind(&ProdLineCtrl::start_http_server, this)); 
   }
@@ -345,7 +348,7 @@ void ProdLineCtrl::pkg_req_handler(
     timestamp += ((std::get<0>(orders_[id]).start_meal + i) / 4) * 86400;
 
     char mbstr[100];
-    std::strftime(mbstr, sizeof(mbstr), "%Y/%m/%d", std::localtime(&timestamp));
+    std::strftime(mbstr, sizeof(mbstr), "%Y-%m-%d", std::localtime(&timestamp));
 
     pkg_order_srv_req->print_info[i].date = "Date: " + std::string(mbstr); 
     pkg_order_srv_req->print_info[i].qr_code = "https://www.hkclr.hk";
@@ -533,6 +536,55 @@ void ProdLineCtrl::scanner_handler(
   msg.header.stamp = this->get_clock()->now();
   scan_pub_->publish(msg);
   RCLCPP_INFO(this->get_logger(), "Material box [%d] was passed through the location [%s]", mtrl_box_id, location.c_str());
+
+  res_json["code"] = 200;
+  res_json["msg"] = "success";
+
+  res.set_content(res_json.dump(), "application/json");
+}
+
+void ProdLineCtrl::con_ready_handler(
+  const httplib::Request &req, 
+  httplib::Response &res)
+{
+  nlohmann::json res_json = {
+    { "code", 0 },
+    { "msg", "failure" }
+  };
+
+  // to notify pkg mac manager to release the stopper once
+
+  res_json["code"] = 200;
+  res_json["msg"] = "success";
+
+  res.set_content(res_json.dump(), "application/json");
+}
+
+void ProdLineCtrl::vis_stopper_handler(
+  const httplib::Request &req, 
+  httplib::Response &res)
+{
+  nlohmann::json res_json = {
+    { "code", 0 },
+    { "msg", "failure" }
+  };
+
+  if (!req.has_param("state")) 
+  {
+    res_json["msg"] = "state is missing";
+    res.set_content(res_json.dump(), "application/json");
+    return;
+  }
+
+  const auto val = req.get_param_value("state");
+  if (!is_number(val)) 
+  {
+    res_json["msg"] = "state is not a number";
+    res.set_content(res_json.dump(), "application/json");
+    return;
+  }
+
+  // to notify vision system to do task
 
   res_json["code"] = 200;
   res_json["msg"] = "success";

@@ -27,13 +27,13 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
   goal_handle->publish_feedback(feedback);
 
   // lock.lock();
-  status_->conveyor_state = PackagingMachineStatus::AVAILABLE;
+  // status_->conveyor_state = PackagingMachineStatus::AVAILABLE;
   // lock.unlock();
   
   RCLCPP_INFO(this->get_logger(), "Set conveyor_state to AVAILABLE");
 
-  ctrl_stopper(STOPPER_SUNK);
-  ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
+  // ctrl_stopper(STOPPER_SUNK);
+  // ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
 
   UnbindRequest msg;
   msg.packaging_machine_id = status_->packaging_machine_id;
@@ -311,11 +311,11 @@ void PackagingMachineNode::skip_order_execute(const std::shared_ptr<GaolHandlerP
 
   goal_handle->publish_feedback(feedback);
 
-  status_->conveyor_state = PackagingMachineStatus::AVAILABLE;
-  RCLCPP_INFO(this->get_logger(), "Set conveyor_state to AVAILABLE");
+  // status_->conveyor_state = PackagingMachineStatus::AVAILABLE;
+  // RCLCPP_INFO(this->get_logger(), "Set conveyor_state to AVAILABLE");
 
-  ctrl_stopper(STOPPER_SUNK);
-  ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
+  // ctrl_stopper(STOPPER_SUNK);
+  // ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
 
   UnbindRequest msg;
   msg.packaging_machine_id = status_->packaging_machine_id;

@@ -29,6 +29,9 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   RCLCPP_DEBUG(this->get_logger(), "packaging_machine_state: %d", status_->packaging_machine_state);
   RCLCPP_DEBUG(this->get_logger(), "port: %d", printer_config_->port);
 
+  motor_status_->id = status_->packaging_machine_id;
+  info_->id = status_->packaging_machine_id;
+  
   this->declare_parameter<uint16_t>("vendor_id", 0);
   this->declare_parameter<uint16_t>("product_id", 0);
   this->declare_parameter<uint8_t>("bus_number", 0);
@@ -79,8 +82,8 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
 
   // add a "/" prefix to topic name avoid adding a namespace
   status_publisher_ = this->create_publisher<PackagingMachineStatus>("/packaging_machine_status", 10); 
-  motor_status_publisher_ = this->create_publisher<MotorStatus>("motor_status", 10); 
-  info_publisher_ = this->create_publisher<PackagingMachineInfo>("info", 10); 
+  motor_status_publisher_ = this->create_publisher<MotorStatus>("/motor_status", 10); 
+  info_publisher_ = this->create_publisher<PackagingMachineInfo>("/info", 10); 
   unbind_mtrl_box_publisher_ = this->create_publisher<UnbindRequest>("unbind_material_box_id", 10); 
 
   tpdo_pub_ = this->create_publisher<COData>(
@@ -627,7 +630,6 @@ rclcpp_action::GoalResponse PackagingMachineNode::handle_goal(
   if (retry >= MAX_RETIRES)
   {
     RCLCPP_INFO(this->get_logger(), "retry(%d) >= MAX_RETIRES", retry);
-    // lock.lock();
     status_->packaging_machine_state = PackagingMachineStatus::IDLE;
     return rclcpp_action::GoalResponse::REJECT;
   }

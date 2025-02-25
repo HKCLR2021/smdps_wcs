@@ -152,6 +152,8 @@ private:
   void pkg_mac_info_handler(const httplib::Request &req, httplib::Response &res);
   void order_comp_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
   void scanner_handler(const httplib::Request &req, httplib::Response &res, const std::string &location);
+  void con_ready_handler(const httplib::Request &req, httplib::Response &res);
+  void vis_stopper_handler(const httplib::Request &req, httplib::Response &res);
   void init_pkg_mac_handler(const httplib::Request &req, httplib::Response &res);
 
   // void dis_result_handler(std::vector<std::tuple<uint8_t, bool, ServiceSharedFutureAndRequestId>> futures);

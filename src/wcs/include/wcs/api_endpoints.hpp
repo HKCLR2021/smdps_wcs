@@ -30,6 +30,8 @@ const std::string cleaning_mac_scan = "/cleaningMachine";
 const std::string mtrl_box_con_scan = "/materialBoxContainer";
 const std::string pkg_mac_scan = "/packagingMachines";
 const std::string vis_inps_sys_scan = "/visionInspectionSystem";
+const std::string con_ready = "/containerReady";
+const std::string vis_stopper = "/visionStopper";
 
 const std::string cleaning_mac_loc = "cleaning_machine";
 const std::string mtrl_box_con_loc = "material_box_container";
