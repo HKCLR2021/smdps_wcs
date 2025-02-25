@@ -75,11 +75,12 @@ private:
   std::mutex mutex_;
   size_t no_of_pkg_mac;
 
-  std::queue<bool> release_blk_signal;
+  std::queue<rclcpp::Time> release_blk_signal;
 
   // order_id, unique_id
   std::vector<std::pair<uint32_t, uint64_t>> curr_client_;
 
+  rclcpp::CallbackGroup::SharedPtr timer_cbg_;
   rclcpp::CallbackGroup::SharedPtr srv_cli_cbg_;
   rclcpp::CallbackGroup::SharedPtr srv_ser_cbg_;
 
@@ -111,6 +112,7 @@ private:
   const std::string list_nodes_service_name = action_client_manager_node_name + "/_container/list_nodes";
 
   const std::string packaging_order_service_name = "packaging_order";
+  const std::string release_blocking_service_name = "release_blocking";
 
   void conveyor_stopper_cb(void);
 

@@ -79,6 +79,7 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
 
   status_timer_ = this->create_wall_timer(1s, std::bind(&PackagingMachineNode::pub_status_cb, this), status_cbg_);
   heater_timer_ = this->create_wall_timer(10s, std::bind(&PackagingMachineNode::heater_cb, this));
+  con_state_timer_ = this->create_wall_timer(50ms, std::bind(&PackagingMachineNode::con_state_cb, this));
 
   // add a "/" prefix to topic name avoid adding a namespace
   status_publisher_ = this->create_publisher<PackagingMachineStatus>("/packaging_machine_status", 10); 
@@ -205,6 +206,13 @@ void PackagingMachineNode::heater_cb(void)
     RCLCPP_INFO(this->get_logger(), "Current heater temperature: %d", info_->temperature);
     ctrl_heater(HEATER_ON);
   }
+}
+
+void PackagingMachineNode::con_state_cb(void)
+{
+  const std::lock_guard<std::mutex> lock(mutex_);
+  if (motor_status_->con_state != MotorStatus::IDLE && info_->stopper == STOPPER_SUNK_STATE)
+    status_->conveyor_state = PackagingMachineStatus::AVAILABLE;
 }
 
 void PackagingMachineNode::rpdo_cb(const COData::SharedPtr msg)
@@ -583,21 +591,13 @@ rclcpp_action::GoalResponse PackagingMachineNode::handle_goal(
 {
   (void)uuid;
   RCLCPP_INFO(this->get_logger(), "print_info size: %lu", goal->print_info.size());
-  // std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
+  std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
   
   if (info_->temperature <= MIN_TEMP)
   {
     RCLCPP_ERROR(this->get_logger(), "Temperature <= %d", MIN_TEMP);
     return rclcpp_action::GoalResponse::REJECT;
   }
-
-  // lock.lock();
-  status_->packaging_machine_state = PackagingMachineStatus::BUSY;
-  status_->conveyor_state = PackagingMachineStatus::UNAVAILABLE;
-  // lock.unlock();
-
-  RCLCPP_INFO(this->get_logger(), "set packaging_machine_state to BUSY");
-  RCLCPP_INFO(this->get_logger(), "set conveyor_state to UNAVAILABLE");
 
   printer_.reset();
   printer_ = std::make_shared<Printer>(
@@ -608,8 +608,16 @@ rclcpp_action::GoalResponse PackagingMachineNode::handle_goal(
   RCLCPP_INFO(this->get_logger(), "printer initialized");
   init_printer_config();
 
+  lock.lock();
+  status_->packaging_machine_state = PackagingMachineStatus::BUSY;
+  status_->conveyor_state = PackagingMachineStatus::UNAVAILABLE;
+
   ctrl_stopper(STOPPER_PROTRUDE);
   wait_for_stopper(STOPPER_PROTRUDE_STATE);
+  lock.unlock();
+
+  RCLCPP_INFO(this->get_logger(), "set packaging_machine_state to BUSY");
+  RCLCPP_INFO(this->get_logger(), "set conveyor_state to UNAVAILABLE");
 
   uint16_t retry = 0;
   const uint8_t MAX_RETIRES = 60;

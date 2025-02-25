@@ -26,11 +26,8 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
   RCLCPP_INFO(this->get_logger(), "Set are_drugs_fallen to True");
   goal_handle->publish_feedback(feedback);
 
-  // lock.lock();
   // status_->conveyor_state = PackagingMachineStatus::AVAILABLE;
-  // lock.unlock();
-  
-  RCLCPP_INFO(this->get_logger(), "Set conveyor_state to AVAILABLE");
+  // RCLCPP_INFO(this->get_logger(), "Set conveyor_state to AVAILABLE");
 
   // ctrl_stopper(STOPPER_SUNK);
   // ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);

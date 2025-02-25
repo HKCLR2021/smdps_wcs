@@ -32,7 +32,8 @@ include_directories(
 
 add_executable(prod_line_ctrl 
   src/prod_line_ctrl.cpp
-  src/http_svr.cpp
+  src/http_svr_handler.cpp
+  src/http_svr_utilities.cpp
   src/http_cli.cpp
 )
 target_link_libraries(prod_line_ctrl

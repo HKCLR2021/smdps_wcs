@@ -67,6 +67,7 @@ public:
 
   void pub_status_cb(void);
   void heater_cb(void);
+  void con_state_cb(void);
 
   void co_read_wait_for_service(void);
   void co_write_wait_for_service(void);
@@ -153,6 +154,7 @@ private:
 
   rclcpp::TimerBase::SharedPtr status_timer_;
   rclcpp::TimerBase::SharedPtr heater_timer_;
+  rclcpp::TimerBase::SharedPtr con_state_timer_;
 
   rclcpp::Publisher<PackagingMachineStatus>::SharedPtr status_publisher_;
   rclcpp::Publisher<MotorStatus>::SharedPtr motor_status_publisher_;

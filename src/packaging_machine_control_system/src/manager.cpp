@@ -38,6 +38,7 @@ PackagingMachineManager::PackagingMachineManager(
 
   executor_->add_node(action_client_manager_);
 
+  timer_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   srv_cli_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
@@ -48,7 +49,7 @@ PackagingMachineManager::PackagingMachineManager(
     srv_ser_cbg_);
 
   release_blk_srv_ = this->create_service<Trigger>(
-    "release_blocking", 
+    release_blocking_service_name, 
     std::bind(&PackagingMachineManager::release_blocking_handle, this, _1, _2),
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
@@ -70,9 +71,10 @@ PackagingMachineManager::PackagingMachineManager(
 
   for (size_t i = 0; i < no_of_pkg_mac; i++)
   {
-    const std::string con_op_str = "/packaging_machine_" + std::to_string(i + 1) + "/conveyor_operation";
-    const std::string stop_op_str = "/packaging_machine_" + std::to_string(i + 1) + "/stopper_operation";
-    conveyor_stopper_client_[i + 1] = std::make_pair(
+    const uint8_t id = i + 1;
+    const std::string con_op_str = "/packaging_machine_" + std::to_string(id) + "/conveyor_operation";
+    const std::string stop_op_str = "/packaging_machine_" + std::to_string(id) + "/stopper_operation";
+    conveyor_stopper_client_[id] = std::make_pair(
       this->create_client<SetBool>(con_op_str, rmw_qos_profile_services_default, srv_cli_cbg_),
       this->create_client<SetBool>(stop_op_str, rmw_qos_profile_services_default, srv_cli_cbg_)
     );
@@ -107,7 +109,8 @@ PackagingMachineManager::PackagingMachineManager(
 
   conveyor_stopper_timer_ = this->create_wall_timer(
     1s, 
-    std::bind(&PackagingMachineManager::conveyor_stopper_cb, this));
+    std::bind(&PackagingMachineManager::conveyor_stopper_cb, this),
+    timer_cbg_);
 
   RCLCPP_INFO(this->get_logger(), "Packaging Machine Manager is up.");
   RCLCPP_INFO(this->get_logger(), "Total: %ld Packaging Machines are monitored", no_of_pkg_mac);
@@ -188,7 +191,10 @@ void PackagingMachineManager::conveyor_stopper_cb(void)
   }
 
   if (success)
+  {
     RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is released successfully", target_id);
+    release_blk_signal.pop();
+  }
   else
     RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is released unsuccessfully", target_id);
 }
@@ -447,8 +453,9 @@ void PackagingMachineManager::release_blocking_handle(
 {
   (void)request;
   response->success = true;
+
   const std::lock_guard<std::mutex> lock(mutex_);
-  release_blk_signal.push(true);
+  release_blk_signal.push(this->get_clock()->now());
 }
 
 int main(int argc, char **argv)

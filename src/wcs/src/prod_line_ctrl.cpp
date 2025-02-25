@@ -55,14 +55,17 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
   printing_info_cli_ = this->create_client<PrintingOrder>(
     "printing_order",
     rmw_qos_profile_services_default,
-    srv_cli_cbg_
-  );
+    srv_cli_cbg_);
 
   pkg_order_cli_ = this->create_client<PackagingOrder>(
     "packaging_order",
     rmw_qos_profile_services_default,
-    srv_cli_cbg_
-  );
+    srv_cli_cbg_);
+
+  container_ready_cli_ = this->create_client<Trigger>(
+    "release_blocking",
+    rmw_qos_profile_services_default,
+    srv_cli_cbg_);
 
   for (uint8_t i = 0; i < no_of_pkg_mac_; i++)
   {
@@ -71,8 +74,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     init_pkg_mac_cli_[pkg_mac_id] = this->create_client<Trigger>(
       "/packaging_machine_" + std::to_string(pkg_mac_id) + "/init_package_machine",
       rmw_qos_profile_services_default,
-      srv_cli_cbg_
-    );
+      srv_cli_cbg_);
 
     while (rclcpp::ok() && !init_pkg_mac_cli_[pkg_mac_id]->wait_for_service(std::chrono::seconds(1))) 
     {
@@ -89,8 +91,7 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     dis_req_cli_[dis_station_id] = this->create_client<DispenseDrug>(
       "/dispenser_station_" + std::to_string(dis_station_id) + "/dispense_request",
       rmw_qos_profile_services_default,
-      srv_cli_cbg_
-    );
+      srv_cli_cbg_);
     
     while (rclcpp::ok() && !dis_req_cli_[dis_station_id]->wait_for_service(std::chrono::seconds(1))) 
     {

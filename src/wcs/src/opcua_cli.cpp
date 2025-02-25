@@ -310,11 +310,13 @@ void DispenserStationNode::sub_status_change_cb(uint32_t sub_id, opcua::StatusCh
 {
   (void) notification;
   RCLCPP_INFO(this->get_logger(), ">>>> Subscription status change: %d", sub_id);
+  std::this_thread::sleep_for(100ms);
 }
 
 void DispenserStationNode::sub_deleted_cb(uint32_t sub_id)
 {
   RCLCPP_INFO(this->get_logger(), ">>>> Subscription deleted: %d", sub_id);
+  std::this_thread::sleep_for(1s);
 }
 
 void DispenserStationNode::monitored_item_deleted_cb(uint32_t sub_id, uint32_t mon_id, std::string name)
@@ -322,6 +324,7 @@ void DispenserStationNode::monitored_item_deleted_cb(uint32_t sub_id, uint32_t m
   RCLCPP_INFO(this->get_logger(), ">>>> %s Monitored Item deleted:", name.c_str());
   RCLCPP_INFO(this->get_logger(), ">>>> - subscription id: %d", sub_id);
   RCLCPP_INFO(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
+  std::this_thread::sleep_for(50ms);
 }
 
 void DispenserStationNode::monitored_item_created_cb(opcua::MonitoredItemCreateResult& result, std::string name)

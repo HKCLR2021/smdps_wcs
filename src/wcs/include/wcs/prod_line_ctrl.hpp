@@ -80,13 +80,13 @@ public:
   explicit ProdLineCtrl(const rclcpp::NodeOptions& options);
   ~ProdLineCtrl();
 
-  inline const std::string from_url(const std::string resource);
-  inline const std::string from_jinli_url(const std::string resource);
+  const std::string from_url(const std::string resource);
+  const std::string from_jinli_url(const std::string resource);
 
   std::string dump_headers(const httplib::Headers &headers);
   std::string dump_multipart_files(const httplib::MultipartFormDataMap &files);
-  inline bool verify_params(const httplib::Request &req, const std::vector<std::string> &keys);
-  inline bool is_number(const std::string &s);
+  bool verify_params(const httplib::Request &req, const std::vector<std::string> &keys);
+  bool is_number(const std::string &s);
   size_t map_index(size_t index);
 
 private:
@@ -118,6 +118,7 @@ private:
 
   rclcpp::Client<PrintingOrder>::SharedPtr printing_info_cli_;
   rclcpp::Client<PackagingOrder>::SharedPtr pkg_order_cli_;
+  rclcpp::Client<Trigger>::SharedPtr container_ready_cli_;
   std::map<uint8_t, rclcpp::Client<Trigger>::SharedPtr> init_pkg_mac_cli_;
   std::map<uint8_t, rclcpp::Client<DispenseDrug>::SharedPtr> dis_req_cli_;
 
@@ -140,9 +141,9 @@ private:
   void order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal_handle);
 
   // HTTP Server function
-  std::string httpsvr_ip_; // FIXME
-  int httpsvr_port_; // FIXME 
-  const size_t DATA_CHUNK_SIZE = 4; // FIXME 
+  std::string httpsvr_ip_;
+  int httpsvr_port_; 
+  const size_t DATA_CHUNK_SIZE = 4;
 
   void health_handler(const httplib::Request &req, httplib::Response &res);
   void abnormal_dis_handler(const httplib::Request &req, httplib::Response &res, const httplib::ContentReader &ctx_reader);
@@ -165,7 +166,7 @@ private:
   void start_http_server(void);
 
   // HTTP Client function
-  const std::string jinli_protocol_ = "http"; // FIXME
+  const std::string jinli_protocol_ = "http";
   std::string jinli_ip_;
   int jinli_port_;
 
