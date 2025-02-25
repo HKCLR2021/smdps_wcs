@@ -415,14 +415,21 @@ void DispenserStationNode::logger_wrapper(opcua::LogLevel level, opcua::LogCateg
 {
   switch (level) 
   {
-  case opcua::LogLevel::Trace:
   case opcua::LogLevel::Debug:
+    RCLCPP_DEBUG(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
+  case opcua::LogLevel::Trace:
   case opcua::LogLevel::Info:
-  case opcua::LogLevel::Warning:
     RCLCPP_INFO(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
     break;
+  case opcua::LogLevel::Warning:
+    RCLCPP_WARN(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
+    break;
   case opcua::LogLevel::Error:
+    RCLCPP_ERROR(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
+    break;
   case opcua::LogLevel::Fatal:
+    RCLCPP_FATAL(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
+    break;
   default:
     RCLCPP_ERROR(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
     break;
