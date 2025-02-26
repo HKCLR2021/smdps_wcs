@@ -10,7 +10,7 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
   auto& are_drugs_fallen = feedback->are_drugs_fallen;
   auto result = std::make_shared<PackagingOrder::Result>();
 
-  // std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
+  std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
 
   RCLCPP_INFO(this->get_logger(), "======== packaging sequence 1 ==========");
 
@@ -26,11 +26,9 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
   RCLCPP_INFO(this->get_logger(), "Set are_drugs_fallen to True");
   goal_handle->publish_feedback(feedback);
 
-  // status_->conveyor_state = PackagingMachineStatus::AVAILABLE;
-  // RCLCPP_INFO(this->get_logger(), "Set conveyor_state to AVAILABLE");
-
-  // ctrl_stopper(STOPPER_SUNK);
-  // ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
+  lock.lock();
+  status_->waiting_material_box = false;
+  lock.unlock();
 
   UnbindRequest msg;
   msg.packaging_machine_id = status_->packaging_machine_id;
@@ -186,10 +184,8 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
     RCLCPP_INFO(this->get_logger(), "postfix: %ld", postfix);
     result->order_result = curr_order_status;
     goal_handle->succeed(result);
-    
-    // lock.lock();
+
     status_->packaging_machine_state = PackagingMachineStatus::IDLE;
-    // lock.unlock();
     
     RCLCPP_INFO(this->get_logger(), "Goal succeeded");
   }
@@ -197,11 +193,7 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
 
 void PackagingMachineNode::init_packaging_machine(void)
 {
-  // std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
-  // lock.lock();
   status_->packaging_machine_state = PackagingMachineStatus::BUSY;
-  status_->conveyor_state = PackagingMachineStatus::UNAVAILABLE;
-  // lock.unlock();
 
   RCLCPP_INFO(this->get_logger(), "init_packaging_machine start");
   ctrl_heater(HEATER_ON);
@@ -289,10 +281,7 @@ void PackagingMachineNode::init_packaging_machine(void)
   ctrl_roller(0, 1, MOTOR_ENABLE);
   wait_for_roller(MotorStatus::IDLE);
 
-  // lock.lock();
   status_->packaging_machine_state = PackagingMachineStatus::IDLE;
-  status_->conveyor_state = PackagingMachineStatus::AVAILABLE;
-  // lock.unlock();
 
   RCLCPP_INFO(this->get_logger(), "init_packaging_machine end");
 }
@@ -308,12 +297,6 @@ void PackagingMachineNode::skip_order_execute(const std::shared_ptr<GaolHandlerP
 
   goal_handle->publish_feedback(feedback);
 
-  // status_->conveyor_state = PackagingMachineStatus::AVAILABLE;
-  // RCLCPP_INFO(this->get_logger(), "Set conveyor_state to AVAILABLE");
-
-  // ctrl_stopper(STOPPER_SUNK);
-  // ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
-
   UnbindRequest msg;
   msg.packaging_machine_id = status_->packaging_machine_id;
   msg.order_id = goal->order_id;
@@ -325,9 +308,7 @@ void PackagingMachineNode::skip_order_execute(const std::shared_ptr<GaolHandlerP
     result->order_result = curr_order_status;
     goal_handle->succeed(result);
     
-    // lock.lock();
     status_->packaging_machine_state = PackagingMachineStatus::IDLE;
-    // lock.unlock();
     
     RCLCPP_INFO(this->get_logger(), "Goal succeeded");
   }

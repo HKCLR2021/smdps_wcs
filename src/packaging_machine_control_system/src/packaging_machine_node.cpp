@@ -79,7 +79,8 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
 
   status_timer_ = this->create_wall_timer(1s, std::bind(&PackagingMachineNode::pub_status_cb, this), status_cbg_);
   heater_timer_ = this->create_wall_timer(10s, std::bind(&PackagingMachineNode::heater_cb, this));
-  con_state_timer_ = this->create_wall_timer(50ms, std::bind(&PackagingMachineNode::con_state_cb, this));
+  con_state_timer_ = this->create_wall_timer(250ms, std::bind(&PackagingMachineNode::con_state_cb, this));
+  once_timer_ = this->create_wall_timer(3s, std::bind(&PackagingMachineNode::init_timer, this));
 
   // add a "/" prefix to topic name avoid adding a namespace
   status_publisher_ = this->create_publisher<PackagingMachineStatus>("/packaging_machine_status", 10); 
@@ -211,8 +212,28 @@ void PackagingMachineNode::heater_cb(void)
 void PackagingMachineNode::con_state_cb(void)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
-  if (motor_status_->con_state != MotorStatus::IDLE && info_->stopper == STOPPER_SUNK_STATE)
+
+  if (motor_status_->con_state == MotorStatus::RUNNING && info_->stopper == STOPPER_SUNK)
+  {
     status_->conveyor_state = PackagingMachineStatus::AVAILABLE;
+    RCLCPP_DEBUG(this->get_logger(), "set conveyor_state to AVAILABLE");
+  }
+  else
+  {
+    status_->conveyor_state = PackagingMachineStatus::UNAVAILABLE;
+    RCLCPP_DEBUG(this->get_logger(), "set conveyor_state to UNAVAILABLE");
+  }
+}
+
+void PackagingMachineNode::init_timer(void)
+{
+  once_timer_->cancel();
+
+  ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
+  ctrl_stopper(STOPPER_SUNK);
+  wait_for_stopper(STOPPER_SUNK_STATE);
+
+  RCLCPP_INFO(this->get_logger(), "Init timer done!");
 }
 
 void PackagingMachineNode::rpdo_cb(const COData::SharedPtr msg)
@@ -330,12 +351,12 @@ void PackagingMachineNode::stopper_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  if (status_->conveyor_state == PackagingMachineStatus::UNAVAILABLE)
-  {
-    response->success = false;
-    response->message = "Conveyor is unavilable";
-    return;
-  }
+  // if (status_->conveyor_state == PackagingMachineStatus::UNAVAILABLE)
+  // {
+  //   response->success = false;
+  //   response->message = "Conveyor is unavilable";
+  //   return;
+  // }
 
   if (request->data)
   {
@@ -371,12 +392,12 @@ void PackagingMachineNode::mtrl_box_gate_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  if (status_->conveyor_state == PackagingMachineStatus::UNAVAILABLE)
-  {
-    response->success = false;
-    response->message = "Conveyor is unavilable";
-    return;
-  }
+  // if (status_->conveyor_state == PackagingMachineStatus::UNAVAILABLE)
+  // {
+  //   response->success = false;
+  //   response->message = "Conveyor is unavilable";
+  //   return;
+  // }
 
   if (request->data)
   {
@@ -412,12 +433,12 @@ void PackagingMachineNode::conveyor_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  if (status_->conveyor_state == PackagingMachineStatus::UNAVAILABLE)
-  {
-    response->success = false;
-    response->message = "Conveyor is unavilable";
-    return;
-  }
+  // if (status_->conveyor_state == PackagingMachineStatus::UNAVAILABLE)
+  // {
+  //   response->success = false;
+  //   response->message = "Conveyor is unavilable";
+  //   return;
+  // }
 
   if (request->data)
   {
@@ -599,6 +620,17 @@ rclcpp_action::GoalResponse PackagingMachineNode::handle_goal(
     return rclcpp_action::GoalResponse::REJECT;
   }
 
+  lock.lock();
+  status_->packaging_machine_state = PackagingMachineStatus::BUSY;
+  // status_->conveyor_state = PackagingMachineStatus::UNAVAILABLE;
+  status_->waiting_material_box = true;
+  ctrl_stopper(STOPPER_PROTRUDE);
+  wait_for_stopper(STOPPER_PROTRUDE_STATE);
+  lock.unlock();
+
+  RCLCPP_INFO(this->get_logger(), "set packaging_machine_state to BUSY");
+  RCLCPP_INFO(this->get_logger(), "set conveyor_state to UNAVAILABLE");
+
   printer_.reset();
   printer_ = std::make_shared<Printer>(
     printer_config_->vendor_id, 
@@ -607,17 +639,6 @@ rclcpp_action::GoalResponse PackagingMachineNode::handle_goal(
     printer_config_->port);
   RCLCPP_INFO(this->get_logger(), "printer initialized");
   init_printer_config();
-
-  lock.lock();
-  status_->packaging_machine_state = PackagingMachineStatus::BUSY;
-  status_->conveyor_state = PackagingMachineStatus::UNAVAILABLE;
-
-  ctrl_stopper(STOPPER_PROTRUDE);
-  wait_for_stopper(STOPPER_PROTRUDE_STATE);
-  lock.unlock();
-
-  RCLCPP_INFO(this->get_logger(), "set packaging_machine_state to BUSY");
-  RCLCPP_INFO(this->get_logger(), "set conveyor_state to UNAVAILABLE");
 
   uint16_t retry = 0;
   const uint8_t MAX_RETIRES = 60;

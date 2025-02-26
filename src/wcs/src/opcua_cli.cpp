@@ -126,7 +126,7 @@ void DispenserStationNode::alm_code_cb(uint32_t sub_id, uint32_t mon_id, const o
   if (!val)
     return;
   
-  if (val == 200)
+  if (val == 0)
     RCLCPP_INFO(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
   else
     RCLCPP_ERROR(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
@@ -148,11 +148,99 @@ void DispenserStationNode::completed_cb(uint32_t sub_id, uint32_t mon_id, const 
   RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
   RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
 
+  // if (*val)
+  // {
+  //   RCLCPP_INFO(this->get_logger(), "Try to initiate Dispenser Station [%d]", status_->id);
+  //   opcua::Variant var;
+  //   var = false;
+
+  //   std::future<opcua::Result<opcua::Variant>> future = opcua::services::writeValueAsync(cli, completed_id, var, opcua::useFuture);
+  //   future.wait();
+  //   const opcua::Result<opcua::Variant> &result = future.get();
+
+  //   if (result.code() != UA_STATUSCODE_GOOD)
+  //     RCLCPP_ERROR(this->get_logger(), "Write result with status code: %s", std::to_string(result.code()).c_str());
+  // }
+}
+
+void DispenserStationNode::dispensing_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
+{
+  std::optional<bool> val = value.value().scalar<bool>();
+  if (!val)
+    return;
+  
+  RCLCPP_INFO(this->get_logger(), ">>>> Dispensing data change notification, value: %s", *val ? "true" : "false");
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
+
   if (*val)
   {
-    RCLCPP_INFO(this->get_logger(), "Try to initiate Dispenser Station [%d]", status_->id);
-    std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
+    RCLCPP_INFO(this->get_logger(), "Try to clear CmdRequest Dispenser Station [%d]", status_->id);
+
+    opcua::Variant var;
+    var = false;
+
+    std::future<opcua::Result<opcua::Variant>> future = opcua::services::writeValueAsync(cli, cmd_req_id, var, opcua::useFuture);
+    future.wait();
+    const opcua::Result<opcua::Variant> &result = future.get();
+
+    if (result.code() != UA_STATUSCODE_GOOD)
+      RCLCPP_ERROR(this->get_logger(), "Write result with status code: %s", std::to_string(result.code()).c_str());
   }
+}
+
+
+void DispenserStationNode::open_close_req_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name)
+{
+  std::optional<bool> val = value.value().scalar<bool>();
+  if (!val)
+    return;
+  
+  RCLCPP_INFO(this->get_logger(), ">>>> %s data change notification, value: %s", name.c_str(), *val ? "true" : "false");
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
+
+  if (*val)
+  {
+    RCLCPP_INFO(this->get_logger(), "Try to clear the request Dispenser Station [%d]", status_->id);
+    // std::thread(std::bind(&DispenserStationNode::clear_req, this)).detach(); 
+  }
+}
+
+void DispenserStationNode::clear_req(const opcua::NodeId node_id)
+{
+  opcua::Variant var;
+  var = false;
+
+  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, node_id, var, opcua::useFuture);
+  future.wait();
+
+  const opcua::StatusCode &code = future.get();
+  if (code != UA_STATUSCODE_GOOD)
+    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
+
+  std::chrono::milliseconds freq = 100ms;
+  rclcpp::Rate loop_rate(freq); 
+  while (rclcpp::ok())
+  {
+    std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, node_id, opcua::useFuture);
+    future.wait();
+    const opcua::Result<opcua::Variant> &result = future.get();
+
+    if (result.code() != UA_STATUSCODE_GOOD)
+    {
+      RCLCPP_ERROR(this->get_logger(), "Read result with status code: %s", std::to_string(result.code()).c_str());
+      continue;
+    }
+
+    std::optional<bool> val = result.value().scalar<bool>();
+    if (val && *val == false)
+      break;
+    
+    loop_rate.sleep();
+  }
+
+  RCLCPP_INFO(this->get_logger(), "Clear the Request of Dispenser Station [%d] successfully", status_->id);
 }
 
 void DispenserStationNode::initiate(void)
@@ -257,25 +345,33 @@ void DispenserStationNode::create_sub_async()
         std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "Completed")
       );
 
+      opcua::services::createMonitoredItemDataChangeAsync(
+        cli,
+        res.subscriptionId(),
+        opcua::ReadValueId(dispensing_id, opcua::AttributeId::Value),
+        opcua::MonitoringMode::Reporting,
+        monitoring_params,
+        std::bind(&DispenserStationNode::dispensing_cb, this, _1, _2, _3),
+        std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "Dispensing"), 
+        std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "Dispensing")
+      );
+
       create_mon_item_async(res, running_id, "Running", std::shared_ptr<bool>(status_, &status_->running));
       create_mon_item_async(res, paused_id, "Paused", std::shared_ptr<bool>(status_, &status_->paused));
       create_mon_item_async(res, error_id, "Error", std::shared_ptr<bool>(status_, &status_->error));
 
       for (size_t i = 0; i < NO_OF_UNITS; i++)
       {
+        const uint8_t id = i + 1;
         auto unit_status = std::make_shared<DispenserUnitStatus>(status_->unit_status[i]);
 
-        create_mon_item_async(res, unit_lack_id[i], "Unit" + std::to_string(i+1) + "Lack", std::shared_ptr<bool>(unit_status, &unit_status->lack));
+        create_mon_item_async(res, unit_lack_id[id], "Unit" + std::to_string(id) + "Lack", std::shared_ptr<bool>(unit_status, &unit_status->lack));
 
-        create_mon_item_async(res, bin_opening_id[i], "Bin" + std::to_string(i+1) + "Opening", std::shared_ptr<bool>(unit_status, &unit_status->bin_opening));
-        create_mon_item_async(res, bin_opened_id[i], "Bin" + std::to_string(i+1) + "Opened", std::shared_ptr<bool>(unit_status, &unit_status->bin_opened));
-        create_mon_item_async(res, bin_closing_id[i], "Bin" + std::to_string(i+1) + "Closing", std::shared_ptr<bool>(unit_status, &unit_status->bin_closing));
-        create_mon_item_async(res, bin_closed_id[i], "Bin" + std::to_string(i+1) + "Closed", std::shared_ptr<bool>(unit_status, &unit_status->bin_closed));
+        create_mon_item_async(res, bin_opened_id[id], "Bin" + std::to_string(id) + "Opened", std::shared_ptr<bool>(unit_status, &unit_status->bin_opened));
+        create_mon_item_async(res, bin_closed_id[id], "Bin" + std::to_string(id) + "Closed", std::shared_ptr<bool>(unit_status, &unit_status->bin_closed));
 
-        create_mon_item_async(res, baffle_opening_id[i], "Baffle" + std::to_string(i+1) + "Opening", std::shared_ptr<bool>(unit_status, &unit_status->baffle_opening));
-        create_mon_item_async(res, baffle_opened_id[i], "Baffle" + std::to_string(i+1) + "Opened", std::shared_ptr<bool>(unit_status, &unit_status->baffle_opened));
-        create_mon_item_async(res, baffle_closing_id[i], "Baffle" + std::to_string(i+1) + "Closing", std::shared_ptr<bool>(unit_status, &unit_status->baffle_closing));
-        create_mon_item_async(res, baffle_closed_id[i], "Baffle" + std::to_string(i+1) + "Closed", std::shared_ptr<bool>(unit_status, &unit_status->baffle_closed));
+        create_mon_item_async(res, baffle_opened_id[id], "Baffle" + std::to_string(id) + "Opened", std::shared_ptr<bool>(unit_status, &unit_status->baffle_opened));
+        create_mon_item_async(res, baffle_closed_id[id], "Baffle" + std::to_string(id) + "Closed", std::shared_ptr<bool>(unit_status, &unit_status->baffle_closed));
       }
     }
   );

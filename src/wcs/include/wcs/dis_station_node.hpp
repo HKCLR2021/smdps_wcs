@@ -20,7 +20,6 @@
 #include "smdps_msgs/srv/unit_request.hpp"
 
 #define NO_OF_UNITS 12
-// #define MAX_HB_COUNT 5 * 4
 #define MAX_HB_COUNT 5
 
 using namespace std::chrono_literals;
@@ -72,8 +71,10 @@ public:
   void general_bool_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name, std::shared_ptr<bool> ptr);
   void alm_code_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
+  void dispensing_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
+  void open_close_req_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name);
 
-private:
+  private:
   std::mutex mutex_;
   std::string ip_;
   std::string port_;
@@ -102,6 +103,7 @@ private:
   void units_lack_cb(void);
 
   void initiate(void);
+  void clear_req(const opcua::NodeId node_id);
 
   void dis_req_handle(
     const std::shared_ptr<DispenseDrug::Request> req, 
@@ -139,23 +141,23 @@ protected:
   const opcua::NodeId cmd_req_id = {ns_ind, rev_prefix + "CmdRequest"};
   const opcua::NodeId cmd_exe_id = {ns_ind, rev_prefix + "CmdExecute"};
 
-  std::array<opcua::NodeId, NO_OF_UNITS> unit_amt_id;
+  std::map<uint8_t, opcua::NodeId> unit_amt_id;
   
-  std::array<opcua::NodeId, NO_OF_UNITS> bin_open_req_id;
-  std::array<opcua::NodeId, NO_OF_UNITS> bin_close_req_id;
-  std::array<opcua::NodeId, NO_OF_UNITS> baffle_open_req_id;
-  std::array<opcua::NodeId, NO_OF_UNITS> baffle_close_req_id;
+  std::map<uint8_t, opcua::NodeId> bin_open_req_id;
+  std::map<uint8_t, opcua::NodeId> bin_close_req_id;
+  std::map<uint8_t, opcua::NodeId> baffle_open_req_id;
+  std::map<uint8_t, opcua::NodeId> baffle_close_req_id;
 
-  std::array<opcua::NodeId, NO_OF_UNITS> unit_lack_id;
+  std::map<uint8_t, opcua::NodeId> unit_lack_id;
 
-  std::array<opcua::NodeId, NO_OF_UNITS> bin_opening_id;
-  std::array<opcua::NodeId, NO_OF_UNITS> bin_opened_id;
-  std::array<opcua::NodeId, NO_OF_UNITS> bin_closing_id;
-  std::array<opcua::NodeId, NO_OF_UNITS> bin_closed_id;
-  std::array<opcua::NodeId, NO_OF_UNITS> baffle_opening_id;
-  std::array<opcua::NodeId, NO_OF_UNITS> baffle_opened_id;
-  std::array<opcua::NodeId, NO_OF_UNITS> baffle_closing_id;
-  std::array<opcua::NodeId, NO_OF_UNITS> baffle_closed_id;
+  std::map<uint8_t, opcua::NodeId> bin_opened_id;
+  std::map<uint8_t, opcua::NodeId> bin_closed_id;
+  std::map<uint8_t, opcua::NodeId> baffle_opened_id;
+  std::map<uint8_t, opcua::NodeId> baffle_closed_id;
 
+  // std::map<uint8_t, opcua::NodeId> bin_opening_id;
+  // std::map<uint8_t, opcua::NodeId> bin_closing_id;
+  // std::map<uint8_t, opcua::NodeId> baffle_opening_id;
+  // std::map<uint8_t, opcua::NodeId> baffle_closing_id;
 };
 #endif

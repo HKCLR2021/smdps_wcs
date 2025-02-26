@@ -343,22 +343,22 @@ std::vector<std::string> PackagingMachineNode::get_print_label_cmd(PackageInfo m
 
     // std::string gbk_cn = printer_->convert_utf8_to_gbk(msg.cn_name);
     // std::string cn = "TEXT 240,180,\"3\",0,2,2,\"" + gbk_cn + "\"";
-    std::string cn = "TEXT 240,180,\"6\",0,2,2,\"" + msg.cn_name + "\"";
+    std::string cn = "TEXT 240,180,\"4\",0,1,1,\"" + msg.cn_name + "\"";
     cmds.emplace_back(cn);
-    std::string en = "TEXT 600,186,\"6\",0,2,2,\"" + msg.en_name + "\"";
+    std::string en = "TEXT 600,186,\"4\",0,1,1,\"" + msg.en_name + "\"";
     cmds.emplace_back(en);
-    std::string d = "TEXT 240,270,\"6\",0,1,1,\"" + msg.date + "\"";
+    std::string d = "TEXT 240,270,\"4\",0,1,1,\"" + msg.date + "\"";
     cmds.emplace_back(d);
-    std::string t = "TEXT 240,334,\"6\",0,1,1,\"" + msg.time + "\"";
+    std::string t = "TEXT 240,334,\"4\",0,1,1,\"" + msg.time + "\"";
     cmds.emplace_back(t);
-    cmds.emplace_back("QRCODE 684,252,L,6,A,0,\"" + msg.qr_code + "\"");
+    cmds.emplace_back("QRCODE 684,252,L,4,A,0,\"" + msg.qr_code + "\"");
     for (size_t index = 0; index < msg.drugs.size(); index++) 
     {
       std::string utf_md = msg.drugs[index];
       // std::string gbk_md = printer_->convert_utf8_to_gbk(utf_md);
       int y = 400 + index * 64;
       std::string y_label = std::to_string(y);
-      std::string m = "TEXT 240,"+ y_label + ",\"6\",0,2,2,\"" + utf_md + "\"";
+      std::string m = "TEXT 240,"+ y_label + ",\"4\",0,1,1,\"" + utf_md + "\"";
       cmds.emplace_back(m);
     }
   }

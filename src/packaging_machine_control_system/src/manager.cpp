@@ -126,13 +126,16 @@ void PackagingMachineManager::conveyor_stopper_cb(void)
   auto iter = packaging_machine_status_.rbegin();
   for (; iter != packaging_machine_status_.rend(); iter++) 
   {
-    if (iter->second.packaging_machine_state == PackagingMachineStatus::UNAVAILABLE)
+    if (iter->second.conveyor_state == PackagingMachineStatus::UNAVAILABLE &&
+        iter->second.waiting_material_box == false)
       break;
   }
 
   if (iter == packaging_machine_status_.rend())
   {
-    RCLCPP_DEBUG(this->get_logger(), "Packaging Machines Conveyor State are available!");
+
+    RCLCPP_ERROR(this->get_logger(), "Packaging Machines Conveyor State are available!");
+    RCLCPP_ERROR(this->get_logger(), "The release signal maybe incorrect!");
     return;
   }
 

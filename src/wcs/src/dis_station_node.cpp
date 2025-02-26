@@ -34,23 +34,25 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
 
   for (size_t i = 0; i < NO_OF_UNITS; i++)
   {
-    unit_amt_id[i]         = {ns_ind, rev_prefix + "Unit" + std::to_string(i+1) + "Amount"};
+    const uint8_t id = i + 1;
+    unit_amt_id[id]         = {ns_ind, rev_prefix + "Unit" + std::to_string(id) + "Amount"};
 
-    bin_open_req_id[i]     = {ns_ind, rev_prefix + "Bin" + std::to_string(i+1) + "OpenRequest"};
-    bin_close_req_id[i]    = {ns_ind, rev_prefix + "Bin" + std::to_string(i+1) + "OpenRequest"};
-    baffle_open_req_id[i]  = {ns_ind, rev_prefix + "Baffle" + std::to_string(i+1) + "OpenRequest"};
-    baffle_close_req_id[i] = {ns_ind, rev_prefix + "Baffle" + std::to_string(i+1) + "OpenRequest"};
+    bin_open_req_id[id]     = {ns_ind, rev_prefix + "Bin" + std::to_string(id) + "OpenRequest"};
+    bin_close_req_id[id]    = {ns_ind, rev_prefix + "Bin" + std::to_string(id) + "OpenRequest"};
+    baffle_open_req_id[id]  = {ns_ind, rev_prefix + "Baffle" + std::to_string(id) + "OpenRequest"};
+    baffle_close_req_id[id] = {ns_ind, rev_prefix + "Baffle" + std::to_string(id) + "OpenRequest"};
 
-    unit_lack_id[i]        = {ns_ind, send_prefix + "Unit" + std::to_string(i+1) + "Lack"};
+    unit_lack_id[id]        = {ns_ind, send_prefix + "Unit" + std::to_string(id) + "Lack"};
 
-    bin_opening_id[i]      = {ns_ind, send_prefix + "Bin" + std::to_string(i+1) + "Opening"};
-    bin_opened_id[i]       = {ns_ind, send_prefix + "Bin" + std::to_string(i+1) + "Opened"};
-    bin_closing_id[i]      = {ns_ind, send_prefix + "Bin" + std::to_string(i+1) + "Closing"};
-    bin_closed_id[i]       = {ns_ind, send_prefix + "Bin" + std::to_string(i+1) + "Closed"};
-    baffle_opening_id[i]   = {ns_ind, send_prefix + "Baffle" + std::to_string(i+1) + "Opening"};
-    baffle_opened_id[i]    = {ns_ind, send_prefix + "Baffle" + std::to_string(i+1) + "Opened"};
-    baffle_closing_id[i]   = {ns_ind, send_prefix + "Baffle" + std::to_string(i+1) + "Closing"};
-    baffle_closed_id[i]    = {ns_ind, send_prefix + "Baffle" + std::to_string(i+1) + "Closed"};
+    bin_opened_id[id]       = {ns_ind, send_prefix + "Bin" + std::to_string(id) + "Opened"};
+    bin_closed_id[id]       = {ns_ind, send_prefix + "Bin" + std::to_string(id) + "Closed"};
+    baffle_opened_id[id]    = {ns_ind, send_prefix + "Baffle" + std::to_string(id) + "Opened"};
+    baffle_closed_id[id]    = {ns_ind, send_prefix + "Baffle" + std::to_string(id) + "Closed"};
+
+    // bin_opening_id[id]      = {ns_ind, send_prefix + "Bin" + std::to_string(id) + "Opening"};
+    // bin_closing_id[id]      = {ns_ind, send_prefix + "Bin" + std::to_string(id) + "Closing"};
+    // baffle_opening_id[id]   = {ns_ind, send_prefix + "Baffle" + std::to_string(id) + "Opening"};
+    // baffle_closing_id[id]   = {ns_ind, send_prefix + "Baffle" + std::to_string(id) + "Closing"};
   }
 
   if (!init_opcua_cli())
@@ -134,6 +136,9 @@ void DispenserStationNode::dis_req_handle(
 
   wait_for_opcua_connection(freq);
   
+  uint32_t amt = 0;
+
+  // Write Unit_Amount
   std::vector<std::future<opcua::StatusCode>> futures;
   for (size_t i = 0; i < req->content.size(); i++)
   {
@@ -146,7 +151,9 @@ void DispenserStationNode::dis_req_handle(
     opcua::Variant amt_var;
     amt_var = static_cast<int16_t>(req->content[i].amount);
 
-    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, unit_amt_id[req->content[i].unit_id - 1], amt_var, opcua::useFuture);
+    amt += req->content[i].amount;
+
+    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, unit_amt_id[req->content[i].unit_id], amt_var, opcua::useFuture);
     futures.push_back(std::move(future));
   }
 
@@ -158,6 +165,7 @@ void DispenserStationNode::dis_req_handle(
       RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
   }
 
+  // Write CmdRequest
   opcua::Variant cmd_req;
   cmd_req = true;
   std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, cmd_req_id, cmd_req, opcua::useFuture);
@@ -165,7 +173,47 @@ void DispenserStationNode::dis_req_handle(
   future.wait();
   const opcua::StatusCode &code = future.get();
   if (code != UA_STATUSCODE_GOOD)
+  {
     RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
+    return;
+  }
+
+  // Read CmdAmount
+  std::future<opcua::Result<opcua::Variant>> cmd_amt_future = opcua::services::readValueAsync(cli, cmd_amt_id, opcua::useFuture);
+  
+  cmd_amt_future.wait();
+  const opcua::Result<opcua::Variant> &cmd_amt_result = cmd_amt_future.get();
+  if (result.code() != UA_STATUSCODE_GOOD)
+  {
+    RCLCPP_ERROR(this->get_logger(), "readValueAsync error occur in %s", __FUNCTION__);
+    return;
+  }
+
+  std::optional<int16_t> cmd_cmt_val = result.value().scalar<int16_t>();
+  if (!cmd_cmt_val)
+  {
+    RCLCPP_ERROR(this->get_logger(), "std::optional<int16_t> error occur in %s", __FUNCTION__);
+    return;
+  }
+
+  if (*cmd_cmt_val != amt)
+  {
+    RCLCPP_ERROR(this->get_logger(), "Amount is not equal error occur in %s", __FUNCTION__);
+    return;
+  }
+
+  // Write CmdExecute
+  opcua::Variant cmd_exe;
+  cmd_exe = true;
+  std::future<opcua::StatusCode> cmd_exe_future = opcua::services::writeValueAsync(cli, cmd_exe_id, cmd_exe, opcua::useFuture);
+
+  cmd_exe_future.wait();
+  const opcua::StatusCode &cmd_exe_code = cmd_exe_future.get();
+  if (cmd_exe_code != UA_STATUSCODE_GOOD)
+  {
+    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
+    return;
+  }
 
   // wait forever until the dispenser station is completed
   while (rclcpp::ok())
@@ -214,7 +262,8 @@ void DispenserStationNode::unit_req_handle(
   std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
 
   lock.lock();
-  const auto &unit_status = status_->unit_status[req->unit_id - 1];
+  const uint8_t id_index = req->unit_id - 1;
+  const auto &unit_status = status_->unit_status[id_index];
   action_criteria_satisfied = valid_action(req, unit_status);
   lock.unlock();
 
@@ -233,15 +282,15 @@ void DispenserStationNode::unit_req_handle(
   {
   case UnitType::BIN:
     if (req->data)
-      future = opcua::services::writeValueAsync(cli, bin_open_req_id[req->unit_id - 1], req_var, opcua::useFuture);
+      future = opcua::services::writeValueAsync(cli, bin_open_req_id[req->unit_id], req_var, opcua::useFuture);
     else
-      future = opcua::services::writeValueAsync(cli, bin_close_req_id[req->unit_id - 1], req_var, opcua::useFuture);
+      future = opcua::services::writeValueAsync(cli, bin_close_req_id[req->unit_id], req_var, opcua::useFuture);
     break;
   case UnitType::BAFFLE:
     if (req->data)
-      future = opcua::services::writeValueAsync(cli, baffle_open_req_id[req->unit_id - 1], req_var, opcua::useFuture);
+      future = opcua::services::writeValueAsync(cli, baffle_open_req_id[req->unit_id], req_var, opcua::useFuture);
     else
-      future = opcua::services::writeValueAsync(cli, baffle_close_req_id[req->unit_id - 1], req_var, opcua::useFuture);
+      future = opcua::services::writeValueAsync(cli, baffle_close_req_id[req->unit_id], req_var, opcua::useFuture);
     break;
   default: {
     const std::string msg = "Unknow Type: %d";
