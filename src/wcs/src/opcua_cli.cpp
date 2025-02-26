@@ -148,19 +148,16 @@ void DispenserStationNode::completed_cb(uint32_t sub_id, uint32_t mon_id, const 
   RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
   RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
 
-  // if (*val)
-  // {
-  //   RCLCPP_INFO(this->get_logger(), "Try to initiate Dispenser Station [%d]", status_->id);
-  //   opcua::Variant var;
-  //   var = false;
-
-  //   std::future<opcua::Result<opcua::Variant>> future = opcua::services::writeValueAsync(cli, completed_id, var, opcua::useFuture);
-  //   future.wait();
-  //   const opcua::Result<opcua::Variant> &result = future.get();
-
-  //   if (result.code() != UA_STATUSCODE_GOOD)
-  //     RCLCPP_ERROR(this->get_logger(), "Write result with status code: %s", std::to_string(result.code()).c_str());
-  // }
+  if (*val)
+  {
+    RCLCPP_INFO(this->get_logger(), "Try to initiate Dispenser Station [%d]", status_->id);
+    if (rclcpp::ok())
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      is_completed_ = true;
+    }
+    cv_.notify_one();  // Wake up the waiting dis_req_handle
+  }
 }
 
 void DispenserStationNode::dispensing_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
@@ -175,17 +172,17 @@ void DispenserStationNode::dispensing_cb(uint32_t sub_id, uint32_t mon_id, const
 
   if (*val)
   {
-    RCLCPP_INFO(this->get_logger(), "Try to clear CmdRequest Dispenser Station [%d]", status_->id);
+    RCLCPP_INFO(this->get_logger(), "Reset CmdRequest Dispenser Station [%d]", status_->id);
 
     opcua::Variant var;
     var = false;
 
-    std::future<opcua::Result<opcua::Variant>> future = opcua::services::writeValueAsync(cli, cmd_req_id, var, opcua::useFuture);
+    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, cmd_req_id, var, opcua::useFuture);
     future.wait();
-    const opcua::Result<opcua::Variant> &result = future.get();
-
-    if (result.code() != UA_STATUSCODE_GOOD)
-      RCLCPP_ERROR(this->get_logger(), "Write result with status code: %s", std::to_string(result.code()).c_str());
+    
+    const opcua::StatusCode &code = future.get();
+    if (code != UA_STATUSCODE_GOOD)
+      RCLCPP_ERROR(this->get_logger(), "Write result with status code: %s", std::to_string(code).c_str());
   }
 }
 
@@ -363,7 +360,7 @@ void DispenserStationNode::create_sub_async()
       for (size_t i = 0; i < NO_OF_UNITS; i++)
       {
         const uint8_t id = i + 1;
-        auto unit_status = std::make_shared<DispenserUnitStatus>(status_->unit_status[i]);
+        auto unit_status = std::shared_ptr<DispenserUnitStatus>(status_, &status_->unit_status[i]);
 
         create_mon_item_async(res, unit_lack_id[id], "Unit" + std::to_string(id) + "Lack", std::shared_ptr<bool>(unit_status, &unit_status->lack));
 
@@ -406,7 +403,7 @@ void DispenserStationNode::sub_status_change_cb(uint32_t sub_id, opcua::StatusCh
 {
   (void) notification;
   RCLCPP_INFO(this->get_logger(), ">>>> Subscription status change: %d", sub_id);
-  std::this_thread::sleep_for(100ms);
+  std::this_thread::sleep_for(1s);
 }
 
 void DispenserStationNode::sub_deleted_cb(uint32_t sub_id)

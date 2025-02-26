@@ -465,6 +465,15 @@ void ProdLineCtrl::scanner_handler(
   scan_pub_->publish(msg);
   RCLCPP_INFO(this->get_logger(), "Material box [%d] was passed through the location [%s]", mtrl_box_id, location.c_str());
 
+  if (location == mtrl_box_con_loc)
+  {
+    if (con_mtrl_box_.empty() || con_mtrl_box_.front() != mtrl_box_id)
+    {
+      con_mtrl_box_.push(mtrl_box_id); // how to simpify?
+      RCLCPP_INFO(this->get_logger(), "Added a material box [%d] to queue", mtrl_box_id);
+    }   
+  }
+
   res_json["code"] = 200;
   res_json["msg"] = "success";
 
@@ -526,6 +535,7 @@ void ProdLineCtrl::con_ready_handler(
     return;
   }
   
+  con_mtrl_box_.pop();
   RCLCPP_INFO(this->get_logger(), "Notified Manager to operate the conveyor and stopper");
   res.set_content(res_json.dump(), "application/json");
 }

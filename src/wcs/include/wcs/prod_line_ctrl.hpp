@@ -8,6 +8,7 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <queue>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
@@ -123,6 +124,8 @@ private:
   std::map<uint8_t, rclcpp::Client<DispenseDrug>::SharedPtr> dis_req_cli_;
 
   rclcpp_action::Server<NewOrder>::SharedPtr action_server_;
+
+  std::queue<uint8_t> con_mtrl_box_;
 
   void hc_cb(void);
   void mtrl_box_amt_container_cb(void);

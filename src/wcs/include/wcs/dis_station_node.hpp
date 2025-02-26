@@ -74,8 +74,11 @@ public:
   void dispensing_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void open_close_req_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name);
 
-  private:
+private:
   std::mutex mutex_;
+  std::condition_variable cv_;
+  bool is_completed_ = false;
+
   std::string ip_;
   std::string port_;
 
@@ -154,10 +157,5 @@ protected:
   std::map<uint8_t, opcua::NodeId> bin_closed_id;
   std::map<uint8_t, opcua::NodeId> baffle_opened_id;
   std::map<uint8_t, opcua::NodeId> baffle_closed_id;
-
-  // std::map<uint8_t, opcua::NodeId> bin_opening_id;
-  // std::map<uint8_t, opcua::NodeId> bin_closing_id;
-  // std::map<uint8_t, opcua::NodeId> baffle_opening_id;
-  // std::map<uint8_t, opcua::NodeId> baffle_closing_id;
 };
 #endif

@@ -28,7 +28,8 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
  
   for (size_t i = 0; i < status_->unit_status.size(); i++)
   {
-    status_->unit_status[i].id = i + 1;
+    const uint8_t id = i + 1;
+    status_->unit_status[i].id = id;
     status_->unit_status[i].enable = true;
   }
 
@@ -38,9 +39,9 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
     unit_amt_id[id]         = {ns_ind, rev_prefix + "Unit" + std::to_string(id) + "Amount"};
 
     bin_open_req_id[id]     = {ns_ind, rev_prefix + "Bin" + std::to_string(id) + "OpenRequest"};
-    bin_close_req_id[id]    = {ns_ind, rev_prefix + "Bin" + std::to_string(id) + "OpenRequest"};
+    bin_close_req_id[id]    = {ns_ind, rev_prefix + "Bin" + std::to_string(id) + "CloseRequest"};
     baffle_open_req_id[id]  = {ns_ind, rev_prefix + "Baffle" + std::to_string(id) + "OpenRequest"};
-    baffle_close_req_id[id] = {ns_ind, rev_prefix + "Baffle" + std::to_string(id) + "OpenRequest"};
+    baffle_close_req_id[id] = {ns_ind, rev_prefix + "Baffle" + std::to_string(id) + "CloseRequest"};
 
     unit_lack_id[id]        = {ns_ind, send_prefix + "Unit" + std::to_string(id) + "Lack"};
 
@@ -48,11 +49,6 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
     bin_closed_id[id]       = {ns_ind, send_prefix + "Bin" + std::to_string(id) + "Closed"};
     baffle_opened_id[id]    = {ns_ind, send_prefix + "Baffle" + std::to_string(id) + "Opened"};
     baffle_closed_id[id]    = {ns_ind, send_prefix + "Baffle" + std::to_string(id) + "Closed"};
-
-    // bin_opening_id[id]      = {ns_ind, send_prefix + "Bin" + std::to_string(id) + "Opening"};
-    // bin_closing_id[id]      = {ns_ind, send_prefix + "Bin" + std::to_string(id) + "Closing"};
-    // baffle_opening_id[id]   = {ns_ind, send_prefix + "Baffle" + std::to_string(id) + "Opening"};
-    // baffle_closing_id[id]   = {ns_ind, send_prefix + "Baffle" + std::to_string(id) + "Closing"};
   }
 
   if (!init_opcua_cli())
@@ -136,8 +132,7 @@ void DispenserStationNode::dis_req_handle(
 
   wait_for_opcua_connection(freq);
   
-  uint32_t amt = 0;
-
+  int16_t amt = 0;
   // Write Unit_Amount
   std::vector<std::future<opcua::StatusCode>> futures;
   for (size_t i = 0; i < req->content.size(); i++)
@@ -149,7 +144,7 @@ void DispenserStationNode::dis_req_handle(
     }
 
     opcua::Variant amt_var;
-    amt_var = static_cast<int16_t>(req->content[i].amount);
+    amt_var = std::max(static_cast<int16_t>(req->content[i].amount), static_cast<int16_t>(0));
 
     amt += req->content[i].amount;
 
@@ -170,7 +165,7 @@ void DispenserStationNode::dis_req_handle(
   cmd_req = true;
   std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, cmd_req_id, cmd_req, opcua::useFuture);
 
-  future.wait();
+  future.wait(); // do I need to wait?
   const opcua::StatusCode &code = future.get();
   if (code != UA_STATUSCODE_GOOD)
   {
@@ -180,19 +175,19 @@ void DispenserStationNode::dis_req_handle(
 
   // Read CmdAmount
   std::future<opcua::Result<opcua::Variant>> cmd_amt_future = opcua::services::readValueAsync(cli, cmd_amt_id, opcua::useFuture);
-  
   cmd_amt_future.wait();
+
   const opcua::Result<opcua::Variant> &cmd_amt_result = cmd_amt_future.get();
-  if (result.code() != UA_STATUSCODE_GOOD)
+  if (cmd_amt_result.code() != UA_STATUSCODE_GOOD)
   {
     RCLCPP_ERROR(this->get_logger(), "readValueAsync error occur in %s", __FUNCTION__);
     return;
   }
 
-  std::optional<int16_t> cmd_cmt_val = result.value().scalar<int16_t>();
+  std::optional<int16_t> cmd_cmt_val = cmd_amt_result.value().scalar<int16_t>();
   if (!cmd_cmt_val)
   {
-    RCLCPP_ERROR(this->get_logger(), "std::optional<int16_t> error occur in %s", __FUNCTION__);
+    RCLCPP_ERROR(this->get_logger(), "cmd_cmt_val error occur in %s", __FUNCTION__);
     return;
   }
 
@@ -216,29 +211,42 @@ void DispenserStationNode::dis_req_handle(
   }
 
   // wait forever until the dispenser station is completed
-  while (rclcpp::ok())
+  if (rclcpp::ok())
   {
-    std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, completed_id, opcua::useFuture);
-    future.wait();
-    const opcua::Result<opcua::Variant> &result = future.get();
-
-    if (result.code() == UA_STATUSCODE_GOOD)
-    {
-      std::optional<bool> val = result.value().scalar<bool>();
-      if (val && *val)
-      {
-        RCLCPP_INFO(this->get_logger(), "Submit a dispense request successfully");
-        res->success = true;
-        break;
-      }
-    }
-    else
-      RCLCPP_ERROR(this->get_logger(), "Read result with status code: %s", std::to_string(result.code()).c_str());
-
-    loop_rate.sleep();
+    std::unique_lock<std::mutex> lock(mutex_);
+    cv_.wait(lock, [this]() { 
+      return is_completed_; 
+    });
+    is_completed_ = false;
   }
 
-  RCLCPP_INFO(this->get_logger(), "%s is completed", __FUNCTION__);
+  // Read AmountDispensed
+  std::future<opcua::Result<opcua::Variant>> amt_dis_future = opcua::services::readValueAsync(cli, amt_dis_id, opcua::useFuture);
+  amt_dis_future.wait();
+
+  const opcua::Result<opcua::Variant> &amt_dis_result = amt_dis_future.get();
+  if (amt_dis_result.code() != UA_STATUSCODE_GOOD)
+  {
+    RCLCPP_ERROR(this->get_logger(), "readValueAsync error occur in %s", __FUNCTION__);
+    return;
+  }
+
+  std::optional<int16_t> amt_dis_val = amt_dis_result.value().scalar<int16_t>();
+  if (!amt_dis_val)
+  {
+    RCLCPP_ERROR(this->get_logger(), "amt_dis_val error occur in %s", __FUNCTION__);
+    return;
+  }
+
+  if (*amt_dis_val != amt)
+  {
+    RCLCPP_ERROR(this->get_logger(), "Amount is not equal to request amount");
+    return;
+  }
+
+  res->success = true;
+  std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
+  RCLCPP_INFO(this->get_logger(), "Dispenser operation completed, proceeding...");
 }
 
 void DispenserStationNode::unit_req_handle(
@@ -305,9 +313,7 @@ void DispenserStationNode::unit_req_handle(
   const opcua::StatusCode &code = future.get();
 
   if (code == UA_STATUSCODE_GOOD)
-  {
     res->success = true;
-  }
   else
   {
     res->success = false;
