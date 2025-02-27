@@ -27,12 +27,12 @@ using std::placeholders::_1;
 using std::placeholders::_2;
 using std::placeholders::_3;
 
-class Completion
+class CallbackSignal
 {
 public:
-  std::mutex c_mutex_;
+  std::mutex cv_mutex_;
   std::condition_variable cv_;
-  bool is_completed_ = false;
+  bool is_triggered_ = false;
 };
 
 class DispenserStationNode : public rclcpp::Node 
@@ -80,14 +80,25 @@ public:
   void alm_code_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void dispensing_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
+  void initiate_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void open_close_req_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const opcua::NodeId req_node_id, const opcua::NodeId state_node_id);
   
   void reset(void);
   void test_bin_braffle(void);
 
+  bool wait_for_futures(std::vector<std::future<opcua::StatusCode>> &futures);
+
+  template <typename T>
+  bool write_opcua_value(const opcua::NodeId& node_id, T value);
+  template <typename T>
+  bool read_opcua_value(const opcua::NodeId& node_id, std::shared_ptr<T> value);
+
+  bool wait_for_init_condition(const opcua::NodeId& node_id);
+
 private:
   std::mutex mutex_;
-  Completion com_signal;
+  CallbackSignal com_signal;
+  CallbackSignal init_signal;
 
   std::string ip_;
   std::string port_;
@@ -138,24 +149,24 @@ protected:
   const std::string send_prefix = "SEND|";
   const std::string rev_prefix = "REV|";
 
-  const opcua::NodeId initiate_id = {ns_ind, rev_prefix + "Initiate"};
+  const opcua::NodeId heartbeat_id        = {ns_ind, send_prefix + "Heartbeat"};
+  const opcua::NodeId running_id          = {ns_ind, send_prefix + "Running"};
+  const opcua::NodeId paused_id           = {ns_ind, send_prefix + "Paused"};
+  const opcua::NodeId error_id            = {ns_ind, send_prefix + "Error"};
+  const opcua::NodeId alm_code_id         = {ns_ind, send_prefix + "ALMCode"};
 
-  const opcua::NodeId heartbeat_id = {ns_ind, send_prefix + "Heartbeat"};
-  const opcua::NodeId running_id = {ns_ind, send_prefix + "Running"};
-  const opcua::NodeId paused_id = {ns_ind, send_prefix + "Paused"};
-  const opcua::NodeId error_id = {ns_ind, send_prefix + "Error"};
-  const opcua::NodeId alm_code_id = {ns_ind, send_prefix + "ALMCode"};
+  const opcua::NodeId cmd_valid_state_id  = {ns_ind, send_prefix + "CmdValidState"};
+  const opcua::NodeId cmd_amt_id          = {ns_ind, send_prefix + "CmdAmount"};
+  const opcua::NodeId dispensing_id       = {ns_ind, send_prefix + "Dispensing"};
+  const opcua::NodeId amt_dis_id          = {ns_ind, send_prefix + "AmountDispensed"};
+  const opcua::NodeId completed_id        = {ns_ind, send_prefix + "Completed"};
 
-  const opcua::NodeId cmd_valid_state_id = {ns_ind, send_prefix + "CmdValidState"};
-  const opcua::NodeId cmd_amt_id = {ns_ind, send_prefix + "CmdAmount"};
-  const opcua::NodeId dispensing_id = {ns_ind, send_prefix + "Dispensing"};
-  const opcua::NodeId amt_dis_id = {ns_ind, send_prefix + "AmountDispensed"};
-  const opcua::NodeId completed_id = {ns_ind, send_prefix + "Completed"};
+  const opcua::NodeId initiate_id         = {ns_ind, rev_prefix + "Initiate"};
 
-  const opcua::NodeId cmd_req_id = {ns_ind, rev_prefix + "CmdRequest"};
-  const opcua::NodeId cmd_exe_id = {ns_ind, rev_prefix + "CmdExecute"};
+  const opcua::NodeId cmd_req_id          = {ns_ind, rev_prefix + "CmdRequest"};
+  const opcua::NodeId cmd_exe_id          = {ns_ind, rev_prefix + "CmdExecute"};
 
-  const opcua::NodeId reset_id = {ns_ind, rev_prefix + "reset"};
+  const opcua::NodeId reset_id            = {ns_ind, rev_prefix + "reset"};
 
   std::map<uint8_t, opcua::NodeId> unit_amt_id;
   

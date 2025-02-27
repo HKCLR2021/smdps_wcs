@@ -44,441 +44,7 @@ void DispenserStationNode::start_opcua_cli(void)
   }
 }
 
-void DispenserStationNode::wait_for_opcua_connection(const std::chrono::milliseconds freq)
-{
-  RCLCPP_DEBUG(this->get_logger(), "Started to wait the OPCUA connection <<<<<<<<<<<<<");
-
-  rclcpp::Rate loop_rate(freq); 
-  while (rclcpp::ok() && !cli.isConnected())
-  {
-    RCLCPP_ERROR(this->get_logger(), "Waiting for opcua connection (%ld ms to retry)...", freq.count());
-    loop_rate.sleep();
-  }
-}
-
-void DispenserStationNode::disconnected_cb(void)
-{
-  const std::lock_guard<std::mutex> lock(mutex_);
-  RCLCPP_INFO(this->get_logger(), ">>> disconnected to opcua server: %s:%s", ip_.c_str(), port_.c_str());
-}
-
-void DispenserStationNode::connected_cb(void)
-{
-  const std::lock_guard<std::mutex> lock(mutex_);
-  RCLCPP_INFO(this->get_logger(), ">>> connected to opcua server: %s:%s", ip_.c_str(), port_.c_str());
-}
-
-void DispenserStationNode::session_activated_cb(void)
-{
-  const std::lock_guard<std::mutex> lock(mutex_);
-  create_sub_async();
-  RCLCPP_INFO(this->get_logger(), ">>> session activated: %s:%s", ip_.c_str(), port_.c_str());
-}
-
-void DispenserStationNode::session_closed_cb(void)
-{
-  const std::lock_guard<std::mutex> lock(mutex_);
-  RCLCPP_INFO(this->get_logger(), ">>> session closed: %s:%s", ip_.c_str(), port_.c_str());
-}
-
-void DispenserStationNode::inactive_cb(void)
-{
-  const std::lock_guard<std::mutex> lock(mutex_);
-  RCLCPP_INFO(this->get_logger(), ">>> inactive: %s:%s", ip_.c_str(), port_.c_str());
-}
-
-void DispenserStationNode::heartbeat_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
-{
-  std::optional<bool> val = value.value().scalar<bool>();
-  if (!val)
-    return;
-
-  RCLCPP_DEBUG(this->get_logger(), ">>>> Heartbeat data change notification, value: %s", *val ? "true" : "false");
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-
-  const std::lock_guard<std::mutex> lock(mutex_);
-  status_->heartbeat = true;
-  heartbeat_counter_ = 0;
-  RCLCPP_DEBUG(this->get_logger(), ">>>> Reset heartbeat_counter_");
-}
-
-void DispenserStationNode::general_bool_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name, std::shared_ptr<bool> ptr)
-{
-  std::optional<bool> val = value.value().scalar<bool>();
-  if (!val)
-    return;
-
-  if (!name.empty())
-  {
-    RCLCPP_INFO(this->get_logger(), ">>>> %s data change notification, value: %s", name.c_str(), *val ? "true" : "false");
-    RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
-    RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-  }
-
-  const std::lock_guard<std::mutex> lock(mutex_);
-  *ptr = *val;
-}
-
-void DispenserStationNode::alm_code_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
-{
-  std::optional<int16_t> val = value.value().scalar<int16_t>();
-  if (!val)
-    return;
-  
-  if (val.value() == 0)
-    RCLCPP_INFO(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
-  else
-    RCLCPP_ERROR(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
-  
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-
-  const std::lock_guard<std::mutex> lock(mutex_);
-  status_->error_code = val.value();
-}
-
-void DispenserStationNode::completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
-{
-  std::optional<bool> val = value.value().scalar<bool>();
-  if (!val)
-    return;
-  
-  RCLCPP_INFO(this->get_logger(), ">>>> Completed data change notification, value: %s", *val ? "true" : "false");
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-
-  if (val.value())
-  {
-    RCLCPP_INFO(this->get_logger(), "Try to initiate Dispenser Station [%d]", status_->id);
-    if (rclcpp::ok())
-    {
-      std::lock_guard<std::mutex> lock(com_signal.c_mutex_);
-      com_signal.is_completed_ = true;
-    }
-    com_signal.cv_.notify_one();  // Wake up the waiting dis_req_handle
-
-    RCLCPP_INFO(this->get_logger(), "Notified the dis_req_handle to continue");
-  }
-}
-
-void DispenserStationNode::dispensing_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
-{
-  std::optional<bool> val = value.value().scalar<bool>();
-  if (!val)
-    return;
-  
-  RCLCPP_INFO(this->get_logger(), ">>>> Dispensing data change notification, value: %s", *val ? "true" : "false");
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-}
-
-void DispenserStationNode::open_close_req_cb(
-  uint32_t sub_id, 
-  uint32_t mon_id, 
-  const opcua::DataValue &value, 
-  const opcua::NodeId req_node_id, 
-  const opcua::NodeId state_node_id)
-{
-  std::optional<bool> val = value.value().scalar<bool>();
-  if (!val)
-    return;
-  
-  RCLCPP_INFO(this->get_logger(), ">>>> %s data change notification, value: %s", "Open/Close", *val ? "true" : "false");
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-
-  if (val.value())
-  {
-    RCLCPP_INFO(this->get_logger(), "Try to clear the open/close request Dispenser Station [%d]", status_->id);
-    std::thread(std::bind(&DispenserStationNode::clear_req, this, req_node_id, state_node_id)).detach();
-  }
-}
-
-void DispenserStationNode::clear_req(const opcua::NodeId req_node_id, const opcua::NodeId state_node_id)
-{
-  std::chrono::milliseconds freq = 500ms;
-  rclcpp::Rate loop_rate(freq); 
-
-  while(rclcpp::ok())
-  {
-    std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, state_node_id, opcua::useFuture);
-    
-    std::future_status status;
-    do
-    {
-      status = future.wait_for(200ms);
-      switch (status)
-      {
-      case std::future_status::deferred:
-        break;
-      case std::future_status::timeout:
-        break;
-      case std::future_status::ready:
-        break;
-      }
-      if (!rclcpp::ok())
-        break;
-    }
-    while (status != std::future_status::ready);
-  
-    const opcua::Result<opcua::Variant> &result = future.get();
-    if (result.code() != UA_STATUSCODE_GOOD)
-    {
-      RCLCPP_ERROR(this->get_logger(), "readValueAsync error occur in %s", __FUNCTION__);
-      continue;
-    }
-
-    std::optional<bool> val = result.value().scalar<bool>();
-    if (!val)
-    {
-      RCLCPP_ERROR(this->get_logger(), "val error occur in %s", __FUNCTION__);
-      continue;
-    }
-
-    if (val.value())
-    {
-      RCLCPP_INFO(this->get_logger(), "The state changed to true");
-      break;
-    }
-
-    loop_rate.sleep();
-  }
-
-  opcua::Variant var;
-  var = false;
-
-  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, req_node_id, var, opcua::useFuture);
-  std::future_status status;
-  do
-  {
-    status = future.wait_for(500ms);
-    switch (status)
-    {
-    case std::future_status::deferred:
-      break;
-    case std::future_status::timeout:
-      break;
-    case std::future_status::ready:
-      break;
-    }
-    if (!rclcpp::ok())
-      break;
-  }
-  while (status != std::future_status::ready);
-
-  const opcua::StatusCode &code = future.get();
-  if (code != UA_STATUSCODE_GOOD)
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-
-  RCLCPP_INFO(this->get_logger(), "Clear the Request of Dispenser Station [%d] successfully", status_->id);
-}
-
-void DispenserStationNode::initiate(void)
-{
-  opcua::Variant init_var;
-  init_var = true;
-
-  std::future<opcua::StatusCode> stop_future = opcua::services::writeValueAsync(cli, initiate_id, init_var, opcua::useFuture);
-  stop_future.wait();
-
-  const opcua::StatusCode &stop_code = stop_future.get();
-  if (stop_code != UA_STATUSCODE_GOOD)
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-
-  std::chrono::milliseconds freq = 100ms;
-  rclcpp::Rate loop_rate(freq); 
-  while (rclcpp::ok())
-  {
-    std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, initiate_id, opcua::useFuture);
-    future.wait();
-    const opcua::Result<opcua::Variant> &result = future.get();
-
-    if (result.code() != UA_STATUSCODE_GOOD)
-    {
-      RCLCPP_ERROR(this->get_logger(), "Read result with status code: %s", std::to_string(result.code()).c_str());
-      continue;
-    }
-
-    std::optional<bool> val = result.value().scalar<bool>();
-    if (val && *val)
-      break;
-    
-    loop_rate.sleep();
-  }
-
-  init_var = false;
-  std::future<opcua::StatusCode> start_future = opcua::services::writeValueAsync(cli, initiate_id, init_var, opcua::useFuture);
-  start_future.wait();
-
-  const opcua::StatusCode &start_code = start_future.get();
-  if (start_code != UA_STATUSCODE_GOOD)
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-
-  RCLCPP_INFO(this->get_logger(), "Initiated the Dispenser Station [%d] successfully", status_->id);
-}
-
-void DispenserStationNode::clear_cmd_req(void)
-{
-  opcua::Variant var;
-  var = false;
-
-  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, cmd_req_id, var, opcua::useFuture);
-  future.wait();
-
-  const opcua::StatusCode &code = future.get();
-  if (code != UA_STATUSCODE_GOOD)
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-}
-
-void DispenserStationNode::reset(void)
-{
-  opcua::Variant var;
-  var = true;
-
-  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, reset_id, var, opcua::useFuture);
-  future.wait();
-
-  const opcua::StatusCode &code_1 = future.get();
-  if (code_1 != UA_STATUSCODE_GOOD)
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-
-  std::this_thread::sleep_for(1s);
-
-  var = false;
-
-  future = opcua::services::writeValueAsync(cli, reset_id, var, opcua::useFuture);
-  future.wait();
-
-  const opcua::StatusCode &code_2 = future.get();
-  if (code_2 != UA_STATUSCODE_GOOD)
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-
-  std::this_thread::sleep_for(1s);
-}
-
-void DispenserStationNode::test_bin_braffle(void)
-{
-  std::vector<std::future<opcua::StatusCode>> futures;
-
-  for (size_t i = 0; i < 1; i++)
-  {
-    const uint8_t id = i + 1;
-    opcua::Variant var;
-    var = true;
-    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, bin_close_req_id[id], var, opcua::useFuture);
-    futures.push_back(std::move(future));
-    std::this_thread::sleep_for(1s);
-  }
-  for (auto &future: futures)
-  {
-    std::future_status status;
-    do
-    {
-      status = future.wait_for(100ms);
-      switch (status)
-      {
-      case std::future_status::deferred:
-        break;
-      case std::future_status::timeout:
-        break;
-      case std::future_status::ready:
-        break;
-      }
-      if (!rclcpp::ok())
-        break;
-    }
-    while (status != std::future_status::ready);
-
-    const opcua::StatusCode &code = future.get();
-    if (code != UA_STATUSCODE_GOOD)
-      RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-    std::this_thread::sleep_for(500ms);
-  }
-
-  std::this_thread::sleep_for(2s);
-  futures.clear();
-
-  for (size_t i = 0; i < 1; i++)
-  {
-    const uint8_t id = i + 1;
-    opcua::Variant var;
-    var = true;
-    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, bin_open_req_id[id], var, opcua::useFuture);
-    futures.push_back(std::move(future));
-    std::this_thread::sleep_for(1s);
-  }
-  for (auto &future: futures)
-  {
-    std::future_status status;
-    do
-    {
-      status = future.wait_for(100ms);
-      switch (status)
-      {
-      case std::future_status::deferred:
-        break;
-      case std::future_status::timeout:
-        break;
-      case std::future_status::ready:
-        break;
-      }
-      if (!rclcpp::ok())
-        break;
-    }
-    while (status != std::future_status::ready);
-
-    const opcua::StatusCode &code = future.get();
-    if (code != UA_STATUSCODE_GOOD)
-      RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-    std::this_thread::sleep_for(500ms);
-  }
-
-  std::this_thread::sleep_for(2s);
-  futures.clear();
-
-  for (size_t i = 0; i < 1; i++)
-  {
-    const uint8_t id = i + 1;
-    opcua::Variant var;
-    var = true;
-    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, bin_close_req_id[id], var, opcua::useFuture);
-    futures.push_back(std::move(future));
-    std::this_thread::sleep_for(1s);
-  }
-  for (auto &future: futures)
-  {
-    std::future_status status;
-    do
-    {
-      status = future.wait_for(100ms);
-      switch (status)
-      {
-      case std::future_status::deferred:
-        break;
-      case std::future_status::timeout:
-        break;
-      case std::future_status::ready:
-        break;
-      }
-      if (!rclcpp::ok())
-        break;
-    }
-    while (status != std::future_status::ready);
-
-    const opcua::StatusCode &code = future.get();
-    if (code != UA_STATUSCODE_GOOD)
-      RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-    std::this_thread::sleep_for(500ms);
-  }
-
-  std::this_thread::sleep_for(2s);
-  futures.clear();
-
-  RCLCPP_INFO(this->get_logger(), "Initiated the Open and Close state", __FUNCTION__);
-}
-
-void DispenserStationNode::create_sub_async()
+void DispenserStationNode::create_sub_async(void)
 {
   opcua::SubscriptionParameters sub_params{};
   sub_params.publishingInterval = 500;
@@ -545,6 +111,17 @@ void DispenserStationNode::create_sub_async()
         std::bind(&DispenserStationNode::dispensing_cb, this, _1, _2, _3),
         std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "Dispensing"), 
         std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "Dispensing")
+      );
+
+      opcua::services::createMonitoredItemDataChangeAsync(
+        cli,
+        res.subscriptionId(),
+        opcua::ReadValueId(initiate_id, opcua::AttributeId::Value),
+        opcua::MonitoringMode::Reporting,
+        monitoring_params,
+        std::bind(&DispenserStationNode::initiate_cb, this, _1, _2, _3),
+        std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "Initiate"), 
+        std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "Initiate")
       );
 
       create_mon_item_async(res, running_id, "Running", std::shared_ptr<bool>(status_, &status_->running));
@@ -657,7 +234,6 @@ void DispenserStationNode::monitored_item_deleted_cb(uint32_t sub_id, uint32_t m
   RCLCPP_INFO(this->get_logger(), ">>>> %s Monitored Item deleted:", name.c_str());
   RCLCPP_INFO(this->get_logger(), ">>>> - subscription id: %d", sub_id);
   RCLCPP_INFO(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-  std::this_thread::sleep_for(50ms);
 }
 
 void DispenserStationNode::monitored_item_created_cb(opcua::MonitoredItemCreateResult& result, std::string name)
@@ -667,104 +243,33 @@ void DispenserStationNode::monitored_item_created_cb(opcua::MonitoredItemCreateR
   RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %s", std::to_string(result.monitoredItemId()).c_str());
 }
 
-const std::string DispenserStationNode::form_opcua_url(void)
+void DispenserStationNode::disconnected_cb(void)
 {
-  if (!ip_.empty() && !port_.empty())
-    return "opc.tcp://" + ip_ + ":" + port_;
-  else
-    throw std::runtime_error(std::string("%s failed", __FUNCTION__));
+  const std::lock_guard<std::mutex> lock(mutex_);
+  RCLCPP_ERROR(this->get_logger(), "Disconnected to opcua server: %s:%s", ip_.c_str(), port_.c_str());
 }
 
-constexpr std::string_view DispenserStationNode::get_enum_name(opcua::NodeClass node_class) 
+void DispenserStationNode::connected_cb(void)
 {
-  switch (node_class) 
-  {
-  case opcua::NodeClass::Object:
-    return "Object";
-  case opcua::NodeClass::Variable:
-    return "Variable";
-  case opcua::NodeClass::Method:
-    return "Method";
-  case opcua::NodeClass::ObjectType:
-    return "ObjectType";
-  case opcua::NodeClass::VariableType:
-    return "VariableType";
-  case opcua::NodeClass::ReferenceType:
-    return "ReferenceType";
-  case opcua::NodeClass::DataType:
-    return "DataType";
-  case opcua::NodeClass::View:
-    return "View";
-  default:
-    return "Unknown";
-  }
+  const std::lock_guard<std::mutex> lock(mutex_);
+  RCLCPP_INFO(this->get_logger(), "Connected to opcua server: %s:%s", ip_.c_str(), port_.c_str());
 }
 
-constexpr std::string_view DispenserStationNode::get_log_level_name(opcua::LogLevel level) 
+void DispenserStationNode::session_activated_cb(void)
 {
-  switch (level) 
-  {
-  case opcua::LogLevel::Trace:
-    return "trace";
-  case opcua::LogLevel::Debug:
-    return "debug";
-  case opcua::LogLevel::Info:
-    return "info";
-  case opcua::LogLevel::Warning:
-    return "warning";
-  case opcua::LogLevel::Error:
-    return "error";
-  case opcua::LogLevel::Fatal:
-    return "fatal";
-  default:
-    return "unknown";
-  }
-}
- 
-constexpr std::string_view DispenserStationNode::get_log_category_name(opcua::LogCategory category) 
-{
-  switch (category) 
-  {
-  case opcua::LogCategory::Network:
-    return "network";
-  case opcua::LogCategory::SecureChannel:
-    return "channel";
-  case opcua::LogCategory::Session:
-    return "session";
-  case opcua::LogCategory::Server:
-    return "server";
-  case opcua::LogCategory::Client:
-    return "client";
-  case opcua::LogCategory::Userland:
-    return "userland";
-  case opcua::LogCategory::SecurityPolicy:
-    return "securitypolicy";
-  default:
-    return "unknown";
-  }
+  const std::lock_guard<std::mutex> lock(mutex_);
+  create_sub_async();
+  RCLCPP_INFO(this->get_logger(), "Session activated: %s:%s", ip_.c_str(), port_.c_str());
 }
 
-void DispenserStationNode::logger_wrapper(opcua::LogLevel level, opcua::LogCategory category, std::string_view msg)
+void DispenserStationNode::session_closed_cb(void)
 {
-  switch (level) 
-  {
-  case opcua::LogLevel::Debug:
-    RCLCPP_DEBUG(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
-  case opcua::LogLevel::Trace:
-  case opcua::LogLevel::Info:
-    RCLCPP_INFO(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
-    break;
-  case opcua::LogLevel::Warning:
-    RCLCPP_WARN(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
-    break;
-  case opcua::LogLevel::Error:
-    RCLCPP_ERROR(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
-    break;
-  case opcua::LogLevel::Fatal:
-    RCLCPP_FATAL(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
-    break;
-  default:
-    RCLCPP_ERROR(this->get_logger(), "[%s] %s", std::string(get_log_category_name(category)).c_str(), std::string(msg).c_str());
-    break;
-  }
+  const std::lock_guard<std::mutex> lock(mutex_);
+  RCLCPP_ERROR(this->get_logger(), "Session closed: %s:%s", ip_.c_str(), port_.c_str());
+}
+
+void DispenserStationNode::inactive_cb(void)
+{
+  const std::lock_guard<std::mutex> lock(mutex_);
+  RCLCPP_ERROR(this->get_logger(), "Inactive: %s:%s", ip_.c_str(), port_.c_str());
 }

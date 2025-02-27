@@ -109,7 +109,6 @@ void DispenserStationNode::dis_station_status_cb(void)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
   status_pub_->publish(*status_);
-  RCLCPP_DEBUG(this->get_logger(), "%s is working", __FUNCTION__);
 }
 
 void DispenserStationNode::heartbeat_valid_cb(void)
@@ -128,12 +127,13 @@ void DispenserStationNode::dis_req_handle(
   const std::shared_ptr<DispenseDrug::Request> req, 
   std::shared_ptr<DispenseDrug::Response> res)
 {
-  std::chrono::milliseconds freq = 100ms;
+  const std::chrono::milliseconds freq = 100ms;
+  const std::chrono::milliseconds TIMEOUT = 50ms;
   rclcpp::Rate loop_rate(freq); 
 
   wait_for_opcua_connection(freq);
   
-  int16_t amt = 0;
+  int16_t target_amt = 0;
   // Write Unit_Amount
   std::vector<std::future<opcua::StatusCode>> futures;
   for (size_t i = 0; i < req->content.size(); i++)
@@ -145,96 +145,77 @@ void DispenserStationNode::dis_req_handle(
     }
 
     if (req->content[i].amount <= 0)
-    {
       continue;
-    }
 
     opcua::Variant amt_var;
     amt_var = std::max(static_cast<int16_t>(req->content[i].amount), static_cast<int16_t>(0));
 
-    amt += req->content[i].amount;
+    target_amt += req->content[i].amount;
 
     std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, unit_amt_id[req->content[i].unit_id], amt_var, opcua::useFuture);
     futures.push_back(std::move(future));
   }
-
-  for (auto &future: futures)
-  {
-    future.wait();
-    const opcua::StatusCode &code = future.get();
-    if (code != UA_STATUSCODE_GOOD)
-      RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-  }
-
   RCLCPP_INFO(this->get_logger(), "Sent the amount of requested");
 
   // Write CmdRequest
   opcua::Variant cmd_req;
   cmd_req = true;
   std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, cmd_req_id, cmd_req, opcua::useFuture);
-
-  future.wait(); // do I need to wait?
-  const opcua::StatusCode &code = future.get();
-  if (code != UA_STATUSCODE_GOOD)
-  {
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-    return;
-  }
-
+  futures.push_back(std::move(future));
   RCLCPP_INFO(this->get_logger(), "Sent the Command Request");
 
-  // Read CmdAmount
-  uint8_t i = 0;
-  const uint16_t MAX_RETIES = 50;
-  for (; i < MAX_RETIES && rclcpp::ok(); i++)
-  {
-    std::future<opcua::Result<opcua::Variant>> cmd_amt_future = opcua::services::readValueAsync(cli, cmd_amt_id, opcua::useFuture);
-    // cmd_amt_future.wait();
-    std::future_status status;
-    do
-    {
-      status = cmd_amt_future.wait_for(25ms);
-      switch (status)
-      {
-      case std::future_status::deferred:
-        break;
-      case std::future_status::timeout:
-        break;
-      case std::future_status::ready:
-        break;
-      }
-      if (!rclcpp::ok())
-        break;
-    }
-    while (status != std::future_status::ready);
+  bool all_good = wait_for_futures(futures);
+  if (!all_good)
+    RCLCPP_ERROR(this->get_logger(), "Error during amount write in %s", __FUNCTION__);
 
-    const opcua::Result<opcua::Variant> &cmd_amt_result = cmd_amt_future.get();
-    if (cmd_amt_result.code() != UA_STATUSCODE_GOOD)
+  // Read CmdAmount
+  int16_t result;
+  uint8_t i = 0;
+  const uint16_t MAX_RETRIES = 100;
+  for (; i < MAX_RETRIES && rclcpp::ok(); i++)
+  {
+    std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, cmd_amt_id, opcua::useFuture);
+    
+    if (future.wait_for(TIMEOUT) != std::future_status::ready) 
+    {
+      if (!rclcpp::ok()) 
+      {
+        RCLCPP_WARN(this->get_logger(), "Aborted read due to ROS shutdown in %s", __FUNCTION__);
+        return;
+      }
+
+      RCLCPP_INFO(this->get_logger(), "Read timeout after %ld ms, retrying (%d/%d)", TIMEOUT.count(), i + 1, MAX_RETRIES);
+      continue;
+    }
+
+    const opcua::Result<opcua::Variant> &result_variant = future.get();
+    if (result_variant.code() != UA_STATUSCODE_GOOD)
     {
       RCLCPP_ERROR(this->get_logger(), "readValueAsync error occur in %s", __FUNCTION__);
       continue;
     }
 
-    std::optional<int16_t> cmd_amt_val = cmd_amt_result.value().scalar<int16_t>();
-    if (!cmd_amt_val)
+    std::optional<int16_t> val = result_variant.value().scalar<int16_t>();
+    if (!val)
     {
-      RCLCPP_ERROR(this->get_logger(), "cmd_amt_val error occur in %s", __FUNCTION__);
+      RCLCPP_ERROR(this->get_logger(), "Invalid cmd_amt value type in %s", __FUNCTION__);
       continue;
     }
 
-    if (cmd_amt_val.value() == amt)
+    result = val.value();
+    if (result == target_amt)
     {
-      RCLCPP_INFO(this->get_logger(), "cmd_amt_val: %d", cmd_amt_val.value());
-      RCLCPP_INFO(this->get_logger(), "amt: %d", amt);
+      RCLCPP_INFO(this->get_logger(), "cmd_amt_val: %d matches target: %d", result, target_amt);
       break;
     }
 
     loop_rate.sleep();
   }
 
-  if (i >= MAX_RETIES)
+  if (i >= MAX_RETRIES)
   {
-    RCLCPP_INFO(this->get_logger(), "i >= MAX_RETIES");
+    RCLCPP_ERROR(this->get_logger(), "cmd_amt_val: %d does not matches target: %d", result, target_amt);
+    RCLCPP_ERROR(this->get_logger(), "i >= MAX_RETRIES");
     return;
   }
 
@@ -259,11 +240,11 @@ void DispenserStationNode::dis_req_handle(
   if (rclcpp::ok())
   {
     RCLCPP_INFO(this->get_logger(), "Waiting the completion signal...");
-    std::unique_lock<std::mutex> lock(com_signal.c_mutex_);
+    std::unique_lock<std::mutex> lock(com_signal.cv_mutex_);
     com_signal.cv_.wait(lock, [this]() { 
-      return com_signal.is_completed_; 
+      return com_signal.is_triggered_; 
     });
-    com_signal.is_completed_ = false;
+    com_signal.is_triggered_ = false;
   }
 
   // Read AmountDispensed
@@ -284,10 +265,10 @@ void DispenserStationNode::dis_req_handle(
     return;
   }
 
-  if (amt_dis_val.value() != amt)
+  if (amt_dis_val.value() != target_amt)
   {
     RCLCPP_INFO(this->get_logger(), "amt_dis_val.value(): %d", amt_dis_val.value());
-    RCLCPP_INFO(this->get_logger(), "amt: %d", amt);
+    RCLCPP_INFO(this->get_logger(), "target_amt: %d", target_amt);
     RCLCPP_INFO(this->get_logger(), "Dispensed Amount is equal to request amount");
     return;
   }

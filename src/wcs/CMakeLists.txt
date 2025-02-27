@@ -50,6 +50,9 @@ ament_target_dependencies(prod_line_ctrl
 add_executable(dis_station_node 
   src/dis_station_node.cpp
   src/opcua_cli.cpp
+  src/opcua_cb.cpp
+  src/opcua_action.cpp
+  src/opcua_utilities.cpp
 )
 target_link_libraries(dis_station_node
   open62541pp::open62541pp
