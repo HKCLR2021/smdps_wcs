@@ -86,6 +86,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
     srv_ser_cbg_);
 
   initiate();
+  reset();
 
   RCLCPP_INFO(this->get_logger(), "OPCUA Server: %s", form_opcua_url().c_str());
   RCLCPP_INFO(this->get_logger(), "Dispenser Station Node [%d] is up", status_->id);
@@ -143,6 +144,11 @@ void DispenserStationNode::dis_req_handle(
       continue;
     }
 
+    if (req->content[i].amount <= 0)
+    {
+      continue;
+    }
+
     opcua::Variant amt_var;
     amt_var = std::max(static_cast<int16_t>(req->content[i].amount), static_cast<int16_t>(0));
 
@@ -160,6 +166,8 @@ void DispenserStationNode::dis_req_handle(
       RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
   }
 
+  RCLCPP_INFO(this->get_logger(), "Sent the amount of requested");
+
   // Write CmdRequest
   opcua::Variant cmd_req;
   cmd_req = true;
@@ -173,29 +181,64 @@ void DispenserStationNode::dis_req_handle(
     return;
   }
 
+  RCLCPP_INFO(this->get_logger(), "Sent the Command Request");
+
   // Read CmdAmount
-  std::future<opcua::Result<opcua::Variant>> cmd_amt_future = opcua::services::readValueAsync(cli, cmd_amt_id, opcua::useFuture);
-  cmd_amt_future.wait();
-
-  const opcua::Result<opcua::Variant> &cmd_amt_result = cmd_amt_future.get();
-  if (cmd_amt_result.code() != UA_STATUSCODE_GOOD)
+  uint8_t i = 0;
+  const uint16_t MAX_RETIES = 50;
+  for (; i < MAX_RETIES && rclcpp::ok(); i++)
   {
-    RCLCPP_ERROR(this->get_logger(), "readValueAsync error occur in %s", __FUNCTION__);
+    std::future<opcua::Result<opcua::Variant>> cmd_amt_future = opcua::services::readValueAsync(cli, cmd_amt_id, opcua::useFuture);
+    // cmd_amt_future.wait();
+    std::future_status status;
+    do
+    {
+      status = cmd_amt_future.wait_for(25ms);
+      switch (status)
+      {
+      case std::future_status::deferred:
+        break;
+      case std::future_status::timeout:
+        break;
+      case std::future_status::ready:
+        break;
+      }
+      if (!rclcpp::ok())
+        break;
+    }
+    while (status != std::future_status::ready);
+
+    const opcua::Result<opcua::Variant> &cmd_amt_result = cmd_amt_future.get();
+    if (cmd_amt_result.code() != UA_STATUSCODE_GOOD)
+    {
+      RCLCPP_ERROR(this->get_logger(), "readValueAsync error occur in %s", __FUNCTION__);
+      continue;
+    }
+
+    std::optional<int16_t> cmd_amt_val = cmd_amt_result.value().scalar<int16_t>();
+    if (!cmd_amt_val)
+    {
+      RCLCPP_ERROR(this->get_logger(), "cmd_amt_val error occur in %s", __FUNCTION__);
+      continue;
+    }
+
+    if (cmd_amt_val.value() == amt)
+    {
+      RCLCPP_INFO(this->get_logger(), "cmd_amt_val: %d", cmd_amt_val.value());
+      RCLCPP_INFO(this->get_logger(), "amt: %d", amt);
+      break;
+    }
+
+    loop_rate.sleep();
+  }
+
+  if (i >= MAX_RETIES)
+  {
+    RCLCPP_INFO(this->get_logger(), "i >= MAX_RETIES");
     return;
   }
 
-  std::optional<int16_t> cmd_cmt_val = cmd_amt_result.value().scalar<int16_t>();
-  if (!cmd_cmt_val)
-  {
-    RCLCPP_ERROR(this->get_logger(), "cmd_cmt_val error occur in %s", __FUNCTION__);
-    return;
-  }
-
-  if (*cmd_cmt_val != amt)
-  {
-    RCLCPP_ERROR(this->get_logger(), "Amount is not equal error occur in %s", __FUNCTION__);
-    return;
-  }
+  RCLCPP_INFO(this->get_logger(), "Verified the amount of request and target amount");
 
   // Write CmdExecute
   opcua::Variant cmd_exe;
@@ -210,14 +253,17 @@ void DispenserStationNode::dis_req_handle(
     return;
   }
 
+  RCLCPP_INFO(this->get_logger(), "Sent the Command Execute");
+
   // wait forever until the dispenser station is completed
   if (rclcpp::ok())
   {
-    std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait(lock, [this]() { 
-      return is_completed_; 
+    RCLCPP_INFO(this->get_logger(), "Waiting the completion signal...");
+    std::unique_lock<std::mutex> lock(com_signal.c_mutex_);
+    com_signal.cv_.wait(lock, [this]() { 
+      return com_signal.is_completed_; 
     });
-    is_completed_ = false;
+    com_signal.is_completed_ = false;
   }
 
   // Read AmountDispensed
@@ -238,13 +284,18 @@ void DispenserStationNode::dis_req_handle(
     return;
   }
 
-  if (*amt_dis_val != amt)
+  if (amt_dis_val.value() != amt)
   {
-    RCLCPP_ERROR(this->get_logger(), "Amount is not equal to request amount");
+    RCLCPP_INFO(this->get_logger(), "amt_dis_val.value(): %d", amt_dis_val.value());
+    RCLCPP_INFO(this->get_logger(), "amt: %d", amt);
+    RCLCPP_INFO(this->get_logger(), "Dispensed Amount is equal to request amount");
     return;
   }
 
+  RCLCPP_INFO(this->get_logger(), "Verifing the amount of request and target amount");
+
   res->success = true;
+  std::thread(std::bind(&DispenserStationNode::clear_cmd_req, this)).detach();
   std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
   RCLCPP_INFO(this->get_logger(), "Dispenser operation completed, proceeding...");
 }
@@ -253,37 +304,37 @@ void DispenserStationNode::unit_req_handle(
   const std::shared_ptr<UnitRequest::Request> req, 
   std::shared_ptr<UnitRequest::Response> res)
 {
-  auto valid_action = [&](const std::shared_ptr<UnitRequest::Request> req, const DispenserUnitStatus &unit_status) {
-    switch (req->type) {
-    case UnitType::BIN:
-      return (unit_status.bin_opened && req->data == false) || 
-             (unit_status.bin_closed && req->data == true);
-    case UnitType::BAFFLE:
-      return (unit_status.baffle_opened && req->data == false) || 
-             (unit_status.baffle_closed && req->data == true);
-    default:
-      return false;
-    }
-  };
+  // auto valid_action = [&](const std::shared_ptr<UnitRequest::Request> req, const DispenserUnitStatus &unit_status) {
+  //   switch (req->type) {
+  //   case UnitType::BIN:
+  //     return (unit_status.bin_opened && req->data == false) || 
+  //            (unit_status.bin_closed && req->data == true);
+  //   case UnitType::BAFFLE:
+  //     return (unit_status.baffle_opened && req->data == false) || 
+  //            (unit_status.baffle_closed && req->data == true);
+  //   default:
+  //     return false;
+  //   }
+  // };
 
-  bool action_criteria_satisfied = false;
-  std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
+  // bool action_criteria_satisfied = false;
+  // std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
 
-  lock.lock();
-  const uint8_t id_index = req->unit_id - 1;
-  const auto &unit_status = status_->unit_status[id_index];
-  action_criteria_satisfied = valid_action(req, unit_status);
-  lock.unlock();
+  // lock.lock();
+  // const uint8_t id_index = req->unit_id - 1;
+  // const auto &unit_status = status_->unit_status[id_index];
+  // action_criteria_satisfied = valid_action(req, unit_status);
+  // lock.unlock();
 
-  if (!action_criteria_satisfied)
-  {
-    res->success = false;
-    res->message = "The target is either opening, closing, opened, or closed";
-    return;
-  }
+  // if (!action_criteria_satisfied)
+  // {
+  //   res->success = false;
+  //   res->message = "The target is either opening, closing, opened, or closed";
+  //   return;
+  // }
 
   opcua::Variant req_var;
-  req_var = req->data;
+  req_var = true;
 
   std::future<opcua::StatusCode> future;
   switch (req->type)

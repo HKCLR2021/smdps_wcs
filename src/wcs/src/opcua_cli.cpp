@@ -126,7 +126,7 @@ void DispenserStationNode::alm_code_cb(uint32_t sub_id, uint32_t mon_id, const o
   if (!val)
     return;
   
-  if (val == 0)
+  if (val.value() == 0)
     RCLCPP_INFO(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
   else
     RCLCPP_ERROR(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
@@ -135,7 +135,7 @@ void DispenserStationNode::alm_code_cb(uint32_t sub_id, uint32_t mon_id, const o
   RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
 
   const std::lock_guard<std::mutex> lock(mutex_);
-  status_->error_code = *val;
+  status_->error_code = val.value();
 }
 
 void DispenserStationNode::completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
@@ -148,15 +148,17 @@ void DispenserStationNode::completed_cb(uint32_t sub_id, uint32_t mon_id, const 
   RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
   RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
 
-  if (*val)
+  if (val.value())
   {
     RCLCPP_INFO(this->get_logger(), "Try to initiate Dispenser Station [%d]", status_->id);
     if (rclcpp::ok())
     {
-      std::lock_guard<std::mutex> lock(mutex_);
-      is_completed_ = true;
+      std::lock_guard<std::mutex> lock(com_signal.c_mutex_);
+      com_signal.is_completed_ = true;
     }
-    cv_.notify_one();  // Wake up the waiting dis_req_handle
+    com_signal.cv_.notify_one();  // Wake up the waiting dis_req_handle
+
+    RCLCPP_INFO(this->get_logger(), "Notified the dis_req_handle to continue");
   }
 }
 
@@ -169,73 +171,105 @@ void DispenserStationNode::dispensing_cb(uint32_t sub_id, uint32_t mon_id, const
   RCLCPP_INFO(this->get_logger(), ">>>> Dispensing data change notification, value: %s", *val ? "true" : "false");
   RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
   RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
-
-  if (*val)
-  {
-    RCLCPP_INFO(this->get_logger(), "Reset CmdRequest Dispenser Station [%d]", status_->id);
-
-    opcua::Variant var;
-    var = false;
-
-    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, cmd_req_id, var, opcua::useFuture);
-    future.wait();
-    
-    const opcua::StatusCode &code = future.get();
-    if (code != UA_STATUSCODE_GOOD)
-      RCLCPP_ERROR(this->get_logger(), "Write result with status code: %s", std::to_string(code).c_str());
-  }
 }
 
-
-void DispenserStationNode::open_close_req_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name)
+void DispenserStationNode::open_close_req_cb(
+  uint32_t sub_id, 
+  uint32_t mon_id, 
+  const opcua::DataValue &value, 
+  const opcua::NodeId req_node_id, 
+  const opcua::NodeId state_node_id)
 {
   std::optional<bool> val = value.value().scalar<bool>();
   if (!val)
     return;
   
-  RCLCPP_INFO(this->get_logger(), ">>>> %s data change notification, value: %s", name.c_str(), *val ? "true" : "false");
+  RCLCPP_INFO(this->get_logger(), ">>>> %s data change notification, value: %s", "Open/Close", *val ? "true" : "false");
   RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
   RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
 
-  if (*val)
+  if (val.value())
   {
-    RCLCPP_INFO(this->get_logger(), "Try to clear the request Dispenser Station [%d]", status_->id);
-    // std::thread(std::bind(&DispenserStationNode::clear_req, this)).detach(); 
+    RCLCPP_INFO(this->get_logger(), "Try to clear the open/close request Dispenser Station [%d]", status_->id);
+    std::thread(std::bind(&DispenserStationNode::clear_req, this, req_node_id, state_node_id)).detach();
   }
 }
 
-void DispenserStationNode::clear_req(const opcua::NodeId node_id)
+void DispenserStationNode::clear_req(const opcua::NodeId req_node_id, const opcua::NodeId state_node_id)
 {
-  opcua::Variant var;
-  var = false;
-
-  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, node_id, var, opcua::useFuture);
-  future.wait();
-
-  const opcua::StatusCode &code = future.get();
-  if (code != UA_STATUSCODE_GOOD)
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
-
-  std::chrono::milliseconds freq = 100ms;
+  std::chrono::milliseconds freq = 500ms;
   rclcpp::Rate loop_rate(freq); 
-  while (rclcpp::ok())
-  {
-    std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, node_id, opcua::useFuture);
-    future.wait();
-    const opcua::Result<opcua::Variant> &result = future.get();
 
+  while(rclcpp::ok())
+  {
+    std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, state_node_id, opcua::useFuture);
+    
+    std::future_status status;
+    do
+    {
+      status = future.wait_for(200ms);
+      switch (status)
+      {
+      case std::future_status::deferred:
+        break;
+      case std::future_status::timeout:
+        break;
+      case std::future_status::ready:
+        break;
+      }
+      if (!rclcpp::ok())
+        break;
+    }
+    while (status != std::future_status::ready);
+  
+    const opcua::Result<opcua::Variant> &result = future.get();
     if (result.code() != UA_STATUSCODE_GOOD)
     {
-      RCLCPP_ERROR(this->get_logger(), "Read result with status code: %s", std::to_string(result.code()).c_str());
+      RCLCPP_ERROR(this->get_logger(), "readValueAsync error occur in %s", __FUNCTION__);
       continue;
     }
 
     std::optional<bool> val = result.value().scalar<bool>();
-    if (val && *val == false)
+    if (!val)
+    {
+      RCLCPP_ERROR(this->get_logger(), "val error occur in %s", __FUNCTION__);
+      continue;
+    }
+
+    if (val.value())
+    {
+      RCLCPP_INFO(this->get_logger(), "The state changed to true");
       break;
-    
+    }
+
     loop_rate.sleep();
   }
+
+  opcua::Variant var;
+  var = false;
+
+  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, req_node_id, var, opcua::useFuture);
+  std::future_status status;
+  do
+  {
+    status = future.wait_for(500ms);
+    switch (status)
+    {
+    case std::future_status::deferred:
+      break;
+    case std::future_status::timeout:
+      break;
+    case std::future_status::ready:
+      break;
+    }
+    if (!rclcpp::ok())
+      break;
+  }
+  while (status != std::future_status::ready);
+
+  const opcua::StatusCode &code = future.get();
+  if (code != UA_STATUSCODE_GOOD)
+    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
 
   RCLCPP_INFO(this->get_logger(), "Clear the Request of Dispenser Station [%d] successfully", status_->id);
 }
@@ -282,6 +316,166 @@ void DispenserStationNode::initiate(void)
     RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
 
   RCLCPP_INFO(this->get_logger(), "Initiated the Dispenser Station [%d] successfully", status_->id);
+}
+
+void DispenserStationNode::clear_cmd_req(void)
+{
+  opcua::Variant var;
+  var = false;
+
+  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, cmd_req_id, var, opcua::useFuture);
+  future.wait();
+
+  const opcua::StatusCode &code = future.get();
+  if (code != UA_STATUSCODE_GOOD)
+    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
+}
+
+void DispenserStationNode::reset(void)
+{
+  opcua::Variant var;
+  var = true;
+
+  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, reset_id, var, opcua::useFuture);
+  future.wait();
+
+  const opcua::StatusCode &code_1 = future.get();
+  if (code_1 != UA_STATUSCODE_GOOD)
+    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
+
+  std::this_thread::sleep_for(1s);
+
+  var = false;
+
+  future = opcua::services::writeValueAsync(cli, reset_id, var, opcua::useFuture);
+  future.wait();
+
+  const opcua::StatusCode &code_2 = future.get();
+  if (code_2 != UA_STATUSCODE_GOOD)
+    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
+
+  std::this_thread::sleep_for(1s);
+}
+
+void DispenserStationNode::test_bin_braffle(void)
+{
+  std::vector<std::future<opcua::StatusCode>> futures;
+
+  for (size_t i = 0; i < 1; i++)
+  {
+    const uint8_t id = i + 1;
+    opcua::Variant var;
+    var = true;
+    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, bin_close_req_id[id], var, opcua::useFuture);
+    futures.push_back(std::move(future));
+    std::this_thread::sleep_for(1s);
+  }
+  for (auto &future: futures)
+  {
+    std::future_status status;
+    do
+    {
+      status = future.wait_for(100ms);
+      switch (status)
+      {
+      case std::future_status::deferred:
+        break;
+      case std::future_status::timeout:
+        break;
+      case std::future_status::ready:
+        break;
+      }
+      if (!rclcpp::ok())
+        break;
+    }
+    while (status != std::future_status::ready);
+
+    const opcua::StatusCode &code = future.get();
+    if (code != UA_STATUSCODE_GOOD)
+      RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
+    std::this_thread::sleep_for(500ms);
+  }
+
+  std::this_thread::sleep_for(2s);
+  futures.clear();
+
+  for (size_t i = 0; i < 1; i++)
+  {
+    const uint8_t id = i + 1;
+    opcua::Variant var;
+    var = true;
+    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, bin_open_req_id[id], var, opcua::useFuture);
+    futures.push_back(std::move(future));
+    std::this_thread::sleep_for(1s);
+  }
+  for (auto &future: futures)
+  {
+    std::future_status status;
+    do
+    {
+      status = future.wait_for(100ms);
+      switch (status)
+      {
+      case std::future_status::deferred:
+        break;
+      case std::future_status::timeout:
+        break;
+      case std::future_status::ready:
+        break;
+      }
+      if (!rclcpp::ok())
+        break;
+    }
+    while (status != std::future_status::ready);
+
+    const opcua::StatusCode &code = future.get();
+    if (code != UA_STATUSCODE_GOOD)
+      RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
+    std::this_thread::sleep_for(500ms);
+  }
+
+  std::this_thread::sleep_for(2s);
+  futures.clear();
+
+  for (size_t i = 0; i < 1; i++)
+  {
+    const uint8_t id = i + 1;
+    opcua::Variant var;
+    var = true;
+    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, bin_close_req_id[id], var, opcua::useFuture);
+    futures.push_back(std::move(future));
+    std::this_thread::sleep_for(1s);
+  }
+  for (auto &future: futures)
+  {
+    std::future_status status;
+    do
+    {
+      status = future.wait_for(100ms);
+      switch (status)
+      {
+      case std::future_status::deferred:
+        break;
+      case std::future_status::timeout:
+        break;
+      case std::future_status::ready:
+        break;
+      }
+      if (!rclcpp::ok())
+        break;
+    }
+    while (status != std::future_status::ready);
+
+    const opcua::StatusCode &code = future.get();
+    if (code != UA_STATUSCODE_GOOD)
+      RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
+    std::this_thread::sleep_for(500ms);
+  }
+
+  std::this_thread::sleep_for(2s);
+  futures.clear();
+
+  RCLCPP_INFO(this->get_logger(), "Initiated the Open and Close state", __FUNCTION__);
 }
 
 void DispenserStationNode::create_sub_async()
@@ -356,6 +550,52 @@ void DispenserStationNode::create_sub_async()
       create_mon_item_async(res, running_id, "Running", std::shared_ptr<bool>(status_, &status_->running));
       create_mon_item_async(res, paused_id, "Paused", std::shared_ptr<bool>(status_, &status_->paused));
       create_mon_item_async(res, error_id, "Error", std::shared_ptr<bool>(status_, &status_->error));
+
+      for (size_t i = 0; i < NO_OF_UNITS; i++)
+      {
+        const uint8_t id = i + 1;
+
+        opcua::services::createMonitoredItemDataChangeAsync(
+          cli,
+          res.subscriptionId(),
+          opcua::ReadValueId(bin_open_req_id[id], opcua::AttributeId::Value),
+          opcua::MonitoringMode::Reporting,
+          monitoring_params,
+          std::bind(&DispenserStationNode::open_close_req_cb, this, _1, _2, _3, bin_open_req_id[id], bin_opened_id[id]),
+          std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "BinOpen"), 
+          std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "BinOpen")
+        );
+        opcua::services::createMonitoredItemDataChangeAsync(
+          cli,
+          res.subscriptionId(),
+          opcua::ReadValueId(bin_close_req_id[id], opcua::AttributeId::Value),
+          opcua::MonitoringMode::Reporting,
+          monitoring_params,
+          std::bind(&DispenserStationNode::open_close_req_cb, this, _1, _2, _3, bin_close_req_id[id], bin_closed_id[id]),
+          std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "BinClose"), 
+          std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "BinClose")
+        );
+        opcua::services::createMonitoredItemDataChangeAsync(
+          cli,
+          res.subscriptionId(),
+          opcua::ReadValueId(baffle_open_req_id[id], opcua::AttributeId::Value),
+          opcua::MonitoringMode::Reporting,
+          monitoring_params,
+          std::bind(&DispenserStationNode::open_close_req_cb, this, _1, _2, _3, baffle_open_req_id[id], baffle_opened_id[id]),
+          std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "BinClose"), 
+          std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "BinClose")
+        );
+        opcua::services::createMonitoredItemDataChangeAsync(
+          cli,
+          res.subscriptionId(),
+          opcua::ReadValueId(baffle_close_req_id[id], opcua::AttributeId::Value),
+          opcua::MonitoringMode::Reporting,
+          monitoring_params,
+          std::bind(&DispenserStationNode::open_close_req_cb, this, _1, _2, _3, baffle_close_req_id[id], baffle_opened_id[id]),
+          std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "BinClose"), 
+          std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "BinClose")
+        );
+      }
 
       for (size_t i = 0; i < NO_OF_UNITS; i++)
       {

@@ -20,12 +20,20 @@
 #include "smdps_msgs/srv/unit_request.hpp"
 
 #define NO_OF_UNITS 12
-#define MAX_HB_COUNT 5
+#define MAX_HB_COUNT 10
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;
 using std::placeholders::_2;
 using std::placeholders::_3;
+
+class Completion
+{
+public:
+  std::mutex c_mutex_;
+  std::condition_variable cv_;
+  bool is_completed_ = false;
+};
 
 class DispenserStationNode : public rclcpp::Node 
 {
@@ -72,12 +80,14 @@ public:
   void alm_code_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void dispensing_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
-  void open_close_req_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const std::string name);
+  void open_close_req_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const opcua::NodeId req_node_id, const opcua::NodeId state_node_id);
+  
+  void reset(void);
+  void test_bin_braffle(void);
 
 private:
   std::mutex mutex_;
-  std::condition_variable cv_;
-  bool is_completed_ = false;
+  Completion com_signal;
 
   std::string ip_;
   std::string port_;
@@ -106,7 +116,8 @@ private:
   void units_lack_cb(void);
 
   void initiate(void);
-  void clear_req(const opcua::NodeId node_id);
+  void clear_cmd_req(void);
+  void clear_req(const opcua::NodeId req_node_id, const opcua::NodeId state_node_id);
 
   void dis_req_handle(
     const std::shared_ptr<DispenseDrug::Request> req, 
@@ -143,6 +154,8 @@ protected:
 
   const opcua::NodeId cmd_req_id = {ns_ind, rev_prefix + "CmdRequest"};
   const opcua::NodeId cmd_exe_id = {ns_ind, rev_prefix + "CmdExecute"};
+
+  const opcua::NodeId reset_id = {ns_ind, rev_prefix + "reset"};
 
   std::map<uint8_t, opcua::NodeId> unit_amt_id;
   
