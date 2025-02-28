@@ -60,6 +60,7 @@ target_link_libraries(dis_station_node
 ament_target_dependencies(dis_station_node 
   rclcpp 
   std_msgs
+  std_srvs
   smdps_msgs
   open62541pp
 )

@@ -40,7 +40,7 @@ void DispenserStationNode::alm_code_cb(uint32_t sub_id, uint32_t mon_id, const o
     return;
   
   if (val.value() == 0)
-    RCLCPP_INFO(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
+    RCLCPP_DEBUG(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
   else
     RCLCPP_ERROR(this->get_logger(), ">>>> ALM Code data change notification, value: %d", *val);
   
@@ -109,6 +109,56 @@ void DispenserStationNode::initiate_cb(uint32_t sub_id, uint32_t mon_id, const o
     RCLCPP_INFO(this->get_logger(), "Notified the Initiate to continue");
   }
 }
+
+void DispenserStationNode::reset_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
+{
+  std::optional<bool> val = value.value().scalar<bool>();
+  if (!val)
+    return;
+  
+  RCLCPP_INFO(this->get_logger(), ">>>> Reset data change notification, value: %s", *val ? "true" : "false");
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
+
+  if (val.value())
+  {
+    RCLCPP_INFO(this->get_logger(), "Trigger the Reset in Dispenser Station [%d]", status_->id);
+    if (rclcpp::ok())
+    {
+      std::lock_guard<std::mutex> lock(reset_signal.cv_mutex_);
+      reset_signal.is_triggered_ = true;
+    }
+    reset_signal.cv_.notify_one();  // Wake up the reset action
+
+    RCLCPP_INFO(this->get_logger(), "Notified the Reset to continue");
+  }
+}
+
+void DispenserStationNode::cmd_amt_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value)
+{
+  std::optional<int16_t> val = value.value().scalar<int16_t>();
+  if (!val)
+    return;
+  
+  RCLCPP_INFO(this->get_logger(), ">>>> CmdAmount data change notification, value: %s", *val ? "true" : "false");
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - subscription id: %d", sub_id);
+  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
+
+  if (val.value() > 0)
+  {
+    RCLCPP_INFO(this->get_logger(), "Trigger the CmdAmount in Dispenser Station [%d]", status_->id);
+    if (rclcpp::ok())
+    {
+      std::lock_guard<std::mutex> lock(cmd_amt_signal.cv_mutex_);
+      cmd_amt_signal.is_triggered_ = true;
+      cmd_amt_signal.val = val.value();
+    }
+    cmd_amt_signal.cv_.notify_one();  // Wake up the CmdAmount action
+
+    RCLCPP_INFO(this->get_logger(), "Notified the CmdAmount to continue");
+  }
+}
+
 
 void DispenserStationNode::open_close_req_cb(
   uint32_t sub_id, 

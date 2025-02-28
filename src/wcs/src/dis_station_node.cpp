@@ -61,9 +61,6 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
 
   status_pub_ = this->create_publisher<DispenserStationStatus>("/dispenser_station_status", 10);
 
-  cli_thread_ = std::thread(std::bind(&DispenserStationNode::start_opcua_cli, this)); 
-  wait_for_opcua_connection(200ms);
-
   status_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::dis_station_status_cb, this));
   opcua_heartbeat_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::heartbeat_valid_cb, this));
 
@@ -85,6 +82,26 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
 
+  init_bin_srv_ = this->create_service<Trigger>(
+    "init_bin_request", 
+    std::bind(&DispenserStationNode::init_bin_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
+  init_baffle_srv_ = this->create_service<Trigger>(
+    "init_baffle_request", 
+    std::bind(&DispenserStationNode::init_baffle_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
+  reset_srv_ = this->create_service<Trigger>(
+    "reset_request", 
+    std::bind(&DispenserStationNode::reset_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
+  cli_thread_ = std::thread(std::bind(&DispenserStationNode::start_opcua_cli, this)); 
+  wait_for_opcua_connection(200ms);
   initiate();
   reset();
 
@@ -157,59 +174,44 @@ void DispenserStationNode::dis_req_handle(
   }
   RCLCPP_INFO(this->get_logger(), "Sent the amount of requested");
 
-  // Write CmdRequest
-  opcua::Variant cmd_req;
-  cmd_req = true;
-  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, cmd_req_id, cmd_req, opcua::useFuture);
-  futures.push_back(std::move(future));
-  RCLCPP_INFO(this->get_logger(), "Sent the Command Request");
-
   bool all_good = wait_for_futures(futures);
   if (!all_good)
+  {
     RCLCPP_ERROR(this->get_logger(), "Error during amount write in %s", __FUNCTION__);
+    return;
+  }
+
+  // Write CmdRequest
+  if (!write_opcua_value(cmd_req_id, true))
+  {
+    RCLCPP_ERROR(this->get_logger(), "Error during command request write in %s", __FUNCTION__);
+    return;
+  }
+  RCLCPP_INFO(this->get_logger(), "Sent the Command Request");
 
   // Read CmdAmount
+  uint16_t i;
   int16_t result;
-  uint8_t i = 0;
   const uint16_t MAX_RETRIES = 100;
   for (; i < MAX_RETRIES && rclcpp::ok(); i++)
-  {
-    std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, cmd_amt_id, opcua::useFuture);
-    
-    if (future.wait_for(TIMEOUT) != std::future_status::ready) 
+  {    
+    if (rclcpp::ok())
     {
-      if (!rclcpp::ok()) 
-      {
-        RCLCPP_WARN(this->get_logger(), "Aborted read due to ROS shutdown in %s", __FUNCTION__);
-        return;
-      }
-
-      RCLCPP_INFO(this->get_logger(), "Read timeout after %ld ms, retrying (%d/%d)", TIMEOUT.count(), i + 1, MAX_RETRIES);
-      continue;
+      RCLCPP_INFO(this->get_logger(), "Waiting the CmdAmount signal...");
+      std::unique_lock<std::mutex> lock(cmd_amt_signal.cv_mutex_);
+      cmd_amt_signal.cv_.wait(lock, [this]() { 
+        return cmd_amt_signal.is_triggered_; 
+      });
+      result = cmd_amt_signal.val;
+      cmd_amt_signal.is_triggered_ = false;
+      cmd_amt_signal.val = 0;
     }
-
-    const opcua::Result<opcua::Variant> &result_variant = future.get();
-    if (result_variant.code() != UA_STATUSCODE_GOOD)
-    {
-      RCLCPP_ERROR(this->get_logger(), "readValueAsync error occur in %s", __FUNCTION__);
-      continue;
-    }
-
-    std::optional<int16_t> val = result_variant.value().scalar<int16_t>();
-    if (!val)
-    {
-      RCLCPP_ERROR(this->get_logger(), "Invalid cmd_amt value type in %s", __FUNCTION__);
-      continue;
-    }
-
-    result = val.value();
+  
     if (result == target_amt)
     {
       RCLCPP_INFO(this->get_logger(), "cmd_amt_val: %d matches target: %d", result, target_amt);
       break;
     }
-
-    loop_rate.sleep();
   }
 
   if (i >= MAX_RETRIES)
@@ -222,15 +224,9 @@ void DispenserStationNode::dis_req_handle(
   RCLCPP_INFO(this->get_logger(), "Verified the amount of request and target amount");
 
   // Write CmdExecute
-  opcua::Variant cmd_exe;
-  cmd_exe = true;
-  std::future<opcua::StatusCode> cmd_exe_future = opcua::services::writeValueAsync(cli, cmd_exe_id, cmd_exe, opcua::useFuture);
-
-  cmd_exe_future.wait();
-  const opcua::StatusCode &cmd_exe_code = cmd_exe_future.get();
-  if (cmd_exe_code != UA_STATUSCODE_GOOD)
+  if (!write_opcua_value(cmd_exe_id, true))
   {
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
+    RCLCPP_ERROR(this->get_logger(), "Error occur in Write CmdExecute");
     return;
   }
 
@@ -248,26 +244,16 @@ void DispenserStationNode::dis_req_handle(
   }
 
   // Read AmountDispensed
-  std::future<opcua::Result<opcua::Variant>> amt_dis_future = opcua::services::readValueAsync(cli, amt_dis_id, opcua::useFuture);
-  amt_dis_future.wait();
-
-  const opcua::Result<opcua::Variant> &amt_dis_result = amt_dis_future.get();
-  if (amt_dis_result.code() != UA_STATUSCODE_GOOD)
+  std::shared_ptr<int16_t> amt_dis_val = std::make_shared<int16_t>();
+  if (!read_opcua_value(amt_dis_id, amt_dis_val))
   {
-    RCLCPP_ERROR(this->get_logger(), "readValueAsync error occur in %s", __FUNCTION__);
+    RCLCPP_ERROR(this->get_logger(), "Error occur in Read AmountDispensed");
     return;
   }
 
-  std::optional<int16_t> amt_dis_val = amt_dis_result.value().scalar<int16_t>();
-  if (!amt_dis_val)
+  if (*amt_dis_val != target_amt)
   {
-    RCLCPP_ERROR(this->get_logger(), "amt_dis_val error occur in %s", __FUNCTION__);
-    return;
-  }
-
-  if (amt_dis_val.value() != target_amt)
-  {
-    RCLCPP_INFO(this->get_logger(), "amt_dis_val.value(): %d", amt_dis_val.value());
+    RCLCPP_INFO(this->get_logger(), "amt_dis_val.value(): %d", *amt_dis_val);
     RCLCPP_INFO(this->get_logger(), "target_amt: %d", target_amt);
     RCLCPP_INFO(this->get_logger(), "Dispensed Amount is equal to request amount");
     return;
@@ -313,24 +299,21 @@ void DispenserStationNode::unit_req_handle(
   //   res->message = "The target is either opening, closing, opened, or closed";
   //   return;
   // }
+  bool success;
 
-  opcua::Variant req_var;
-  req_var = true;
-
-  std::future<opcua::StatusCode> future;
   switch (req->type)
   {
   case UnitType::BIN:
     if (req->data)
-      future = opcua::services::writeValueAsync(cli, bin_open_req_id[req->unit_id], req_var, opcua::useFuture);
+      success = write_opcua_value(bin_open_req_id[req->unit_id], true);
     else
-      future = opcua::services::writeValueAsync(cli, bin_close_req_id[req->unit_id], req_var, opcua::useFuture);
+      success = write_opcua_value(bin_close_req_id[req->unit_id], true);
     break;
   case UnitType::BAFFLE:
     if (req->data)
-      future = opcua::services::writeValueAsync(cli, baffle_open_req_id[req->unit_id], req_var, opcua::useFuture);
+      success = write_opcua_value(baffle_open_req_id[req->unit_id], true);
     else
-      future = opcua::services::writeValueAsync(cli, baffle_close_req_id[req->unit_id], req_var, opcua::useFuture);
+      success = write_opcua_value(baffle_close_req_id[req->unit_id], true);
     break;
   default: {
     const std::string msg = "Unknow Type: %d";
@@ -341,16 +324,38 @@ void DispenserStationNode::unit_req_handle(
   }
   }
 
-  future.wait();
-  const opcua::StatusCode &code = future.get();
-
-  if (code == UA_STATUSCODE_GOOD)
-    res->success = true;
-  else
+  res->success = success;
+  if (!success)
   {
-    res->success = false;
     RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
   }
+}
+
+void DispenserStationNode::init_bin_handle(
+  const std::shared_ptr<Trigger::Request> req, 
+  std::shared_ptr<Trigger::Response> res)
+{
+  (void)req;
+  std::thread(std::bind(&DispenserStationNode::test_bin, this)).detach();
+  res->success = true;
+}
+
+void DispenserStationNode::init_baffle_handle(
+  const std::shared_ptr<Trigger::Request> req, 
+  std::shared_ptr<Trigger::Response> res)
+{
+  (void)req;
+  std::thread(std::bind(&DispenserStationNode::test_baffle, this)).detach();
+  res->success = true;
+}
+
+void DispenserStationNode::reset_handle(
+  const std::shared_ptr<Trigger::Request> req, 
+  std::shared_ptr<Trigger::Response> res)
+{
+  (void)req;
+  std::thread(std::bind(&DispenserStationNode::reset, this)).detach();
+  res->success = true;
 }
 
 int main(int argc, char * argv[])

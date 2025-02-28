@@ -124,6 +124,28 @@ void DispenserStationNode::create_sub_async(void)
         std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "Initiate")
       );
 
+      opcua::services::createMonitoredItemDataChangeAsync(
+        cli,
+        res.subscriptionId(),
+        opcua::ReadValueId(reset_id, opcua::AttributeId::Value),
+        opcua::MonitoringMode::Reporting,
+        monitoring_params,
+        std::bind(&DispenserStationNode::reset_cb, this, _1, _2, _3),
+        std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "Reset"), 
+        std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "Reset")
+      );
+
+      opcua::services::createMonitoredItemDataChangeAsync(
+        cli,
+        res.subscriptionId(),
+        opcua::ReadValueId(cmd_amt_id, opcua::AttributeId::Value),
+        opcua::MonitoringMode::Reporting,
+        monitoring_params,
+        std::bind(&DispenserStationNode::cmd_amt_cb, this, _1, _2, _3),
+        std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "CmdAmount"), 
+        std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "CmdAmount")
+      );
+
       create_mon_item_async(res, running_id, "Running", std::shared_ptr<bool>(status_, &status_->running));
       create_mon_item_async(res, paused_id, "Paused", std::shared_ptr<bool>(status_, &status_->paused));
       create_mon_item_async(res, error_id, "Error", std::shared_ptr<bool>(status_, &status_->error));
@@ -159,8 +181,8 @@ void DispenserStationNode::create_sub_async(void)
           opcua::MonitoringMode::Reporting,
           monitoring_params,
           std::bind(&DispenserStationNode::open_close_req_cb, this, _1, _2, _3, baffle_open_req_id[id], baffle_opened_id[id]),
-          std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "BinClose"), 
-          std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "BinClose")
+          std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "BaffleOpen"), 
+          std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "BaffleOpen")
         );
         opcua::services::createMonitoredItemDataChangeAsync(
           cli,
@@ -168,9 +190,9 @@ void DispenserStationNode::create_sub_async(void)
           opcua::ReadValueId(baffle_close_req_id[id], opcua::AttributeId::Value),
           opcua::MonitoringMode::Reporting,
           monitoring_params,
-          std::bind(&DispenserStationNode::open_close_req_cb, this, _1, _2, _3, baffle_close_req_id[id], baffle_opened_id[id]),
-          std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "BinClose"), 
-          std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "BinClose")
+          std::bind(&DispenserStationNode::open_close_req_cb, this, _1, _2, _3, baffle_close_req_id[id], baffle_closed_id[id]),
+          std::bind(&DispenserStationNode::monitored_item_deleted_cb, this, _1, _2, "BaffleClose"), 
+          std::bind(&DispenserStationNode::monitored_item_created_cb, this, _1, "BaffleClose")
         );
       }
 

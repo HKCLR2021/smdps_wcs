@@ -59,45 +59,6 @@ template bool DispenserStationNode::read_opcua_value<int16_t>(const opcua::NodeI
 template bool DispenserStationNode::write_opcua_value<bool>(const opcua::NodeId&, bool);
 template bool DispenserStationNode::write_opcua_value<int16_t>(const opcua::NodeId&, int16_t);
 
-bool DispenserStationNode::wait_for_init_condition(const opcua::NodeId& node_id) 
-{
-  const std::chrono::milliseconds TIMEOUT(50);
-  const std::chrono::milliseconds LOOP_DELAY(100);
-  const uint16_t MAX_ATTEMPTS = 100; // 10 seconds total
-  rclcpp::Rate loop_rate(LOOP_DELAY); 
-
-  for (uint16_t i = 0; i < MAX_ATTEMPTS && rclcpp::ok() && cli.isConnected(); ++i) 
-  {
-    auto future = opcua::services::readValueAsync(cli, node_id, opcua::useFuture);
-    
-    if (future.wait_for(TIMEOUT) != std::future_status::ready) 
-    {
-      RCLCPP_DEBUG(this->get_logger(), "Read timeout after %ld ms, retrying (%d/%d)", TIMEOUT.count(), i + 1, MAX_ATTEMPTS);
-      loop_rate.sleep();
-      continue;
-    }
-
-    opcua::Result<opcua::Variant> result = future.get();
-    if (result.code() != UA_STATUSCODE_GOOD) 
-    {
-      RCLCPP_ERROR(this->get_logger(), "readValueAsync failed with code %s in %s", std::to_string(result.code()).c_str(), __FUNCTION__);
-      loop_rate.sleep();
-      continue;
-    }
-
-    std::optional<bool> val = result.value().scalar<bool>(); 
-    if (val && *val)
-    {
-      return true; // Condition met
-    }
-
-    loop_rate.sleep();
-  }
-
-  RCLCPP_WARN(this->get_logger(), "Failed to read true value after %d attempts in %s", MAX_ATTEMPTS, __FUNCTION__);
-  return false;
-}
-
 bool DispenserStationNode::wait_for_futures(std::vector<std::future<opcua::StatusCode>> &futures) 
 {
   bool all_good = true;

@@ -11,6 +11,8 @@
 
 #include <open62541pp/open62541pp.hpp>
 
+#include "std_srvs/srv/trigger.hpp"
+
 #include "smdps_msgs/msg/dispense_content.hpp"
 #include "smdps_msgs/msg/dispenser_station_status.hpp"
 #include "smdps_msgs/msg/dispenser_unit_status.hpp"
@@ -20,7 +22,7 @@
 #include "smdps_msgs/srv/unit_request.hpp"
 
 #define NO_OF_UNITS 12
-#define MAX_HB_COUNT 10
+#define MAX_HB_COUNT 5
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;
@@ -35,8 +37,16 @@ public:
   bool is_triggered_ = false;
 };
 
+class ValCallbackSignal : public CallbackSignal
+{
+public:
+  int16_t val;
+};
+
 class DispenserStationNode : public rclcpp::Node 
 {
+  using Trigger = std_srvs::srv::Trigger;
+
   using DispenseContent = smdps_msgs::msg::DispenseContent;
   using DispenserStationStatus = smdps_msgs::msg::DispenserStationStatus;
   using DispenserUnitStatus = smdps_msgs::msg::DispenserUnitStatus;
@@ -81,11 +91,13 @@ public:
   void completed_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void dispensing_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void initiate_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
+  void reset_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
+  void cmd_amt_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value);
   void open_close_req_cb(uint32_t sub_id, uint32_t mon_id, const opcua::DataValue &value, const opcua::NodeId req_node_id, const opcua::NodeId state_node_id);
   
   void reset(void);
-  void test_bin_braffle(void);
-
+  void test_bin(void);
+  void test_baffle(void);
   bool wait_for_futures(std::vector<std::future<opcua::StatusCode>> &futures);
 
   template <typename T>
@@ -93,12 +105,36 @@ public:
   template <typename T>
   bool read_opcua_value(const opcua::NodeId& node_id, std::shared_ptr<T> value);
 
-  bool wait_for_init_condition(const opcua::NodeId& node_id);
+  void dis_station_status_cb(void);
+  void heartbeat_valid_cb(void);
+  void units_lack_cb(void);
 
+  void initiate(void);
+  void clear_cmd_req(void);
+  void clear_req(const opcua::NodeId req_node_id, const opcua::NodeId state_node_id);
+
+  void dis_req_handle(
+    const std::shared_ptr<DispenseDrug::Request> req, 
+    std::shared_ptr<DispenseDrug::Response> res);
+  void unit_req_handle(
+    const std::shared_ptr<UnitRequest::Request> req, 
+    std::shared_ptr<UnitRequest::Response> res);
+  void init_bin_handle(
+    const std::shared_ptr<Trigger::Request> req, 
+    std::shared_ptr<Trigger::Response> res);
+  void init_baffle_handle(
+    const std::shared_ptr<Trigger::Request> req, 
+    std::shared_ptr<Trigger::Response> res);
+  void reset_handle(
+    const std::shared_ptr<Trigger::Request> req, 
+    std::shared_ptr<Trigger::Response> res);
+    
 private:
   std::mutex mutex_;
   CallbackSignal com_signal;
   CallbackSignal init_signal;
+  CallbackSignal reset_signal;
+  ValCallbackSignal cmd_amt_signal;
 
   std::string ip_;
   std::string port_;
@@ -121,22 +157,9 @@ private:
 
   rclcpp::Service<UnitRequest>::SharedPtr bin_req_srv_;
   rclcpp::Service<UnitRequest>::SharedPtr baffle_req_srv_;
-
-  void dis_station_status_cb(void);
-  void heartbeat_valid_cb(void);
-  void units_lack_cb(void);
-
-  void initiate(void);
-  void clear_cmd_req(void);
-  void clear_req(const opcua::NodeId req_node_id, const opcua::NodeId state_node_id);
-
-  void dis_req_handle(
-    const std::shared_ptr<DispenseDrug::Request> req, 
-    std::shared_ptr<DispenseDrug::Response> res);
-
-  void unit_req_handle(
-    const std::shared_ptr<UnitRequest::Request> req, 
-    std::shared_ptr<UnitRequest::Response> res);
+  rclcpp::Service<Trigger>::SharedPtr init_bin_srv_;
+  rclcpp::Service<Trigger>::SharedPtr init_baffle_srv_;
+  rclcpp::Service<Trigger>::SharedPtr reset_srv_;
 
 protected:
   bool sim_;
