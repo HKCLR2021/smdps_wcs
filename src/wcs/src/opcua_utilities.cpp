@@ -1,8 +1,16 @@
 #include "wcs/dis_station_node.hpp"
 
+template bool DispenserStationNode::read_opcua_value<bool>(const opcua::NodeId&, std::shared_ptr<bool>);
+template bool DispenserStationNode::read_opcua_value<int16_t>(const opcua::NodeId&, std::shared_ptr<int16_t>);
+template bool DispenserStationNode::write_opcua_value<bool>(const opcua::NodeId&, bool);
+template bool DispenserStationNode::write_opcua_value<int16_t>(const opcua::NodeId&, int16_t);
+
 template <typename T>
 bool DispenserStationNode::write_opcua_value(const opcua::NodeId& node_id, T value) 
 {
+  if (!cli.isConnected())
+    return false;
+
   opcua::Variant var;
   var = value;
   std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, node_id, var, opcua::useFuture);
@@ -17,7 +25,7 @@ bool DispenserStationNode::write_opcua_value(const opcua::NodeId& node_id, T val
   opcua::StatusCode code = future.get();
   if (code != UA_STATUSCODE_GOOD) 
   {
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync failed with code %s in %s", std::to_string(code).c_str(), __FUNCTION__);
+    RCLCPP_ERROR(this->get_logger(), "The statusCode %s in %s", std::to_string(code).c_str(), __FUNCTION__);
     return false;
   }
 
@@ -27,6 +35,9 @@ bool DispenserStationNode::write_opcua_value(const opcua::NodeId& node_id, T val
 template <typename T>
 bool DispenserStationNode::read_opcua_value(const opcua::NodeId& node_id, std::shared_ptr<T> value) 
 {
+  if (!cli.isConnected())
+    return false;
+
   std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, node_id, opcua::useFuture);
 
   // Wait with timeout and shutdown awareness
@@ -39,7 +50,7 @@ bool DispenserStationNode::read_opcua_value(const opcua::NodeId& node_id, std::s
   opcua::Result<opcua::Variant> result = future.get();
   if (result.code() != UA_STATUSCODE_GOOD) 
   {
-    RCLCPP_ERROR(this->get_logger(), "readValueAsync error occur in %s", __FUNCTION__);
+    RCLCPP_ERROR(this->get_logger(), "The result code: %s", std::to_string(result.code()).c_str());
     return false;
   }
 
@@ -53,11 +64,6 @@ bool DispenserStationNode::read_opcua_value(const opcua::NodeId& node_id, std::s
   *value = val.value();
   return true;
 }
-
-template bool DispenserStationNode::read_opcua_value<bool>(const opcua::NodeId&, std::shared_ptr<bool>);
-template bool DispenserStationNode::read_opcua_value<int16_t>(const opcua::NodeId&, std::shared_ptr<int16_t>);
-template bool DispenserStationNode::write_opcua_value<bool>(const opcua::NodeId&, bool);
-template bool DispenserStationNode::write_opcua_value<int16_t>(const opcua::NodeId&, int16_t);
 
 bool DispenserStationNode::wait_for_futures(std::vector<std::future<opcua::StatusCode>> &futures) 
 {

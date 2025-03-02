@@ -12,6 +12,8 @@ bool DispenserStationNode::init_opcua_cli(void)
   cli.onSessionClosed(std::bind(&DispenserStationNode::session_closed_cb, this));
   cli.onInactive(std::bind(&DispenserStationNode::inactive_cb, this));
 
+  RCLCPP_INFO(this->get_logger(), "Dispenser Station Node [%d] is initiated the OPCUA Client configuration", status_->id);
+
   return true;
 }
 

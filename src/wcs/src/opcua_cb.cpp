@@ -159,7 +159,6 @@ void DispenserStationNode::cmd_amt_cb(uint32_t sub_id, uint32_t mon_id, const op
   }
 }
 
-
 void DispenserStationNode::open_close_req_cb(
   uint32_t sub_id, 
   uint32_t mon_id, 

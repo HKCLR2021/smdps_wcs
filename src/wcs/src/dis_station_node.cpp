@@ -6,31 +6,35 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   cli_started_(std::atomic<bool>{false})
 {
   this->declare_parameter<uint8_t>("id", 0);
-  this->declare_parameter<std::string>("ip_start", "");
+  this->declare_parameter<std::string>("ip", "");
   this->declare_parameter<std::string>("port", "");
+  this->declare_parameter<bool>("enable", false);
   this->declare_parameter<bool>("simulation", false);
-
-  std::string ip_start;
+  this->declare_parameter<std::vector<bool>>("dispenser_unit_enable", std::vector<bool>{});
 
   this->get_parameter("id", status_->id);
-  this->get_parameter("ip_start", ip_start);
+  this->get_parameter("ip", ip_);
   this->get_parameter("port", port_);
+  this->get_parameter("enable", status_->enable);
   this->get_parameter("simulation", sim_);
 
-  size_t last_dot_pos = ip_start.rfind(".");
-  if (last_dot_pos != std::string::npos)
-  {
-    std::string last_octet_str = ip_start.substr(last_dot_pos + 1);
-    int last_octet = std::stoi(last_octet_str);
-    last_octet += status_->id;
-    ip_ = ip_start.substr(0, last_dot_pos + 1) + std::to_string(last_octet);
-  }
- 
+  std::vector<bool> unit_enable = this->get_parameter("dispenser_unit_enable").as_bool_array();
+
   for (size_t i = 0; i < status_->unit_status.size(); i++)
   {
     const uint8_t id = i + 1;
     status_->unit_status[i].id = id;
-    status_->unit_status[i].enable = true;
+    status_->unit_status[i].enable = unit_enable[i];
+  }
+  
+  status_pub_ = this->create_publisher<DispenserStationStatus>("/dispenser_station_status", 10);
+  status_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::dis_station_status_cb, this));
+
+  if (!status_->enable)
+  {
+    // The node will still be running
+    RCLCPP_INFO(this->get_logger(), "Dispenser Station [%d] is disable", status_->id);
+    return;
   }
 
   for (size_t i = 0; i < NO_OF_UNITS; i++)
@@ -58,10 +62,6 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   }
 
   srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-
-  status_pub_ = this->create_publisher<DispenserStationStatus>("/dispenser_station_status", 10);
-
-  status_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::dis_station_status_cb, this));
   opcua_heartbeat_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::heartbeat_valid_cb, this));
 
   dis_req_srv_ = this->create_service<DispenseDrug>(
@@ -102,6 +102,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
 
   cli_thread_ = std::thread(std::bind(&DispenserStationNode::start_opcua_cli, this)); 
   wait_for_opcua_connection(200ms);
+
   initiate();
   reset();
 
@@ -144,11 +145,7 @@ void DispenserStationNode::dis_req_handle(
   const std::shared_ptr<DispenseDrug::Request> req, 
   std::shared_ptr<DispenseDrug::Response> res)
 {
-  const std::chrono::milliseconds freq = 100ms;
-  const std::chrono::milliseconds TIMEOUT = 50ms;
-  rclcpp::Rate loop_rate(freq); 
-
-  wait_for_opcua_connection(freq);
+  wait_for_opcua_connection(200ms);
   
   int16_t target_amt = 0;
   // Write Unit_Amount
@@ -160,6 +157,9 @@ void DispenserStationNode::dis_req_handle(
       RCLCPP_ERROR(this->get_logger(), "incorrect unit_id in service request");
       continue;
     }
+
+    if (!status_->unit_status[i].enable)
+      continue;
 
     if (req->content[i].amount <= 0)
       continue;
@@ -206,7 +206,10 @@ void DispenserStationNode::dis_req_handle(
       cmd_amt_signal.is_triggered_ = false;
       cmd_amt_signal.val = 0;
     }
-  
+
+    RCLCPP_INFO(this->get_logger(), "The CmdAmount: %d", result);
+    RCLCPP_INFO(this->get_logger(), "The target amount: %d", target_amt);
+
     if (result == target_amt)
     {
       RCLCPP_INFO(this->get_logger(), "cmd_amt_val: %d matches target: %d", result, target_amt);
@@ -327,7 +330,7 @@ void DispenserStationNode::unit_req_handle(
   res->success = success;
   if (!success)
   {
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync error occur in %s", __FUNCTION__);
+    RCLCPP_ERROR(this->get_logger(), "Error occur in %s", __FUNCTION__);
   }
 }
 
@@ -336,7 +339,7 @@ void DispenserStationNode::init_bin_handle(
   std::shared_ptr<Trigger::Response> res)
 {
   (void)req;
-  std::thread(std::bind(&DispenserStationNode::test_bin, this)).detach();
+  std::thread(std::bind(&DispenserStationNode::test_bin, this));
   res->success = true;
 }
 
@@ -345,7 +348,7 @@ void DispenserStationNode::init_baffle_handle(
   std::shared_ptr<Trigger::Response> res)
 {
   (void)req;
-  std::thread(std::bind(&DispenserStationNode::test_baffle, this)).detach();
+  std::thread(std::bind(&DispenserStationNode::test_baffle, this));
   res->success = true;
 }
 
@@ -354,7 +357,7 @@ void DispenserStationNode::reset_handle(
   std::shared_ptr<Trigger::Response> res)
 {
   (void)req;
-  std::thread(std::bind(&DispenserStationNode::reset, this)).detach();
+  std::thread(std::bind(&DispenserStationNode::reset, this));
   res->success = true;
 }
 

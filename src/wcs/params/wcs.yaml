@@ -5,8 +5,114 @@ prod_line_ctrl:
     jinli_ip: 192.168.8.51
     jinli_port: 8080
 
-/**/dis_sta_node:
+/dispenser_station_1/dis_sta_node:
   ros__parameters:
-    ip_start: 192.168.8.100
+    ip: 192.168.8.101
     port: "4840"
     simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, False, False, False, False]
+
+/dispenser_station_2/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.102
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, False, False, False, False]
+
+/dispenser_station_3/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.103
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
+
+/dispenser_station_4/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.104
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
+
+/dispenser_station_5/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.105
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
+
+/dispenser_station_6/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.106
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
+
+/dispenser_station_7/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.107
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
+
+/dispenser_station_8/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.108
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
+
+/dispenser_station_9/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.109
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
+
+/dispenser_station_10/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.110
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
+
+/dispenser_station_11/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.111
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
+
+/dispenser_station_12/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.112
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
+
+/dispenser_station_13/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.113
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
+
+/dispenser_station_14/dis_sta_node:
+  ros__parameters:
+    ip: 192.168.8.114
+    port: "4840"
+    simulation: False
+    enable: False
+    dispenser_unit_enable: [True, True, True, False, True, True, True, True, True, True, True, True]

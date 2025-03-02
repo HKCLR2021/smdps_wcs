@@ -43,6 +43,7 @@
 #include "smdps_msgs/srv/dispense_drug.hpp"
 #include "smdps_msgs/srv/packaging_order.hpp"
 #include "smdps_msgs/srv/printing_order.hpp"
+#include "smdps_msgs/srv/u_int8.hpp"
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;
@@ -76,6 +77,7 @@ class ProdLineCtrl : public rclcpp::Node
   using DispenseDrug = smdps_msgs::srv::DispenseDrug;
   using PackagingOrder = smdps_msgs::srv::PackagingOrder;
   using PrintingOrder = smdps_msgs::srv::PrintingOrder;
+  using UInt8Srv = smdps_msgs::srv::UInt8;
 
 public:
   explicit ProdLineCtrl(const rclcpp::NodeOptions& options);
@@ -120,6 +122,7 @@ private:
   rclcpp::Client<PrintingOrder>::SharedPtr printing_info_cli_;
   rclcpp::Client<PackagingOrder>::SharedPtr pkg_order_cli_;
   rclcpp::Client<Trigger>::SharedPtr container_ready_cli_;
+  rclcpp::Client<UInt8Srv>::SharedPtr income_mtrl_box_cli_;
   std::map<uint8_t, rclcpp::Client<Trigger>::SharedPtr> init_pkg_mac_cli_;
   std::map<uint8_t, rclcpp::Client<DispenseDrug>::SharedPtr> dis_req_cli_;
 

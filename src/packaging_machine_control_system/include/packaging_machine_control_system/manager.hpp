@@ -30,6 +30,7 @@
 #include "smdps_msgs/msg/motor_status.hpp"
 
 #include "smdps_msgs/srv/packaging_order.hpp"
+#include "smdps_msgs/srv/u_int8.hpp"
 
 #define CELLS 28
 
@@ -51,6 +52,7 @@ public:
   using UnbindRequest = smdps_msgs::msg::UnbindRequest;
 
   using PackagingOrderSrv = smdps_msgs::srv::PackagingOrder;
+  using UInt8Srv = smdps_msgs::srv::UInt8;
 
   using LoadNode = composition_interfaces::srv::LoadNode;
   using UnloadNode = composition_interfaces::srv::UnloadNode;
@@ -66,16 +68,27 @@ public:
   void packaging_order_handle(
     const std::shared_ptr<PackagingOrderSrv::Request> request, 
     std::shared_ptr<PackagingOrderSrv::Response> response);
-
   void release_blocking_handle(
     const std::shared_ptr<Trigger::Request> request, 
     std::shared_ptr<Trigger::Response> response);
+  void income_mtrl_box_handle(
+    const std::shared_ptr<UInt8Srv::Request> request, 
+    std::shared_ptr<UInt8Srv::Response> response);
+  
+  void conveyor_stopper_cb(void);
+  void queue_handler_cb(void);
+
+  void status_cb(const PackagingMachineStatus::SharedPtr msg);
+  void motor_status_cb(const MotorStatus::SharedPtr msg);
+  void info_cb(const PackagingMachineInfo::SharedPtr msg);
+  void packaging_result_cb(const PackagingResult::SharedPtr msg);
 
 private:
   std::mutex mutex_;
   size_t no_of_pkg_mac;
 
   std::queue<rclcpp::Time> release_blk_signal;
+  std::queue<std::pair<uint8_t, rclcpp::Time>> income_box_signal;
 
   // order_id, unique_id
   std::vector<std::pair<uint32_t, uint64_t>> curr_client_;
@@ -86,6 +99,7 @@ private:
 
   rclcpp::Service<PackagingOrderSrv>::SharedPtr service_;
   rclcpp::Service<Trigger>::SharedPtr release_blk_srv_;
+  rclcpp::Service<UInt8Srv>::SharedPtr income_box_srv_;
 
   rclcpp::Subscription<PackagingMachineStatus>::SharedPtr status_sub_;
   rclcpp::Subscription<MotorStatus>::SharedPtr motor_status_sub_;
@@ -100,6 +114,7 @@ private:
   std::map<uint8_t, std::pair<rclcpp::Client<SetBool>::SharedPtr, rclcpp::Client<SetBool>::SharedPtr>> conveyor_stopper_client_;
   
   rclcpp::TimerBase::SharedPtr conveyor_stopper_timer_;
+  rclcpp::TimerBase::SharedPtr queue_handler_timer_;
 
   // packaging_machine_id, PackagingMachineStatus
   std::map<uint8_t, PackagingMachineStatus> packaging_machine_status_;
@@ -113,13 +128,7 @@ private:
 
   const std::string packaging_order_service_name = "packaging_order";
   const std::string release_blocking_service_name = "release_blocking";
-
-  void conveyor_stopper_cb(void);
-
-  void status_cb(const PackagingMachineStatus::SharedPtr msg);
-  void motor_status_cb(const MotorStatus::SharedPtr msg);
-  void info_cb(const PackagingMachineInfo::SharedPtr msg);
-  void packaging_result_cb(const PackagingResult::SharedPtr msg);
+  const std::string income_box_service_name = "income_material_box";
 
 protected:
   std::shared_ptr<rclcpp::Executor> executor_;

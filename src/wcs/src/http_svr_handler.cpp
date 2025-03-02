@@ -473,6 +473,47 @@ void ProdLineCtrl::scanner_handler(
       RCLCPP_INFO(this->get_logger(), "Added a material box [%d] to queue", mtrl_box_id);
     }   
   }
+  else if (location == pkg_mac_loc)
+  {
+    std::thread srv_wait_thread = std::thread([this]() {
+      while (rclcpp::ok() && !income_mtrl_box_cli_->wait_for_service(std::chrono::seconds(1))) 
+      {
+        RCLCPP_ERROR(this->get_logger(), "income_materal_box Service not available, waiting again...");
+      }
+    });
+  
+    std::shared_ptr<UInt8Srv::Request> srv_req = std::make_shared<UInt8Srv::Request>();
+    srv_req->data = mtrl_box_id;
+  
+    using ServiceResponseFuture = rclcpp::Client<UInt8Srv>::SharedFuture;
+    auto res_received_cb = [this](ServiceResponseFuture future) {
+      auto srv_res = future.get();
+      if (srv_res && srv_res->success)
+        RCLCPP_DEBUG(this->get_logger(), "Inside the release_blocking Callback OK");
+      else
+        RCLCPP_ERROR(this->get_logger(), "Inside the release_blocking Callback NOT OK. message: %s", srv_res->message.c_str());
+    };
+  
+    if (srv_wait_thread.joinable())
+      srv_wait_thread.join();
+  
+    auto future = income_mtrl_box_cli_->async_send_request(srv_req, res_received_cb);
+  
+    std::future_status status = future.wait_for(500ms);
+    switch (status)
+    {
+    case std::future_status::ready:
+      break;
+    case std::future_status::timeout:
+      RCLCPP_ERROR(this->get_logger(), "release_blocking wait_for timeout");
+      return;
+    case std::future_status::deferred: 
+      RCLCPP_ERROR(this->get_logger(), "release_blocking wait_for deferred");
+      return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Added a material box id to income_box_queue");
+  }
 
   res_json["code"] = 200;
   res_json["msg"] = "success";

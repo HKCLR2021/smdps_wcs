@@ -65,40 +65,38 @@ void DispenserStationNode::reset(void)
 
 void DispenserStationNode::test_bin(void)
 {
-  std::vector<std::future<opcua::StatusCode>> futures;
   for (size_t i = 0; i < NO_OF_UNITS; i++)
   {
+    if (!status_->unit_status[i].enable)
+      continue;
+
     const uint8_t id = i + 1;
-    opcua::Variant var;
-    var = true;
+    if (!write_opcua_value(bin_open_req_id[id], true))
+    {
+      RCLCPP_ERROR(this->get_logger(), "unit_id: %d, Error occur in %s", id, __FUNCTION__);
+    }
     
-    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, bin_open_req_id[id], var, opcua::useFuture);
-    futures.push_back(std::move(future));
     std::this_thread::sleep_for(500ms);
   }
 
-  bool all_good = wait_for_futures(futures);
-  if (!all_good)
-    RCLCPP_ERROR(this->get_logger(), "Error during bin open in %s", __FUNCTION__);
-  
-  futures.clear();
+  RCLCPP_INFO(this->get_logger(), "The bins are opened in Dispenser Station [%d]", status_->id);
   std::this_thread::sleep_for(1s);
 
   for (size_t i = 0; i < NO_OF_UNITS; i++)
   {
-    const uint8_t id = i + 1;
-    opcua::Variant var;
-    var = true;
+    if (!status_->unit_status[i].enable)
+      continue;
 
-    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, bin_close_req_id[id], var, opcua::useFuture);
-    futures.push_back(std::move(future));
+    const uint8_t id = i + 1;
+    if (!write_opcua_value(bin_close_req_id[id], true))
+    {
+      RCLCPP_ERROR(this->get_logger(), "unit_id: %d, Error occur in %s", id, __FUNCTION__);
+    }
+
     std::this_thread::sleep_for(500ms);
   }
 
-  all_good = wait_for_futures(futures);
-  if (!all_good) 
-    RCLCPP_ERROR(this->get_logger(), "Error during bin close in %s", __FUNCTION__);
-
+  RCLCPP_INFO(this->get_logger(), "The bins are closed in Dispenser Station [%d]", status_->id);
   RCLCPP_INFO(this->get_logger(), "Initiated the Open and Close state");
 }
 
@@ -107,37 +105,36 @@ void DispenserStationNode::test_baffle(void)
   std::vector<std::future<opcua::StatusCode>> futures;
   for (size_t i = 0; i < NO_OF_UNITS; i++)
   {
+    if (!status_->unit_status[i].enable)
+      continue;
+
     const uint8_t id = i + 1;
-    opcua::Variant var;
-    var = true;
-    
-    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, baffle_open_req_id[id], var, opcua::useFuture);
-    futures.push_back(std::move(future));
+    if (!write_opcua_value(baffle_open_req_id[id], true))
+    {
+      RCLCPP_ERROR(this->get_logger(), "unit_id: %d, Error occur in %s", id, __FUNCTION__);
+    }
+
     std::this_thread::sleep_for(500ms);
   }
 
-  bool all_good = wait_for_futures(futures);
-  if (!all_good)
-    RCLCPP_ERROR(this->get_logger(), "Error during baffle open in %s", __FUNCTION__);
-  
-  futures.clear();
+  RCLCPP_INFO(this->get_logger(), "The baffles are opened in Dispenser Station [%d]", status_->id);
   std::this_thread::sleep_for(1s);
 
   for (size_t i = 0; i < NO_OF_UNITS; i++)
   {
-    const uint8_t id = i + 1;
-    opcua::Variant var;
-    var = true;
+    if (!status_->unit_status[i].enable)
+      continue;
 
-    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, baffle_close_req_id[id], var, opcua::useFuture);
-    futures.push_back(std::move(future));
+    const uint8_t id = i + 1;
+    if (!write_opcua_value(baffle_close_req_id[id], true))
+    {
+      RCLCPP_ERROR(this->get_logger(), "unit_id: %d, Error occur in %s", id, __FUNCTION__);
+    }
+
     std::this_thread::sleep_for(500ms);
   }
 
-  all_good = wait_for_futures(futures);
-  if (!all_good) 
-    RCLCPP_ERROR(this->get_logger(), "Error during baffle close in %s", __FUNCTION__);
-
+  RCLCPP_INFO(this->get_logger(), "The baffles are closed in Dispenser Station [%d]", status_->id);
   RCLCPP_INFO(this->get_logger(), "Initiated the Open and Close state");
 }
 

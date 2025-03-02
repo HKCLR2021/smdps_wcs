@@ -54,6 +54,12 @@ PackagingMachineManager::PackagingMachineManager(
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
 
+  income_box_srv_ = this->create_service<UInt8Srv>(
+    income_box_service_name, 
+    std::bind(&PackagingMachineManager::income_mtrl_box_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
   unbind_order_id_pub_ = this->create_publisher<UnbindRequest>("unbind_order_id", 10); 
 
   load_node_client_ = this->create_client<LoadNode>(
@@ -108,8 +114,13 @@ PackagingMachineManager::PackagingMachineManager(
   }
 
   conveyor_stopper_timer_ = this->create_wall_timer(
-    1s, 
+    500ms, 
     std::bind(&PackagingMachineManager::conveyor_stopper_cb, this),
+    timer_cbg_);
+
+  queue_handler_timer_ = this->create_wall_timer(
+    500ms, 
+    std::bind(&PackagingMachineManager::queue_handler_cb, this),
     timer_cbg_);
 
   RCLCPP_INFO(this->get_logger(), "Packaging Machine Manager is up.");
@@ -133,7 +144,6 @@ void PackagingMachineManager::conveyor_stopper_cb(void)
 
   if (iter == packaging_machine_status_.rend())
   {
-
     RCLCPP_ERROR(this->get_logger(), "Packaging Machines Conveyor State are available!");
     RCLCPP_ERROR(this->get_logger(), "The release signal maybe incorrect!");
     return;
@@ -172,7 +182,7 @@ void PackagingMachineManager::conveyor_stopper_cb(void)
   bool success = true;
   for (const auto &future : futures)
   {
-    std::future_status status = future.wait_for(200ms);
+    std::future_status status = future.wait_for(500ms);
     switch (status)
     {
     case std::future_status::ready:
@@ -200,6 +210,30 @@ void PackagingMachineManager::conveyor_stopper_cb(void)
   }
   else
     RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is released unsuccessfully", target_id);
+}
+
+void PackagingMachineManager::queue_handler_cb(void)
+{
+  if (income_box_signal.empty())
+    return;
+
+  const std::lock_guard<std::mutex> lock(mutex_);
+
+  auto iter = packaging_machine_status_.rbegin();
+  for (; iter != packaging_machine_status_.rend(); iter++) 
+  {
+    if (iter->second.conveyor_state == PackagingMachineStatus::AVAILABLE &&
+        iter->second.waiting_material_box == false)
+      break;
+  }
+  if (iter == packaging_machine_status_.rend())
+  {
+    RCLCPP_ERROR(this->get_logger(), "Packaging Machines Conveyor State are available!");
+    RCLCPP_ERROR(this->get_logger(), "The release signal maybe incorrect!");
+    return;
+  }
+
+  // TBD
 }
 
 void PackagingMachineManager::status_cb(const PackagingMachineStatus::SharedPtr msg)
@@ -459,6 +493,16 @@ void PackagingMachineManager::release_blocking_handle(
 
   const std::lock_guard<std::mutex> lock(mutex_);
   release_blk_signal.push(this->get_clock()->now());
+}
+
+void PackagingMachineManager::income_mtrl_box_handle(
+  const std::shared_ptr<UInt8Srv::Request> request, 
+  std::shared_ptr<UInt8Srv::Response> response)
+{
+  response->success = true;
+
+  const std::lock_guard<std::mutex> lock(mutex_);
+  income_box_signal.push(std::make_pair(request->data, this->get_clock()->now()));
 }
 
 int main(int argc, char **argv)

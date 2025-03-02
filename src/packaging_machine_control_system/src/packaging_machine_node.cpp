@@ -77,9 +77,9 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   rclcpp::SubscriptionOptions rpdo_options;
   rpdo_options.callback_group = rpdo_cbg_;
 
-  status_timer_ = this->create_wall_timer(1s, std::bind(&PackagingMachineNode::pub_status_cb, this), status_cbg_);
+  status_timer_ = this->create_wall_timer(500ms, std::bind(&PackagingMachineNode::pub_status_cb, this), status_cbg_);
   heater_timer_ = this->create_wall_timer(10s, std::bind(&PackagingMachineNode::heater_cb, this));
-  con_state_timer_ = this->create_wall_timer(250ms, std::bind(&PackagingMachineNode::con_state_cb, this));
+  con_state_timer_ = this->create_wall_timer(100ms, std::bind(&PackagingMachineNode::con_state_cb, this));
   once_timer_ = this->create_wall_timer(3s, std::bind(&PackagingMachineNode::init_timer, this));
 
   // add a "/" prefix to topic name avoid adding a namespace
