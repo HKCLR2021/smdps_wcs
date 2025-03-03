@@ -87,8 +87,9 @@ private:
   std::mutex mutex_;
   size_t no_of_pkg_mac;
 
-  std::queue<rclcpp::Time> release_blk_signal;
-  std::queue<std::pair<uint8_t, rclcpp::Time>> income_box_signal;
+  std::queue<rclcpp::Time> release_blk_signal_;
+  std::queue<std::pair<uint8_t, rclcpp::Time>> income_box_signal_;
+  std::queue<std::pair<uint8_t, rclcpp::Time>> packaging_order_queue_;
 
   // order_id, unique_id
   std::vector<std::pair<uint32_t, uint64_t>> curr_client_;

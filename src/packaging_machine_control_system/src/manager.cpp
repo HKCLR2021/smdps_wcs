@@ -114,7 +114,7 @@ PackagingMachineManager::PackagingMachineManager(
   }
 
   conveyor_stopper_timer_ = this->create_wall_timer(
-    500ms, 
+    1s, 
     std::bind(&PackagingMachineManager::conveyor_stopper_cb, this),
     timer_cbg_);
 
@@ -129,10 +129,10 @@ PackagingMachineManager::PackagingMachineManager(
 
 void PackagingMachineManager::conveyor_stopper_cb(void)
 {
-  if (release_blk_signal.empty())
-    return;
-
   const std::lock_guard<std::mutex> lock(mutex_);
+
+  if (release_blk_signal_.empty())
+    return;
 
   auto iter = packaging_machine_status_.rbegin();
   for (; iter != packaging_machine_status_.rend(); iter++) 
@@ -146,10 +146,7 @@ void PackagingMachineManager::conveyor_stopper_cb(void)
   {
     RCLCPP_ERROR(this->get_logger(), "Packaging Machines Conveyor State are available!");
     RCLCPP_ERROR(this->get_logger(), "The release signal maybe incorrect!");
-    if (!release_blk_signal.empty())
-      release_blk_signal.pop();
-    if (!income_box_signal.empty())
-      income_box_signal.pop();
+    release_blk_signal_.pop();
     return;
   }
 
@@ -210,10 +207,7 @@ void PackagingMachineManager::conveyor_stopper_cb(void)
   if (success)
   {
     RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is released successfully", target_id);
-    if (!release_blk_signal.empty())
-      release_blk_signal.pop();
-    if (!income_box_signal.empty())
-      income_box_signal.pop();
+    release_blk_signal_.pop();
   }
   else
     RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is released unsuccessfully", target_id);
@@ -221,17 +215,64 @@ void PackagingMachineManager::conveyor_stopper_cb(void)
 
 void PackagingMachineManager::queue_handler_cb(void)
 {
-  if (income_box_signal.empty())
+  const double TIME_GAP_THRESHOLD = 2.0;
+  const std::lock_guard<std::mutex> lock(mutex_);
+
+  // case 1: Both queue are empty
+  if (income_box_signal_.empty() && packaging_order_queue_.empty())
     return;
 
-  const std::lock_guard<std::mutex> lock(mutex_);
+  // case 2: A packaging order is stored only
+  if (income_box_signal_.empty() && !packaging_order_queue_.empty())
+  {
+    rclcpp::Time curr_time = this->get_clock()->now();
+    rclcpp::Duration time_diff = curr_time - packaging_order_queue_.front().second;
+    const double time_gap_seconds = time_diff.seconds();
+
+    if (time_gap_seconds < TIME_GAP_THRESHOLD)
+    {    
+      RCLCPP_INFO(this->get_logger(), "The income material box signal maybe delayed. Try to handle in next callback."); 
+      return;
+    }
+    else
+    {
+      RCLCPP_WARN(this->get_logger(), "Large time gap detected: %.2f seconds", time_gap_seconds);
+      RCLCPP_ERROR(this->get_logger(), "Error occur to determine the action of queues");
+      packaging_order_queue_.pop(); // FIXME: this case is possible?
+      return;
+    }
+  }
+
+  // case 3: A income box signal is stored only
+  if (!income_box_signal_.empty() && packaging_order_queue_.empty())
+  {
+    rclcpp::Time curr_time = this->get_clock()->now();
+    rclcpp::Duration time_diff = curr_time - income_box_signal_.front().second;
+    const double time_gap_seconds = time_diff.seconds();
+    if (time_gap_seconds < TIME_GAP_THRESHOLD)
+    {  
+      RCLCPP_INFO(this->get_logger(), "The packaging order maybe delayed. Try to handle in next callback."); 
+      return;
+    }
+  }
+
+  if (income_box_signal_.front().first == packaging_order_queue_.front().first)
+  {
+    RCLCPP_INFO(this->get_logger(), "The income material box is handled by packaging order service");
+    income_box_signal_.pop();
+    packaging_order_queue_.pop();
+    return;
+  }
+
+  RCLCPP_INFO(this->get_logger(), "The incoming material box does not handled"); 
+  RCLCPP_INFO(this->get_logger(), "The incoming material box should be passing the packaging machines");
 
   auto iter = packaging_machine_status_.rbegin();
   for (; iter != packaging_machine_status_.rend(); iter++) 
   {
     if (iter->second.conveyor_state == PackagingMachineStatus::AVAILABLE &&
         iter->second.waiting_material_box == false && 
-        info_[iter->second.packaging_machine_id].conveyor != false)
+        info_[iter->first].conveyor == true)
       break;
   }
 
@@ -244,53 +285,52 @@ void PackagingMachineManager::queue_handler_cb(void)
   const uint8_t target_id = iter->first;
   const auto &cli_pair = conveyor_stopper_client_[target_id];
 
-  // using ServiceResponseFuture = rclcpp::Client<SetBool>::SharedFuture;
-  // auto response_received_cb = [this](ServiceResponseFuture future) {
-  //   auto response = future.get();
-  //   if (response) 
-  //     RCLCPP_DEBUG(this->get_logger(), "Sent a operation request.");
-  //   else 
-  //   {
-  //     const std::string err_msg = "Service call failed or returned no result";
-  //     RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
-  //   }
-  // };
+  using ServiceResponseFuture = rclcpp::Client<SetBool>::SharedFuture;
+  auto response_received_cb = [this](ServiceResponseFuture future) {
+    auto response = future.get();
+    if (response) 
+      RCLCPP_DEBUG(this->get_logger(), "Sent a operation request.");
+    else 
+    {
+      const std::string err_msg = "Service call failed or returned no result";
+      RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+    }
+  };
 
-  // std::shared_ptr<SetBool::Request> request = std::make_shared<SetBool::Request>();
-  // request->data = true;
-  // auto future = cli_pair.second->async_send_request(request, response_received_cb);
+  std::shared_ptr<SetBool::Request> request = std::make_shared<SetBool::Request>();
+  request->data = true;
+  auto future = cli_pair.second->async_send_request(request, response_received_cb);
 
-  // RCLCPP_INFO(this->get_logger(), "Packaging Machine [%d] Conveyor and Stopper Service are called", target_id);
+  RCLCPP_INFO(this->get_logger(), "Packaging Machine [%d] Conveyor and Stopper Service are called", target_id);
 
-  // bool success = true;
+  bool success = true;
 
-  // std::future_status status = future.wait_for(500ms);
-  // switch (status)
-  // {
-  // case std::future_status::ready:
-  //   break; 
-  // case std::future_status::timeout: {
-  //   success = false;
-  //   const std::string err_msg = "The Operation Service is timeout.";
-  //   RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
-  //   break; 
-  // }
-  // case std::future_status::deferred: {
-  //   success = false;
-  //   const std::string err_msg = "The Operation Service is deferred.";
-  //   RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
-  //   break;
-  // }
-  // }
+  std::future_status status = future.wait_for(500ms);
+  switch (status)
+  {
+  case std::future_status::ready:
+    break; 
+  case std::future_status::timeout: {
+    success = false;
+    const std::string err_msg = "The Operation Service is timeout.";
+    RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+    break; 
+  }
+  case std::future_status::deferred: {
+    success = false;
+    const std::string err_msg = "The Operation Service is deferred.";
+    RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+    break;
+  }
+  }
 
-  // if (success)
-  // {
-  //   RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is released successfully", target_id);
-  //   if (!release_blk_signal.empty())
-  //     release_blk_signal.pop();
-  // }
-  // else
-  //   RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is released unsuccessfully", target_id);
+  if (success)
+  {
+    RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is released successfully", target_id);
+    income_box_signal_.pop();
+  }
+  else
+    RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is released unsuccessfully", target_id);
 }
 
 void PackagingMachineManager::status_cb(const PackagingMachineStatus::SharedPtr msg)
@@ -310,10 +350,10 @@ void PackagingMachineManager::info_cb(const PackagingMachineInfo::SharedPtr msg)
   const std::lock_guard<std::mutex> lock(mutex_);
   info_[msg->id] = *msg;
 }
-
 void PackagingMachineManager::packaging_result_cb(const PackagingResult::SharedPtr msg)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
+  
   if (!msg->success)
   {
     RCLCPP_ERROR(this->get_logger(), "A packaging order return error.");
@@ -321,73 +361,147 @@ void PackagingMachineManager::packaging_result_cb(const PackagingResult::SharedP
     return;
   }
 
+  // Find target in current clients
   auto target = std::find_if(curr_client_.begin(), curr_client_.end(),
     [msg](const std::pair<uint32_t, uint64_t>& entry) {
       return entry.first == msg->order_id;
-  });
+    });
 
+  // Publish unbind message
   UnbindRequest unbind_msg;
   unbind_msg.packaging_machine_id = msg->packaging_machine_id;
   unbind_msg.order_id = msg->order_id;
   unbind_msg.material_box_id = msg->material_box_id;
   unbind_order_id_pub_->publish(unbind_msg);
-  
-  if (target != curr_client_.end()) 
+
+  if (target == curr_client_.end()) 
   {
-    RCLCPP_INFO(this->get_logger(), "The target action clinet is found in manager");
+    RCLCPP_ERROR(this->get_logger(), "The target action client is not found in manager.");
+    return;
+  }
 
-    auto list_nodes_srv_request = std::make_shared<ListNodes::Request>();
+  RCLCPP_INFO(this->get_logger(), "The target action client is found in manager");
 
-    using ListNodesServiceResponseFuture = rclcpp::Client<ListNodes>::SharedFuture;
+  // Create and send list nodes request
+  auto list_nodes_srv_request = std::make_shared<ListNodes::Request>();
+  auto list_nodes_future = list_node_client_->async_send_request(list_nodes_srv_request);
+  
+  // Wait for and process list nodes response
+  auto list_nodes_result = list_nodes_future.get();
+  if (!list_nodes_result) 
+  {
+    RCLCPP_ERROR(this->get_logger(), "Service call failed or returned no result");
+    return;
+  }
 
-    auto list_nodes_response_received_cb = [this, target](ListNodesServiceResponseFuture future) {
-      auto srv_result = future.get();
-      if (srv_result) 
-      {
-        auto target_unique_id = std::find(srv_result->unique_ids.begin(), srv_result->unique_ids.end(), target->second);
+  // Find target unique ID in list nodes result
+  auto target_unique_id = std::find(list_nodes_result->unique_ids.begin(), 
+                                    list_nodes_result->unique_ids.end(), 
+                                    target->second);
 
-        if (target_unique_id != srv_result->unique_ids.end()) 
-        {
-          RCLCPP_INFO(this->get_logger(), "The target unique_id is found in current loaded. Try to unload it now.");
+  if (target_unique_id == list_nodes_result->unique_ids.end()) 
+  {
+    RCLCPP_ERROR(this->get_logger(), "The action client is not found in ListNodes Service");
+    return;
+  }
 
-          auto unload_node_srv_request = std::make_shared<UnloadNode::Request>();
-          unload_node_srv_request->unique_id = target->second;
+  RCLCPP_INFO(this->get_logger(), "The target unique_id is found in current loaded. Try to unload it now.");
 
-          using UnloadNodeServiceResponseFuture = rclcpp::Client<UnloadNode>::SharedFuture;
+  // Create and send unload node request
+  auto unload_node_srv_request = std::make_shared<UnloadNode::Request>();
+  unload_node_srv_request->unique_id = target->second;
+  auto unload_node_future = unload_node_client_->async_send_request(unload_node_srv_request);
 
-          auto response_received_cb = [this, target](UnloadNodeServiceResponseFuture future) {
-            auto srv_result = future.get();
-            if (srv_result) 
-            {
-              curr_client_.erase(target);
-              RCLCPP_INFO(this->get_logger(), "The action client is unloaded (unique_id: %ld)", target->second);
-            } else 
-            {
-              RCLCPP_ERROR(this->get_logger(), "Service call failed or returned no result");
-            }
-          };
-          auto future = unload_node_client_->async_send_request(unload_node_srv_request, response_received_cb);
-        } else 
-        {
-          RCLCPP_ERROR(this->get_logger(), "The action client is not found in ListNodes Service");
-        }
-      } else 
-      {
-        RCLCPP_ERROR(this->get_logger(), "Service call failed or returned no result");
-      }
-    };
-
-    auto list_nodes_future = list_node_client_->async_send_request(list_nodes_srv_request, list_nodes_response_received_cb);
-  } else {
-    RCLCPP_ERROR(this->get_logger(), "The target action clinet is not found in manager.");
+  // Wait for and process unload node response
+  auto unload_node_result = unload_node_future.get();
+  if (unload_node_result) 
+  {
+    curr_client_.erase(target);
+    RCLCPP_INFO(this->get_logger(), "The action client is unloaded (unique_id: %ld)", target->second);
+  } 
+  else 
+  {
+    RCLCPP_ERROR(this->get_logger(), "Service call failed or returned no result");
   }
 }
+
+// void PackagingMachineManager::packaging_result_cb(const PackagingResult::SharedPtr msg)
+// {
+//   const std::lock_guard<std::mutex> lock(mutex_);
+//   if (!msg->success)
+//   {
+//     RCLCPP_ERROR(this->get_logger(), "A packaging order return error.");
+//     // TODO: how to handle
+//     return;
+//   }
+
+//   auto target = std::find_if(curr_client_.begin(), curr_client_.end(),
+//     [msg](const std::pair<uint32_t, uint64_t>& entry) {
+//       return entry.first == msg->order_id;
+//   });
+
+//   UnbindRequest unbind_msg;
+//   unbind_msg.packaging_machine_id = msg->packaging_machine_id;
+//   unbind_msg.order_id = msg->order_id;
+//   unbind_msg.material_box_id = msg->material_box_id;
+//   unbind_order_id_pub_->publish(unbind_msg);
+  
+//   if (target != curr_client_.end()) 
+//   {
+//     RCLCPP_INFO(this->get_logger(), "The target action clinet is found in manager");
+
+//     auto list_nodes_srv_request = std::make_shared<ListNodes::Request>();
+
+//     using ListNodesServiceResponseFuture = rclcpp::Client<ListNodes>::SharedFuture;
+
+//     auto list_nodes_response_received_cb = [this, target](ListNodesServiceResponseFuture future) {
+//       auto srv_result = future.get();
+//       if (srv_result) 
+//       {
+//         auto target_unique_id = std::find(srv_result->unique_ids.begin(), srv_result->unique_ids.end(), target->second);
+
+//         if (target_unique_id != srv_result->unique_ids.end()) 
+//         {
+//           RCLCPP_INFO(this->get_logger(), "The target unique_id is found in current loaded. Try to unload it now.");
+
+//           auto unload_node_srv_request = std::make_shared<UnloadNode::Request>();
+//           unload_node_srv_request->unique_id = target->second;
+
+//           using UnloadNodeServiceResponseFuture = rclcpp::Client<UnloadNode>::SharedFuture;
+
+//           auto response_received_cb = [this, target](UnloadNodeServiceResponseFuture future) {
+//             auto srv_result = future.get();
+//             if (srv_result) 
+//             {
+//               curr_client_.erase(target);
+//               RCLCPP_INFO(this->get_logger(), "The action client is unloaded (unique_id: %ld)", target->second);
+//             } else 
+//             {
+//               RCLCPP_ERROR(this->get_logger(), "Service call failed or returned no result");
+//             }
+//           };
+//           auto future = unload_node_client_->async_send_request(unload_node_srv_request, response_received_cb);
+//         } else 
+//         {
+//           RCLCPP_ERROR(this->get_logger(), "The action client is not found in ListNodes Service");
+//         }
+//       } else 
+//       {
+//         RCLCPP_ERROR(this->get_logger(), "Service call failed or returned no result");
+//       }
+//     };
+
+//     auto list_nodes_future = list_node_client_->async_send_request(list_nodes_srv_request, list_nodes_response_received_cb);
+//   } else {
+//     RCLCPP_ERROR(this->get_logger(), "The target action clinet is not found in manager.");
+//   }
+// }
 
 void PackagingMachineManager::packaging_order_handle(
   const std::shared_ptr<PackagingOrderSrv::Request> request, 
   std::shared_ptr<PackagingOrderSrv::Response> response)
 {
-  RCLCPP_INFO(this->get_logger(), "service handle");
+  RCLCPP_INFO(this->get_logger(), "packaging order service handle");
   const std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = std::find_if(packaging_machine_status_.rbegin(), packaging_machine_status_.rend(),
@@ -403,7 +517,9 @@ void PackagingMachineManager::packaging_order_handle(
     return;
   }
 
-  uint8_t target_machine_id = it->second.packaging_machine_id;
+  const uint8_t target_machine_id = it->second.packaging_machine_id;
+
+  packaging_order_queue_.push(std::pair(target_machine_id, this->get_clock()->now()));
 
   auto load_node_srv_request = std::make_shared<LoadNode::Request>();
   load_node_srv_request->package_name = "packaging_machine_control_system";
@@ -549,7 +665,7 @@ void PackagingMachineManager::release_blocking_handle(
   response->success = true;
 
   const std::lock_guard<std::mutex> lock(mutex_);
-  release_blk_signal.push(this->get_clock()->now());
+  release_blk_signal_.push(this->get_clock()->now());
 }
 
 void PackagingMachineManager::income_mtrl_box_handle(
@@ -559,7 +675,7 @@ void PackagingMachineManager::income_mtrl_box_handle(
   response->success = true;
 
   const std::lock_guard<std::mutex> lock(mutex_);
-  income_box_signal.push(std::make_pair(request->data, this->get_clock()->now()));
+  income_box_signal_.push(std::make_pair(request->data, this->get_clock()->now()));
 }
 
 int main(int argc, char **argv)
