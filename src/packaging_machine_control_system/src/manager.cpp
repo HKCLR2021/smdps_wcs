@@ -146,6 +146,10 @@ void PackagingMachineManager::conveyor_stopper_cb(void)
   {
     RCLCPP_ERROR(this->get_logger(), "Packaging Machines Conveyor State are available!");
     RCLCPP_ERROR(this->get_logger(), "The release signal maybe incorrect!");
+    if (!release_blk_signal.empty())
+      release_blk_signal.pop();
+    if (!income_box_signal.empty())
+      income_box_signal.pop();
     return;
   }
 
@@ -206,7 +210,10 @@ void PackagingMachineManager::conveyor_stopper_cb(void)
   if (success)
   {
     RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is released successfully", target_id);
-    release_blk_signal.pop();
+    if (!release_blk_signal.empty())
+      release_blk_signal.pop();
+    if (!income_box_signal.empty())
+      income_box_signal.pop();
   }
   else
     RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is released unsuccessfully", target_id);
@@ -223,17 +230,67 @@ void PackagingMachineManager::queue_handler_cb(void)
   for (; iter != packaging_machine_status_.rend(); iter++) 
   {
     if (iter->second.conveyor_state == PackagingMachineStatus::AVAILABLE &&
-        iter->second.waiting_material_box == false)
+        iter->second.waiting_material_box == false && 
+        info_[iter->second.packaging_machine_id].conveyor != false)
       break;
   }
+
   if (iter == packaging_machine_status_.rend())
   {
-    RCLCPP_ERROR(this->get_logger(), "Packaging Machines Conveyor State are available!");
-    RCLCPP_ERROR(this->get_logger(), "The release signal maybe incorrect!");
+    RCLCPP_ERROR(this->get_logger(), "Packaging Machines are unavailable!");
     return;
   }
 
-  // TBD
+  const uint8_t target_id = iter->first;
+  const auto &cli_pair = conveyor_stopper_client_[target_id];
+
+  // using ServiceResponseFuture = rclcpp::Client<SetBool>::SharedFuture;
+  // auto response_received_cb = [this](ServiceResponseFuture future) {
+  //   auto response = future.get();
+  //   if (response) 
+  //     RCLCPP_DEBUG(this->get_logger(), "Sent a operation request.");
+  //   else 
+  //   {
+  //     const std::string err_msg = "Service call failed or returned no result";
+  //     RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+  //   }
+  // };
+
+  // std::shared_ptr<SetBool::Request> request = std::make_shared<SetBool::Request>();
+  // request->data = true;
+  // auto future = cli_pair.second->async_send_request(request, response_received_cb);
+
+  // RCLCPP_INFO(this->get_logger(), "Packaging Machine [%d] Conveyor and Stopper Service are called", target_id);
+
+  // bool success = true;
+
+  // std::future_status status = future.wait_for(500ms);
+  // switch (status)
+  // {
+  // case std::future_status::ready:
+  //   break; 
+  // case std::future_status::timeout: {
+  //   success = false;
+  //   const std::string err_msg = "The Operation Service is timeout.";
+  //   RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+  //   break; 
+  // }
+  // case std::future_status::deferred: {
+  //   success = false;
+  //   const std::string err_msg = "The Operation Service is deferred.";
+  //   RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+  //   break;
+  // }
+  // }
+
+  // if (success)
+  // {
+  //   RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is released successfully", target_id);
+  //   if (!release_blk_signal.empty())
+  //     release_blk_signal.pop();
+  // }
+  // else
+  //   RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is released unsuccessfully", target_id);
 }
 
 void PackagingMachineManager::status_cb(const PackagingMachineStatus::SharedPtr msg)

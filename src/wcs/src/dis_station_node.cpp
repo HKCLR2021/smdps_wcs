@@ -30,6 +30,12 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   status_pub_ = this->create_publisher<DispenserStationStatus>("/dispenser_station_status", 10);
   status_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::dis_station_status_cb, this));
 
+  dis_req_srv_ = this->create_service<DispenseDrug>(
+    "dispense_request", 
+    std::bind(&DispenserStationNode::dis_req_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
   if (!status_->enable)
   {
     // The node will still be running
@@ -64,12 +70,6 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   opcua_heartbeat_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::heartbeat_valid_cb, this));
 
-  dis_req_srv_ = this->create_service<DispenseDrug>(
-    "dispense_request", 
-    std::bind(&DispenserStationNode::dis_req_handle, this, _1, _2),
-    rmw_qos_profile_services_default,
-    srv_ser_cbg_);
-  
   bin_req_srv_ = this->create_service<UnitRequest>(
     "bin_operation_request", 
     std::bind(&DispenserStationNode::unit_req_handle, this, _1, _2),
@@ -145,6 +145,9 @@ void DispenserStationNode::dis_req_handle(
   const std::shared_ptr<DispenseDrug::Request> req, 
   std::shared_ptr<DispenseDrug::Response> res)
 {
+  if (!status_->enable)
+    return;
+  
   wait_for_opcua_connection(200ms);
   
   int16_t target_amt = 0;
@@ -158,8 +161,9 @@ void DispenserStationNode::dis_req_handle(
       continue;
     }
 
-    if (!status_->unit_status[i].enable)
-      continue;
+    // FIXME!!!!!!!!!!!!!!!!!!!!!!!
+    // if (!status_->unit_status[i].enable)
+    //   continue;
 
     if (req->content[i].amount <= 0)
       continue;
@@ -339,7 +343,7 @@ void DispenserStationNode::init_bin_handle(
   std::shared_ptr<Trigger::Response> res)
 {
   (void)req;
-  std::thread(std::bind(&DispenserStationNode::test_bin, this));
+  std::thread{std::bind(&DispenserStationNode::test_bin, this)}.detach();
   res->success = true;
 }
 
@@ -348,7 +352,7 @@ void DispenserStationNode::init_baffle_handle(
   std::shared_ptr<Trigger::Response> res)
 {
   (void)req;
-  std::thread(std::bind(&DispenserStationNode::test_baffle, this));
+  std::thread{std::bind(&DispenserStationNode::test_baffle, this)}.detach();
   res->success = true;
 }
 
@@ -357,7 +361,7 @@ void DispenserStationNode::reset_handle(
   std::shared_ptr<Trigger::Response> res)
 {
   (void)req;
-  std::thread(std::bind(&DispenserStationNode::reset, this));
+  std::thread{std::bind(&DispenserStationNode::reset, this)}.detach();
   res->success = true;
 }
 

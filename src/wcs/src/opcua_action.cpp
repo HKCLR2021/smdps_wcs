@@ -76,7 +76,7 @@ void DispenserStationNode::test_bin(void)
       RCLCPP_ERROR(this->get_logger(), "unit_id: %d, Error occur in %s", id, __FUNCTION__);
     }
     
-    std::this_thread::sleep_for(500ms);
+    std::this_thread::sleep_for(1s);
   }
 
   RCLCPP_INFO(this->get_logger(), "The bins are opened in Dispenser Station [%d]", status_->id);
@@ -93,7 +93,7 @@ void DispenserStationNode::test_bin(void)
       RCLCPP_ERROR(this->get_logger(), "unit_id: %d, Error occur in %s", id, __FUNCTION__);
     }
 
-    std::this_thread::sleep_for(500ms);
+    std::this_thread::sleep_for(1s);
   }
 
   RCLCPP_INFO(this->get_logger(), "The bins are closed in Dispenser Station [%d]", status_->id);
@@ -114,7 +114,7 @@ void DispenserStationNode::test_baffle(void)
       RCLCPP_ERROR(this->get_logger(), "unit_id: %d, Error occur in %s", id, __FUNCTION__);
     }
 
-    std::this_thread::sleep_for(500ms);
+    std::this_thread::sleep_for(1s);
   }
 
   RCLCPP_INFO(this->get_logger(), "The baffles are opened in Dispenser Station [%d]", status_->id);
@@ -131,7 +131,7 @@ void DispenserStationNode::test_baffle(void)
       RCLCPP_ERROR(this->get_logger(), "unit_id: %d, Error occur in %s", id, __FUNCTION__);
     }
 
-    std::this_thread::sleep_for(500ms);
+    std::this_thread::sleep_for(1s);
   }
 
   RCLCPP_INFO(this->get_logger(), "The baffles are closed in Dispenser Station [%d]", status_->id);

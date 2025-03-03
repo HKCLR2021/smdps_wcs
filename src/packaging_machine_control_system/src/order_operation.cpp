@@ -35,7 +35,7 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
   msg.order_id = goal->order_id;
   msg.material_box_id = goal->material_box_id;
   unbind_mtrl_box_publisher_->publish(msg);
-  RCLCPP_INFO(this->get_logger(), "Published a unbind material box id request");
+  RCLCPP_INFO(this->get_logger(), "Published an unbind material box id request");
 
   RCLCPP_INFO(this->get_logger(), "========== packaging sequence 2 ==========");
 

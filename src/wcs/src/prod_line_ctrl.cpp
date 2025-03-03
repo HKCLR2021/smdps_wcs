@@ -279,6 +279,7 @@ void ProdLineCtrl::dis_result_srv_handler(std::map<uint8_t, std::shared_ptr<Disp
     auto future = dis_req_cli_[req_pair.first]->async_send_request(req_pair.second, response_received_cb);
     futures_tuple.push_back(std::make_tuple(req_pair.first, false, std::move(future)));
   }
+  RCLCPP_INFO(this->get_logger(), "dis_reqs are sent sucessfully");
 
   for (auto &tuple : futures_tuple)
   {

@@ -16,9 +16,9 @@ bool DispenserStationNode::write_opcua_value(const opcua::NodeId& node_id, T val
   std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, node_id, var, opcua::useFuture);
 
   // Wait with timeout and shutdown awareness
-  if (future.wait_for(std::chrono::milliseconds(500)) != std::future_status::ready) 
+  if (future.wait_for(std::chrono::milliseconds(1000)) != std::future_status::ready) 
   {
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync timed out after 500ms in %s", __FUNCTION__);
+    RCLCPP_ERROR(this->get_logger(), "writeValueAsync timed out after 1000ms in %s", __FUNCTION__);
     return false;
   }
 
@@ -41,9 +41,9 @@ bool DispenserStationNode::read_opcua_value(const opcua::NodeId& node_id, std::s
   std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, node_id, opcua::useFuture);
 
   // Wait with timeout and shutdown awareness
-  if (future.wait_for(std::chrono::milliseconds(500)) != std::future_status::ready) 
+  if (future.wait_for(std::chrono::milliseconds(1000)) != std::future_status::ready) 
   {
-    RCLCPP_ERROR(this->get_logger(), "readValueAsync timed out after 500ms in %s", __FUNCTION__);
+    RCLCPP_ERROR(this->get_logger(), "readValueAsync timed out after 1000ms in %s", __FUNCTION__);
     return false;
   }
 
@@ -73,7 +73,7 @@ bool DispenserStationNode::wait_for_futures(std::vector<std::future<opcua::Statu
   {
     for (auto it = futures.begin(); it != futures.end();) 
     {
-      auto status = it->wait_for(50ms);
+      auto status = it->wait_for(100ms);
       if (status == std::future_status::ready) 
       {
         if (it->get() != UA_STATUSCODE_GOOD) 
