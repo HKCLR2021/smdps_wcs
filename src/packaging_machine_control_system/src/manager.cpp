@@ -210,6 +210,7 @@ void PackagingMachineManager::conveyor_stopper_cb(void)
   {
     RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is released successfully", target_id);
     release_blk_signal_.pop();
+    RCLCPP_INFO(this->get_logger(), "A element is poped form release_blk_signal_");
   }
   else
     RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is released unsuccessfully", target_id);
@@ -263,8 +264,8 @@ void PackagingMachineManager::queue_handler_cb(void)
   if (income_box_signal_.front().first == packaging_order_queue_.front().first)
   {
     RCLCPP_INFO(this->get_logger(), "The income material box is handled by packaging order service");
-    income_box_signal_.pop();
     packaging_order_queue_.pop();
+    RCLCPP_INFO(this->get_logger(), "A element is poped form packaging_order_queue_");
     return;
   }
 
@@ -327,11 +328,15 @@ void PackagingMachineManager::queue_handler_cb(void)
 
   if (success)
   {
-    RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is released successfully", target_id);
-    income_box_signal_.pop();
+    RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is blocked successfully", target_id);
+    if (!income_box_signal_.empty())
+    {
+      income_box_signal_.pop();
+      RCLCPP_INFO(this->get_logger(), "A element is poped form income_box_signal_");
+    }
   }
   else
-    RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is released unsuccessfully", target_id);
+    RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is blocked unsuccessfully", target_id);
 }
 
 void PackagingMachineManager::status_cb(const PackagingMachineStatus::SharedPtr msg)
@@ -448,7 +453,29 @@ void PackagingMachineManager::packaging_order_handle(
 
   const uint8_t target_machine_id = it->second.packaging_machine_id;
 
-  packaging_order_queue_.push(std::pair(target_machine_id, this->get_clock()->now()));
+  rclcpp::Time curr_time = this->get_clock()->now();
+  if (packaging_order_queue_.empty())
+  {
+    packaging_order_queue_.push(std::pair(target_machine_id, curr_time));
+    RCLCPP_INFO(this->get_logger(), "Pushed to packaging_order_queue_"); 
+  }
+  else
+  {
+    constexpr double TIME_GAP_THRESHOLD = 3.0;
+    rclcpp::Duration time_diff = curr_time - packaging_order_queue_.front().second;
+    const double time_gap_seconds = time_diff.seconds();
+  
+    if (time_gap_seconds < TIME_GAP_THRESHOLD)
+    {
+      packaging_order_queue_.push(std::pair(target_machine_id, curr_time));
+      RCLCPP_INFO(this->get_logger(), "Pushed to packaging_order_queue_"); 
+    }
+    else
+    {
+      RCLCPP_INFO(this->get_logger(), "The time gap of packaging request is closed"); 
+      return;
+    }
+  }
 
   auto load_node_srv_request = std::make_shared<LoadNode::Request>();
   load_node_srv_request->package_name = "packaging_machine_control_system";
@@ -595,22 +622,26 @@ void PackagingMachineManager::release_blocking_handle(
   response->success = true;
 
   const std::lock_guard<std::mutex> lock(mutex_);
+
   rclcpp::Time curr_time = this->get_clock()->now();
-  
   if (release_blk_signal_.empty())
   {
     release_blk_signal_.push(curr_time);
+    RCLCPP_INFO(this->get_logger(), "Pushed to release_blk_signal");
     return;
   }
 
-  const double TIME_GAP_THRESHOLD = 3.0;
+  constexpr double TIME_GAP_THRESHOLD = 3.0;
   rclcpp::Duration time_diff = curr_time - release_blk_signal_.front();
   const double time_gap_seconds = time_diff.seconds();
 
-  if (time_gap_seconds < TIME_GAP_THRESHOLD)
-    RCLCPP_INFO(this->get_logger(), "The time gap of release signal is closed"); 
-  else
+  if (time_gap_seconds >= TIME_GAP_THRESHOLD)
+  {
     release_blk_signal_.push(curr_time);
+    RCLCPP_INFO(this->get_logger(), "Pushed to release_blk_signal"); 
+  }
+  else
+    RCLCPP_INFO(this->get_logger(), "The time gap of release signal is closed"); 
 }
 
 void PackagingMachineManager::income_mtrl_box_handle(
@@ -618,10 +649,21 @@ void PackagingMachineManager::income_mtrl_box_handle(
   std::shared_ptr<UInt8Srv::Response> response)
 {
   response->success = true;
-
+  RCLCPP_INFO(this->get_logger(), "Handle a incoming material box service"); 
   const std::lock_guard<std::mutex> lock(mutex_);
-  if (!income_box_signal_.empty() && income_box_signal_.back().first != request->data)
+
+  bool is_empty = income_box_signal_.empty();
+  bool is_different = !is_empty && (income_box_signal_.back().first != request->data);
+
+  if (is_empty || is_different)
+  {
     income_box_signal_.push(std::make_pair(request->data, this->get_clock()->now()));
+    RCLCPP_INFO(this->get_logger(), "Pushed to income_box_signal");
+  }
+  else
+  {
+    RCLCPP_INFO(this->get_logger(), "The incoming material box are repeated");
+  }
 }
 
 int main(int argc, char **argv)

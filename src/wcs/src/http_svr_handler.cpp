@@ -422,10 +422,10 @@ void ProdLineCtrl::init_pkg_mac_handler(
     break;
   case std::future_status::timeout:
     RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine wait_for timeout");
-    return;
+    break;
   case std::future_status::deferred: 
     RCLCPP_ERROR(this->get_logger(), "Init Packaging Machine wait_for deferred");
-    return;
+    break;
   }
 
   res.set_content(res_json.dump(), "application/json");
@@ -489,9 +489,9 @@ void ProdLineCtrl::scanner_handler(
     auto res_received_cb = [this](ServiceResponseFuture future) {
       auto srv_res = future.get();
       if (srv_res && srv_res->success)
-        RCLCPP_DEBUG(this->get_logger(), "Inside the release_blocking Callback OK");
+        RCLCPP_DEBUG(this->get_logger(), "Inside the income_mtrl_box_cli_ Callback OK");
       else
-        RCLCPP_ERROR(this->get_logger(), "Inside the release_blocking Callback NOT OK. message: %s", srv_res->message.c_str());
+        RCLCPP_ERROR(this->get_logger(), "Inside the income_mtrl_box_cli_ Callback NOT OK. message: %s", srv_res->message.c_str());
     };
   
     if (srv_wait_thread.joinable())
@@ -499,20 +499,24 @@ void ProdLineCtrl::scanner_handler(
   
     auto future = income_mtrl_box_cli_->async_send_request(srv_req, res_received_cb);
   
-    std::future_status status = future.wait_for(500ms);
+    std::future_status status = future.wait_for(1s);
     switch (status)
     {
     case std::future_status::ready:
       break;
     case std::future_status::timeout:
-      RCLCPP_ERROR(this->get_logger(), "release_blocking wait_for timeout");
+      RCLCPP_ERROR(this->get_logger(), "income_mtrl_box_cli_ wait_for timeout");
+      res_json["msg"] = "timeout";
+      res.set_content(res_json.dump(), "application/json");
       return;
     case std::future_status::deferred: 
-      RCLCPP_ERROR(this->get_logger(), "release_blocking wait_for deferred");
+      RCLCPP_ERROR(this->get_logger(), "income_mtrl_box_cli_ wait_for deferred");
+      res_json["msg"] = "deferred";
+      res.set_content(res_json.dump(), "application/json");
       return;
     }
 
-    RCLCPP_INFO(this->get_logger(), "Added a material box id to income_box_queue");
+    RCLCPP_INFO(this->get_logger(), "Added a material box id to income box queue");
   }
 
   res_json["code"] = 200;
@@ -561,7 +565,7 @@ void ProdLineCtrl::con_ready_handler(
 
   auto future = container_ready_cli_->async_send_request(srv_req, res_received_cb);
 
-  std::future_status status = future.wait_for(500ms);
+  std::future_status status = future.wait_for(1s);
   switch (status)
   {
   case std::future_status::ready:
