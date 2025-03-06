@@ -75,7 +75,7 @@ public:
     const std::shared_ptr<UInt8Srv::Request> request, 
     std::shared_ptr<UInt8Srv::Response> response);
   
-  void conveyor_stopper_cb(void);
+  void release_blocking_cb(void);
   void queue_handler_cb(void);
 
   void status_cb(const PackagingMachineStatus::SharedPtr msg);
@@ -114,11 +114,11 @@ private:
   rclcpp::Client<ListNodes>::SharedPtr list_node_client_;
   std::map<uint8_t, std::pair<rclcpp::Client<SetBool>::SharedPtr, rclcpp::Client<SetBool>::SharedPtr>> conveyor_stopper_client_;
   
-  rclcpp::TimerBase::SharedPtr conveyor_stopper_timer_;
+  rclcpp::TimerBase::SharedPtr release_blocking_timer_;
   rclcpp::TimerBase::SharedPtr queue_handler_timer_;
 
   // packaging_machine_id, PackagingMachineStatus
-  std::map<uint8_t, PackagingMachineStatus> packaging_machine_status_;
+  std::map<uint8_t, PackagingMachineStatus> pkg_mac_status_;
   std::map<uint8_t, MotorStatus> motor_status_;
   std::map<uint8_t, PackagingMachineInfo> info_;
   
