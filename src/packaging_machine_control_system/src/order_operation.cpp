@@ -44,6 +44,9 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
     ctrl_pkg_dis(status_->package_length * PKG_DIS_MARGIN_FACTOR, PKG_DIS_FEED_DIR, MOTOR_ENABLE);
     wait_for_pkg_dis(MotorStatus::IDLE);
 
+    ctrl_pkg_dis(PKG_DIS_UNFEED_LEN, PKG_DIS_UNFEED_DIR, MOTOR_ENABLE);
+    wait_for_pkg_dis(MotorStatus::IDLE);
+
     ctrl_squeezer(SQUEEZER_ACTION_PUSH, MOTOR_ENABLE);
     wait_for_squeezer(MotorStatus::IDLE);
 
@@ -252,6 +255,9 @@ void PackagingMachineNode::init_packaging_machine(void)
 
     std::this_thread::sleep_for(DELAY_PKG_DIS_WAIT_PRINTER);
     ctrl_pkg_dis(status_->package_length * PKG_DIS_MARGIN_FACTOR, PKG_DIS_FEED_DIR, MOTOR_ENABLE);
+    wait_for_pkg_dis(MotorStatus::IDLE);
+
+    ctrl_pkg_dis(PKG_DIS_UNFEED_LEN, PKG_DIS_UNFEED_DIR, MOTOR_ENABLE);
     wait_for_pkg_dis(MotorStatus::IDLE);
 
     std::this_thread::sleep_for(DELAY_PKG_DIS_BEFORE_SQUEEZER);

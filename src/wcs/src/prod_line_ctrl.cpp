@@ -72,6 +72,11 @@ ProdLineCtrl::ProdLineCtrl(const rclcpp::NodeOptions& options)
     rmw_qos_profile_services_default,
     srv_cli_cbg_);
 
+  con_mtrl_box_cli_ = this->create_client<UInt8Srv>(
+    "container_material_box",
+    rmw_qos_profile_services_default,
+    srv_cli_cbg_);
+  
   for (uint8_t i = 0; i < no_of_pkg_mac_; i++)
   {
     const uint8_t pkg_mac_id = i + 1;

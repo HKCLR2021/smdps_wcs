@@ -569,6 +569,9 @@ void PackagingMachineNode::print_one_pkg_handle(
   ctrl_pkg_dis(status_->package_length * PKG_DIS_MARGIN_FACTOR, PKG_DIS_FEED_DIR, MOTOR_ENABLE);
   wait_for_pkg_dis(MotorStatus::IDLE);
 
+  ctrl_pkg_dis(PKG_DIS_UNFEED_LEN, PKG_DIS_UNFEED_DIR, MOTOR_ENABLE);
+  wait_for_pkg_dis(MotorStatus::IDLE);
+
   ctrl_squeezer(SQUEEZER_ACTION_PUSH, MOTOR_ENABLE);
   wait_for_squeezer(MotorStatus::IDLE);
 

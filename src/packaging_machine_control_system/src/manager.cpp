@@ -60,6 +60,18 @@ PackagingMachineManager::PackagingMachineManager(
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
 
+  con_box_srv_ = this->create_service<UInt8Srv>(
+    con_box_service_name, 
+    std::bind(&PackagingMachineManager::con_mtrl_box_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
+  manually_release_srv_ = this->create_service<Trigger>(
+    manually_release_service_name, 
+    std::bind(&PackagingMachineManager::manually_release_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);  
+
   unbind_order_id_pub_ = this->create_publisher<UnbindRequest>("unbind_order_id", 10); 
 
   load_node_client_ = this->create_client<LoadNode>(
@@ -113,6 +125,9 @@ PackagingMachineManager::PackagingMachineManager(
     }
   }
 
+  last_pkg_mac_scan_1 = 0;
+  last_pkg_mac_scan_2 = 0;
+
   release_blocking_timer_ = this->create_wall_timer(
     1s, 
     std::bind(&PackagingMachineManager::release_blocking_cb, this),
@@ -131,7 +146,7 @@ void PackagingMachineManager::release_blocking_cb(void)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
 
-  if (release_blk_signal_.empty())
+  if (release_blk_.empty())
     return;
 
   auto iter = std::find_if(pkg_mac_status_.rbegin(), pkg_mac_status_.rend(),
@@ -142,7 +157,13 @@ void PackagingMachineManager::release_blocking_cb(void)
 
   if (iter == pkg_mac_status_.rend())
   {
-    RCLCPP_INFO(this->get_logger(), "The conveyor of packaging machine are available and not waiting the material box");
+    RCLCPP_INFO(this->get_logger(), "The conveyor of packaging machines are available and not waiting the material box");
+    // This operation is used for storing material box to container
+    // if (income_box_.empty())
+    // {
+    //   release_blk_.pop(); 
+    //   RCLCPP_INFO(this->get_logger(), "A element is poped form release_blk_");
+    // }
     return;
   }
 
@@ -203,8 +224,8 @@ void PackagingMachineManager::release_blocking_cb(void)
   if (success)
   {
     RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is released successfully", target_id);
-    release_blk_signal_.pop();
-    RCLCPP_INFO(this->get_logger(), "A element is poped form release_blk_signal_");
+    release_blk_.pop();
+    RCLCPP_INFO(this->get_logger(), "A element is poped form release_blk_");
   }
   else
     RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is released unsuccessfully", target_id);
@@ -218,13 +239,13 @@ void PackagingMachineManager::queue_handler_cb(void)
   rclcpp::Time curr_time = this->get_clock()->now();
 
   // case 1: Both queue are empty
-  if (income_box_signal_.empty() && packaging_order_queue_.empty())
+  if (income_box_.empty() && packaging_order_.empty())
     return;
 
   // case 2: A packaging order is stored only
-  if (income_box_signal_.empty() && !packaging_order_queue_.empty())
+  if (income_box_.empty() && !packaging_order_.empty())
   {
-    rclcpp::Duration time_diff = curr_time - packaging_order_queue_.front().second;
+    rclcpp::Duration time_diff = curr_time - packaging_order_.front().second;
     const double time_gap = time_diff.seconds();
 
     if (time_gap < TIME_GAP_THRESHOLD)
@@ -235,15 +256,15 @@ void PackagingMachineManager::queue_handler_cb(void)
     {
       RCLCPP_WARN(this->get_logger(), "Large time gap detected: %.2f seconds", time_gap);
       RCLCPP_ERROR(this->get_logger(), "Error occur to determine the action of queues");
-      packaging_order_queue_.pop(); // FIXME: are this case is possible?
+      packaging_order_.pop(); // FIXME: are this case is possible?
     }
     return;
   }
 
   // case 3: A income box signal is stored only
-  if (!income_box_signal_.empty() && packaging_order_queue_.empty())
+  if (!income_box_.empty() && packaging_order_.empty())
   {
-    rclcpp::Duration time_diff = curr_time - income_box_signal_.front().second;
+    rclcpp::Duration time_diff = curr_time - income_box_.front().second;
     const double time_gap = time_diff.seconds();
     if (time_gap < TIME_GAP_THRESHOLD)
     {  
@@ -252,16 +273,18 @@ void PackagingMachineManager::queue_handler_cb(void)
     }
   }
 
-  RCLCPP_INFO(this->get_logger(), "The incoming material box [%d] does not handled", income_box_signal_.front().first); 
-  RCLCPP_INFO(this->get_logger(), "The incoming material box should be passing the packaging machines");
-
-  if (income_box_signal_.front().first == packaging_order_queue_.front().first)
+  if (income_box_.front().first == packaging_order_.front().first)
   {
     RCLCPP_INFO(this->get_logger(), "The income material box is handled by packaging order service");
-    packaging_order_queue_.pop();
-    RCLCPP_INFO(this->get_logger(), "A element is poped form packaging_order_queue_");
+    income_box_.pop();
+    RCLCPP_INFO(this->get_logger(), "A element is poped form income_box_");
+    packaging_order_.pop();
+    RCLCPP_INFO(this->get_logger(), "A element is poped form packaging_order_");
     return;
   }
+  
+  RCLCPP_INFO(this->get_logger(), "The incoming material box [%d] does not handled", income_box_.front().first); 
+  RCLCPP_INFO(this->get_logger(), "The incoming material box should be passing the packaging machines");
 
   auto iter = std::find_if(pkg_mac_status_.rbegin(), pkg_mac_status_.rend(),
     [this](const auto& status) {
@@ -295,7 +318,7 @@ void PackagingMachineManager::queue_handler_cb(void)
   request->data = true;
   auto future = cli_pair.second->async_send_request(request, response_received_cb);
 
-  RCLCPP_INFO(this->get_logger(), "Packaging Machine [%d] Conveyor and Stopper Service are called", target_id);
+  RCLCPP_INFO(this->get_logger(), "Packaging Machine [%d] Stopper Service are called", target_id);
 
   bool success = true;
 
@@ -321,10 +344,10 @@ void PackagingMachineManager::queue_handler_cb(void)
   if (success)
   {
     RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is blocked successfully", target_id);
-    if (!income_box_signal_.empty())
+    if (!income_box_.empty())
     {
-      income_box_signal_.pop();
-      RCLCPP_INFO(this->get_logger(), "A element is poped form income_box_signal_");
+      income_box_.pop();
+      RCLCPP_INFO(this->get_logger(), "A element is poped form income_box_");
     }
   }
   else
@@ -444,17 +467,18 @@ void PackagingMachineManager::packaging_order_handle(
   }
 
   const uint8_t target_machine_id = it->second.packaging_machine_id;
+  const uint8_t mtrl_box_id = request->material_box_id;
 
   constexpr double TIME_GAP_THRESHOLD = 3.0;
   rclcpp::Time curr_time = this->get_clock()->now();
 
-  bool is_empty = packaging_order_queue_.empty();
-  bool is_larger = !is_empty && (curr_time - packaging_order_queue_.front().second).seconds() < TIME_GAP_THRESHOLD;
+  bool is_empty = packaging_order_.empty();
+  bool is_larger = !is_empty && (curr_time - packaging_order_.front().second).seconds() < TIME_GAP_THRESHOLD;
 
   if (is_empty || is_larger)
   {
-    packaging_order_queue_.push(std::pair(target_machine_id, curr_time));
-    RCLCPP_INFO(this->get_logger(), "Pushed to packaging_order_queue_"); 
+    packaging_order_.push(std::pair(mtrl_box_id, curr_time));
+    RCLCPP_INFO(this->get_logger(), "Pushed ID [%d] to packaging_order_", mtrl_box_id); 
   }
   else
   {
@@ -610,12 +634,12 @@ void PackagingMachineManager::release_blocking_handle(
   constexpr double TIME_GAP_THRESHOLD = 3.0;
   rclcpp::Time curr_time = this->get_clock()->now();
 
-  bool is_empty = release_blk_signal_.empty();
-  bool is_larger = !is_empty && (curr_time - release_blk_signal_.front()).seconds() >= TIME_GAP_THRESHOLD;
+  bool is_empty = release_blk_.empty();
+  bool is_larger = !is_empty && (curr_time - release_blk_.front()).seconds() >= TIME_GAP_THRESHOLD;
 
   if (is_empty || is_larger)
   {
-    release_blk_signal_.push(curr_time);
+    release_blk_.push(curr_time);
     RCLCPP_INFO(this->get_logger(), "Pushed to release_blk_signal");
     response->success = true;
   }
@@ -634,14 +658,15 @@ void PackagingMachineManager::income_mtrl_box_handle(
   RCLCPP_INFO(this->get_logger(), "Handle a incoming material box service"); 
 
   const std::lock_guard<std::mutex> lock(mutex_);
+  last_pkg_mac_scan_1 = request->data;
 
-  bool is_empty = income_box_signal_.empty();
-  bool is_different = !is_empty && (income_box_signal_.back().first != request->data);
+  bool is_empty = income_box_.empty();
+  bool is_different = !is_empty && (income_box_.back().first != request->data);
 
   if (is_empty || is_different)
   {
-    income_box_signal_.push(std::make_pair(request->data, this->get_clock()->now()));
-    RCLCPP_INFO(this->get_logger(), "Pushed to income_box_signal");
+    income_box_.push(std::make_pair(request->data, this->get_clock()->now()));
+    RCLCPP_INFO(this->get_logger(), "Pushed ID [%d] to income_box_", request->data);
     response->success = true;
   }
   else
@@ -649,6 +674,29 @@ void PackagingMachineManager::income_mtrl_box_handle(
     RCLCPP_ERROR(this->get_logger(), "The incoming material box are repeated");
     response->success = false;
   }
+}
+
+void PackagingMachineManager::con_mtrl_box_handle(
+  const std::shared_ptr<UInt8Srv::Request> request, 
+  std::shared_ptr<UInt8Srv::Response> response)
+{
+  response->success = true;
+  RCLCPP_INFO(this->get_logger(), "Handle a container material box service"); 
+
+  const std::lock_guard<std::mutex> lock(mutex_);
+  last_pkg_mac_scan_2 = request->data;
+}
+
+void PackagingMachineManager::manually_release_handle(
+  const std::shared_ptr<Trigger::Request> request, 
+  std::shared_ptr<Trigger::Response> response)
+{
+  response->success = true;
+  RCLCPP_INFO(this->get_logger(), "Handle a manually release material box service"); 
+
+  const std::lock_guard<std::mutex> lock(mutex_);
+  if (!release_blk_.empty())
+    release_blk_.pop();
 }
 
 int main(int argc, char **argv)

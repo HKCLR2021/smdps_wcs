@@ -74,7 +74,13 @@ public:
   void income_mtrl_box_handle(
     const std::shared_ptr<UInt8Srv::Request> request, 
     std::shared_ptr<UInt8Srv::Response> response);
-  
+  void con_mtrl_box_handle(
+    const std::shared_ptr<UInt8Srv::Request> request, 
+    std::shared_ptr<UInt8Srv::Response> response);  
+  void manually_release_handle(
+    const std::shared_ptr<Trigger::Request> request, 
+    std::shared_ptr<Trigger::Response> response);
+
   void release_blocking_cb(void);
   void queue_handler_cb(void);
 
@@ -87,9 +93,11 @@ private:
   std::mutex mutex_;
   size_t no_of_pkg_mac;
 
-  std::queue<rclcpp::Time> release_blk_signal_;
-  std::queue<std::pair<uint8_t, rclcpp::Time>> income_box_signal_;
-  std::queue<std::pair<uint8_t, rclcpp::Time>> packaging_order_queue_;
+  std::queue<rclcpp::Time> release_blk_;
+  std::queue<std::pair<uint8_t, rclcpp::Time>> income_box_;
+  std::queue<std::pair<uint8_t, rclcpp::Time>> packaging_order_;
+  uint8_t last_pkg_mac_scan_1;
+  uint8_t last_pkg_mac_scan_2;
 
   // order_id, unique_id
   std::vector<std::pair<uint32_t, uint64_t>> curr_client_;
@@ -101,6 +109,8 @@ private:
   rclcpp::Service<PackagingOrderSrv>::SharedPtr service_;
   rclcpp::Service<Trigger>::SharedPtr release_blk_srv_;
   rclcpp::Service<UInt8Srv>::SharedPtr income_box_srv_;
+  rclcpp::Service<UInt8Srv>::SharedPtr con_box_srv_;
+  rclcpp::Service<Trigger>::SharedPtr manually_release_srv_;
 
   rclcpp::Subscription<PackagingMachineStatus>::SharedPtr status_sub_;
   rclcpp::Subscription<MotorStatus>::SharedPtr motor_status_sub_;
@@ -130,6 +140,8 @@ private:
   const std::string packaging_order_service_name = "packaging_order";
   const std::string release_blocking_service_name = "release_blocking";
   const std::string income_box_service_name = "income_material_box";
+  const std::string con_box_service_name = "container_material_box";
+  const std::string manually_release_service_name = "manually_release";
 
 protected:
   std::shared_ptr<rclcpp::Executor> executor_;

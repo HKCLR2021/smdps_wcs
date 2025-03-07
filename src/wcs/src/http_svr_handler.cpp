@@ -471,7 +471,50 @@ void ProdLineCtrl::scanner_handler(
     {
       con_mtrl_box_.push(mtrl_box_id); // how to simpify?
       RCLCPP_INFO(this->get_logger(), "Added a material box [%d] to queue", mtrl_box_id);
-    }   
+    }
+
+    std::thread srv_wait_thread = std::thread([this]() {
+      while (rclcpp::ok() && !con_mtrl_box_cli_->wait_for_service(std::chrono::seconds(1))) 
+      {
+        RCLCPP_ERROR(this->get_logger(), "container_material_box Service not available, waiting again...");
+      }
+    });
+  
+    std::shared_ptr<UInt8Srv::Request> srv_req = std::make_shared<UInt8Srv::Request>();
+    srv_req->data = mtrl_box_id;
+  
+    using ServiceResponseFuture = rclcpp::Client<UInt8Srv>::SharedFuture;
+    auto res_received_cb = [this](ServiceResponseFuture future) {
+      auto srv_res = future.get();
+      if (srv_res && srv_res->success)
+        RCLCPP_DEBUG(this->get_logger(), "Inside the container_material_box Callback OK");
+      else
+        RCLCPP_ERROR(this->get_logger(), "Inside the container_material_box Callback NOT OK. message: %s", srv_res->message.c_str());
+    };
+  
+    if (srv_wait_thread.joinable())
+      srv_wait_thread.join();
+  
+    auto future = con_mtrl_box_cli_->async_send_request(srv_req, res_received_cb);
+  
+    std::future_status status = future.wait_for(1s);
+    switch (status)
+    {
+    case std::future_status::ready:
+      break;
+    case std::future_status::timeout:
+      RCLCPP_ERROR(this->get_logger(), "container_material_box wait_for timeout");
+      res_json["msg"] = "timeout";
+      res.set_content(res_json.dump(), "application/json");
+      return;
+    case std::future_status::deferred: 
+      RCLCPP_ERROR(this->get_logger(), "container_material_box wait_for deferred");
+      res_json["msg"] = "deferred";
+      res.set_content(res_json.dump(), "application/json");
+      return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Sent a material box id to pkg mac 2");
   }
   else if (location == pkg_mac_loc)
   {
@@ -516,7 +559,7 @@ void ProdLineCtrl::scanner_handler(
       return;
     }
 
-    RCLCPP_INFO(this->get_logger(), "Added a material box id to income box queue");
+    RCLCPP_INFO(this->get_logger(), "Sent a material box id to pkg mac 1");
   }
 
   res_json["code"] = 200;

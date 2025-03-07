@@ -323,7 +323,7 @@ void PackagingMachineNode::init_printer_config()
   printer_->addDefaultConfig("SPEED", "1");
   printer_->addDefaultConfig("DENSITY", "15");
   printer_->addDefaultConfig("DIRECTION", "0, 0");
-  printer_->addDefaultConfig("REFERENCE", "-90, -120"); // FIXME
+  printer_->addDefaultConfig("REFERENCE", "-120, -180"); // FIXME
   printer_->addDefaultConfig("OFFSET", "0 mm");
   printer_->addDefaultConfig("SHIFT", "0");
   printer_->addDefaultConfig("SET", "TEAR OFF");
@@ -345,13 +345,14 @@ std::vector<std::string> PackagingMachineNode::get_print_label_cmd(PackageInfo m
     // std::string cn = "TEXT 240,180,\"3\",0,2,2,\"" + gbk_cn + "\"";
     std::string cn = "TEXT 240,180,\"4\",0,1,1,\"" + msg.cn_name + "\"";
     cmds.emplace_back(cn);
-    std::string en = "TEXT 600,186,\"4\",0,1,1,\"" + msg.en_name + "\"";
+    std::string en = "TEXT 600,180,\"4\",0,1,1,\"" + msg.en_name + "\"";
     cmds.emplace_back(en);
     std::string d = "TEXT 240,270,\"4\",0,1,1,\"" + msg.date + "\"";
     cmds.emplace_back(d);
-    std::string t = "TEXT 240,334,\"4\",0,1,1,\"" + msg.time + "\"";
+    std::string t = "TEXT 240,330,\"4\",0,1,1,\"" + msg.time + "\"";
     cmds.emplace_back(t);
-    cmds.emplace_back("QRCODE 684,252,L,4,A,0,\"" + msg.qr_code + "\"");
+    std::string q = "QRCODE 684,252,L,4,A,0,\"" + msg.qr_code + "\"";
+    cmds.emplace_back(q);
     for (size_t index = 0; index < msg.drugs.size(); index++) 
     {
       std::string utf_md = msg.drugs[index];

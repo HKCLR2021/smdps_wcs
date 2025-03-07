@@ -23,9 +23,10 @@
 #define MOTOR_DISABLE 0
 
 #define PKG_DIS_RADIUS        18   // in mm unit
+#define PKG_DIS_UNFEED_LEN    3    // in mm unit
 #define PKG_DIS_FEED_DIR      1
-#define PKG_DIS_UNFEED_DIR    0    // should not be used
-#define PKG_DIS_MARGIN_FACTOR 1.065
+#define PKG_DIS_UNFEED_DIR    0 
+#define PKG_DIS_MARGIN_FACTOR 1.08
 
 #define PILL_GATE_RADIUS              10   // in mm unit
 #define PILL_GATE_WIDTH               44   // in mm unit

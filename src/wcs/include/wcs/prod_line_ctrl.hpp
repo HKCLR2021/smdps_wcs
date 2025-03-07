@@ -123,6 +123,7 @@ private:
   rclcpp::Client<PackagingOrder>::SharedPtr pkg_order_cli_;
   rclcpp::Client<Trigger>::SharedPtr container_ready_cli_;
   rclcpp::Client<UInt8Srv>::SharedPtr income_mtrl_box_cli_;
+  rclcpp::Client<UInt8Srv>::SharedPtr con_mtrl_box_cli_;
   std::map<uint8_t, rclcpp::Client<Trigger>::SharedPtr> init_pkg_mac_cli_;
   std::map<uint8_t, rclcpp::Client<DispenseDrug>::SharedPtr> dis_req_cli_;
 
