@@ -9,17 +9,20 @@
 
 class PackagingOrderClient : public rclcpp::Node {
 public:
-	PackagingOrderClient() : Node("package_order_client") {
+	PackagingOrderClient() : Node("package_order_client") 
+  {
     client_ = this->create_client<smdps_msgs::srv::PackagingOrder>("packaging_order");
 	}
 
-	void send_request() {
+	void send_request() 
+  {
 		auto request = std::make_shared<smdps_msgs::srv::PackagingOrder::Request>();
 		request->order_id = 1234; 
 		request->material_box_id = 5678;
 		request->requester_id = 90;
 
-		for (size_t i = 0; i < CELLS; ++i) {
+		for (size_t i = 0; i < CELLS; ++i) 
+    {
 			// if (i % 4 == 0){
 			// 	request->print_info[i].cn_name = "CN Name " + std::to_string(i + 1);
 			// 	request->print_info[i].en_name = "EN Name " + std::to_string(i + 1);
@@ -30,7 +33,8 @@ public:
 			//  || i == 1 || i == 2 || i == 3 || 
           	// 	i == 24 || i == 25  || i == 26  || i == 27
 			if (i == 0 || i == 3 || i ==10 ||
-				i == 14 || i == 16 || i == 27){
+				  i == 14 || i == 16 || i == 27)
+      {
 				request->print_info[i].cn_name = "CN Name " + std::to_string(i + 1);
 				request->print_info[i].en_name = "EN Name " + std::to_string(i + 1);
 				request->print_info[i].date = "2023-11-27";
@@ -51,10 +55,12 @@ public:
 		}
 
 		auto result_future = client_->async_send_request(request);
-		if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result_future) ==
-			rclcpp::FutureReturnCode::SUCCESS) {
+		if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), result_future) == rclcpp::FutureReturnCode::SUCCESS) 
+    {
 			RCLCPP_INFO(this->get_logger(), "Response: %s", result_future.get()->message.c_str());
-		} else {
+		} 
+    else 
+    {
 			RCLCPP_ERROR(this->get_logger(), "Failed to call service");
 		}
 	}

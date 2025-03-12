@@ -143,6 +143,7 @@ private:
 
   bool sim_;
   bool skip_pkg_;
+  bool enable_heater_;
   std::shared_ptr<PackagingMachineStatus> status_;
   std::shared_ptr<MotorStatus> motor_status_;
   std::shared_ptr<PackagingMachineInfo> info_;
@@ -177,6 +178,7 @@ private:
   rclcpp::Service<Trigger>::SharedPtr print_one_pkg_service_;
   rclcpp::Service<SetBool>::SharedPtr state_ctrl_service_;
   rclcpp::Service<SetBool>::SharedPtr skip_pkg_service_;
+  rclcpp::Service<SetBool>::SharedPtr enable_heater_service_;
 
   rclcpp::Client<CORead>::SharedPtr co_read_client_;
   rclcpp::Client<COWrite>::SharedPtr co_write_client_;
@@ -224,6 +226,9 @@ private:
     const std::shared_ptr<SetBool::Request> request, 
     std::shared_ptr<SetBool::Response> response);
   void skip_pkg_ctrl_handle(
+    const std::shared_ptr<SetBool::Request> request, 
+    std::shared_ptr<SetBool::Response> response);
+  void enable_heater_handle(
     const std::shared_ptr<SetBool::Request> request, 
     std::shared_ptr<SetBool::Response> response);
 

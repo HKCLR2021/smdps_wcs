@@ -68,6 +68,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   }
 
   srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  ree_srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
   opcua_heartbeat_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::heartbeat_valid_cb, this));
 
   bin_req_srv_ = this->create_service<UnitRequest>(
@@ -98,7 +99,13 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
     "reset_request", 
     std::bind(&DispenserStationNode::reset_handle, this, _1, _2),
     rmw_qos_profile_services_default,
-    srv_ser_cbg_);
+    ree_srv_ser_cbg_);
+
+  init_srv_ = this->create_service<Trigger>(
+    "init_request", 
+    std::bind(&DispenserStationNode::init_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    ree_srv_ser_cbg_);
 
   cli_thread_ = std::thread(std::bind(&DispenserStationNode::start_opcua_cli, this)); 
   wait_for_opcua_connection(200ms);
@@ -362,6 +369,15 @@ void DispenserStationNode::reset_handle(
 {
   (void)req;
   std::thread{std::bind(&DispenserStationNode::reset, this)}.detach();
+  res->success = true;
+}
+
+void DispenserStationNode::init_handle(
+  const std::shared_ptr<Trigger::Request> req, 
+  std::shared_ptr<Trigger::Response> res)
+{
+  (void)req;
+  std::thread{std::bind(&DispenserStationNode::initiate, this)}.detach();
   res->success = true;
 }
 

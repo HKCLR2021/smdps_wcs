@@ -17,6 +17,7 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   this->get_parameter("simulation", sim_);
 
   skip_pkg_ = false;
+  enable_heater_ = true;
 
   std::vector<long int> default_states = this->get_parameter("default_states").as_integer_array();
   status_->packaging_machine_state = default_states[status_->packaging_machine_id - 1];
@@ -166,12 +167,18 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
 
-    skip_pkg_service_ = this->create_service<SetBool>(
+  skip_pkg_service_ = this->create_service<SetBool>(
     "skip_packaging_control", 
     std::bind(&PackagingMachineNode::skip_pkg_ctrl_handle, this, _1, _2),
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
 
+  enable_heater_service_ = this->create_service<SetBool>(
+    "enable_heater", 
+    std::bind(&PackagingMachineNode::enable_heater_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+  
   this->action_server_ = rclcpp_action::create_server<PackagingOrder>(
     this,
     "packaging_order",
@@ -192,6 +199,12 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   }
 }
 
+// PackagingMachineNode::~DispenserStationNode()
+// {
+//   ctrl_heater(0);
+//   ctrl_conveyor(0, 0, CONVEYOR_FWD, MOTOR_DISABLE);
+// }
+
 void PackagingMachineNode::pub_status_cb(void)
 {
   status_->header.stamp = this->get_clock()->now();
@@ -202,7 +215,7 @@ void PackagingMachineNode::pub_status_cb(void)
 
 void PackagingMachineNode::heater_cb(void)
 {
-  if (info_->temperature < MIN_TEMP)
+  if (enable_heater_ && info_->temperature < MIN_TEMP)
   {
     RCLCPP_INFO(this->get_logger(), "Current heater temperature: %d", info_->temperature);
     ctrl_heater(HEATER_ON);
@@ -330,7 +343,7 @@ void PackagingMachineNode::init_handle(
   }
 
   std::thread{std::bind(&PackagingMachineNode::init_packaging_machine, this)}.detach();
-  // init_packaging_machine();
+  
   response->success = true;
 }
 
@@ -351,13 +364,6 @@ void PackagingMachineNode::stopper_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  // if (status_->conveyor_state == PackagingMachineStatus::UNAVAILABLE)
-  // {
-  //   response->success = false;
-  //   response->message = "Conveyor is unavilable";
-  //   return;
-  // }
-
   if (request->data)
   {
     if (info_->stopper == STOPPER_SUNK_STATE)
@@ -392,13 +398,6 @@ void PackagingMachineNode::mtrl_box_gate_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  // if (status_->conveyor_state == PackagingMachineStatus::UNAVAILABLE)
-  // {
-  //   response->success = false;
-  //   response->message = "Conveyor is unavilable";
-  //   return;
-  // }
-
   if (request->data)
   {
     if (info_->material_box_gate == MTRL_BOX_GATE_OPEN_STATE)
@@ -433,13 +432,6 @@ void PackagingMachineNode::conveyor_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  // if (status_->conveyor_state == PackagingMachineStatus::UNAVAILABLE)
-  // {
-  //   response->success = false;
-  //   response->message = "Conveyor is unavilable";
-  //   return;
-  // }
-
   if (request->data)
   {
     if (motor_status_->con_state != MotorStatus::IDLE)
@@ -559,8 +551,17 @@ void PackagingMachineNode::print_one_pkg_handle(
   RCLCPP_INFO(this->get_logger(), "printer initialized");
   init_printer_config();
 
-  PackageInfo _msg;
-  std::vector<std::string> cmd = get_print_label_cmd(_msg);
+  PackageInfo msg;
+  msg.cn_name = "cn_name";
+  msg.en_name = "en_name";
+  msg.date = "2024-11-30";
+  msg.time = "17:00";
+  msg.qr_code = "www.hkclr.hk";
+  msg.drugs.push_back("DRUG 1");
+  msg.drugs.push_back("DRUG 2");
+  msg.drugs.push_back("DRUG 3");
+  auto cmd = get_print_label_cmd(msg);
+  
   printer_->runTask(cmd);
   RCLCPP_INFO(this->get_logger(), "printed a empty package");
   response->success = true;
@@ -605,6 +606,18 @@ void PackagingMachineNode::skip_pkg_ctrl_handle(
 {
   const std::lock_guard<std::mutex> lock(mutex_);
   skip_pkg_ = request->data;
+  response->success = true;
+}
+
+// This service is designed for testing only
+// It should not be used in normal case
+void PackagingMachineNode::enable_heater_handle(
+  const std::shared_ptr<SetBool::Request> request, 
+  std::shared_ptr<SetBool::Response> response)
+{
+  const std::lock_guard<std::mutex> lock(mutex_);
+  ctrl_heater(HEATER_OFF);
+  enable_heater_ = request->data;
   response->success = true;
 }
 

@@ -20,7 +20,7 @@ bool DispenserStationNode::init_opcua_cli(void)
 void DispenserStationNode::start_opcua_cli(void)
 {
   cli_started_.store(true);
-  std::chrono::seconds sleep_time = 1s;
+  const std::chrono::seconds sleep_time = 1s;
 
   while (cli_started_.load() && rclcpp::ok()) 
   {
@@ -255,16 +255,16 @@ void DispenserStationNode::sub_deleted_cb(uint32_t sub_id)
 
 void DispenserStationNode::monitored_item_deleted_cb(uint32_t sub_id, uint32_t mon_id, std::string name)
 {
-  RCLCPP_INFO(this->get_logger(), ">>>> %s Monitored Item deleted:", name.c_str());
-  RCLCPP_INFO(this->get_logger(), ">>>> - subscription id: %d", sub_id);
-  RCLCPP_INFO(this->get_logger(), ">>>> - monitored item id: %d", mon_id);
+  RCLCPP_INFO(this->get_logger(), "%s Monitored Item deleted:", name.c_str());
+  RCLCPP_INFO(this->get_logger(), "- subscription id: %d", sub_id);
+  RCLCPP_INFO(this->get_logger(), "- monitored item id: %d", mon_id);
 }
 
 void DispenserStationNode::monitored_item_created_cb(opcua::MonitoredItemCreateResult& result, std::string name)
 {
-  RCLCPP_DEBUG(this->get_logger(), ">>>> %s Monitored Item created:", name.c_str());
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - status code: %s", std::to_string(result.statusCode()).c_str());
-  RCLCPP_DEBUG(this->get_logger(), ">>>> - monitored item id: %s", std::to_string(result.monitoredItemId()).c_str());
+  RCLCPP_DEBUG(this->get_logger(), "%s Monitored Item created:", name.c_str());
+  RCLCPP_DEBUG(this->get_logger(), "- status code: %s", std::to_string(result.statusCode()).c_str());
+  RCLCPP_DEBUG(this->get_logger(), "- monitored item id: %s", std::to_string(result.monitoredItemId()).c_str());
 }
 
 void DispenserStationNode::disconnected_cb(void)

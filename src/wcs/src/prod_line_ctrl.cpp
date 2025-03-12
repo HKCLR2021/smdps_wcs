@@ -142,6 +142,7 @@ ProdLineCtrl::~ProdLineCtrl()
     httpsvr_->wait_until_ready();
     httpsvr_->stop();
   }
+
   if (httpsvr_thread_.joinable()) 
   {
     httpsvr_thread_.join();
@@ -407,6 +408,7 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
 
         _drug["locations"].push_back(location);
       }
+
       RCLCPP_INFO(this->get_logger(), "a drug is added to a cell");
       _cell["drugs"].push_back(_drug);
     }
@@ -414,6 +416,7 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
     req_json_temp["cells"].push_back(_cell);
     RCLCPP_INFO(this->get_logger(), "a cell is added to req_json_temp, i: %ld", i);
   }
+
   RCLCPP_INFO(this->get_logger(), "req_json_temp:");
   RCLCPP_INFO(this->get_logger(), "\n%s", req_json_temp.dump().c_str());
 
@@ -431,6 +434,7 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
 
   running = true;
   goal_handle->publish_feedback(feedback);
+
   RCLCPP_INFO(this->get_logger(), "A new order json is created. Set running to %s", running ? "true" : "false");
   RCLCPP_INFO(this->get_logger(), "req_json:");
   RCLCPP_INFO(this->get_logger(), "\n%s", req_json.dump().c_str());
@@ -488,7 +492,7 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
   }
 }
 
-int main(int argc, char * argv[])
+int main(int argc, char *argv[])
 {
   rclcpp::init(argc, argv);
 

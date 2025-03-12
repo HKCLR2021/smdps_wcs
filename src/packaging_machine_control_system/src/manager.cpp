@@ -233,7 +233,7 @@ void PackagingMachineManager::release_blocking_cb(void)
 
 void PackagingMachineManager::queue_handler_cb(void)
 {
-  const double TIME_GAP_THRESHOLD = 2.0;
+  const double TIME_GAP_THRESHOLD = 1.5;
   const std::lock_guard<std::mutex> lock(mutex_);
 
   rclcpp::Time curr_time = this->get_clock()->now();
@@ -556,6 +556,17 @@ void PackagingMachineManager::packaging_order_handle(
   p_time.name = "time";
   p_time.value = p_time_v;
 
+  rcl_interfaces::msg::ParameterValue p_qr_code_v;
+  p_qr_code_v.type = rcl_interfaces::msg::ParameterType::PARAMETER_STRING_ARRAY;
+  p_qr_code_v.string_array_value.resize(CELLS);
+  for (size_t i = 0; i < CELLS; i++)
+  {
+    p_qr_code_v.string_array_value[i] = request->print_info[i].qr_code;
+  }
+  rcl_interfaces::msg::Parameter p_qr_code;
+  p_qr_code.name = "qr_code";
+  p_qr_code.value = p_qr_code_v;
+
   rcl_interfaces::msg::ParameterValue p_drugs_v;
   p_drugs_v.type = rcl_interfaces::msg::ParameterType::PARAMETER_STRING_ARRAY;
   p_drugs_v.string_array_value.resize(CELLS);
@@ -584,6 +595,7 @@ void PackagingMachineManager::packaging_order_handle(
   load_node_srv_request->parameters.push_back(p_en_name);
   load_node_srv_request->parameters.push_back(p_date);
   load_node_srv_request->parameters.push_back(p_time);
+  load_node_srv_request->parameters.push_back(p_qr_code);
   load_node_srv_request->parameters.push_back(p_drugs);
 
   using ServiceResponseFuture = rclcpp::Client<LoadNode>::SharedFuture;
@@ -691,6 +703,7 @@ void PackagingMachineManager::manually_release_handle(
   const std::shared_ptr<Trigger::Request> request, 
   std::shared_ptr<Trigger::Response> response)
 {
+  (void)request;
   response->success = true;
   RCLCPP_INFO(this->get_logger(), "Handle a manually release material box service"); 
 

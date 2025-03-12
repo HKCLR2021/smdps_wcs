@@ -128,7 +128,10 @@ public:
   void reset_handle(
     const std::shared_ptr<Trigger::Request> req, 
     std::shared_ptr<Trigger::Response> res);
-    
+  void init_handle(
+    const std::shared_ptr<Trigger::Request> req, 
+    std::shared_ptr<Trigger::Response> res);    
+
 private:
   std::mutex mutex_;
   CallbackSignal com_signal;
@@ -140,6 +143,7 @@ private:
   std::string port_;
 
   rclcpp::CallbackGroup::SharedPtr srv_ser_cbg_;
+  rclcpp::CallbackGroup::SharedPtr ree_srv_ser_cbg_;
 
   uint32_t heartbeat_counter_ = 0;
   const uint32_t OPCUA_TIMEOUT = 5000; // 5000ms
@@ -160,6 +164,7 @@ private:
   rclcpp::Service<Trigger>::SharedPtr init_bin_srv_;
   rclcpp::Service<Trigger>::SharedPtr init_baffle_srv_;
   rclcpp::Service<Trigger>::SharedPtr reset_srv_;
+  rclcpp::Service<Trigger>::SharedPtr init_srv_;
 
 protected:
   bool sim_;
