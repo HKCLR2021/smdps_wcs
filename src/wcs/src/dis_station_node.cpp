@@ -168,7 +168,6 @@ void DispenserStationNode::dis_req_handle(
       continue;
     }
 
-    // FIXME!!!!!!!!!!!!!!!!!!!!!!!
     // if (!status_->unit_status[i].enable)
     //   continue;
 
@@ -176,9 +175,9 @@ void DispenserStationNode::dis_req_handle(
       continue;
 
     opcua::Variant amt_var;
-    amt_var = std::max(static_cast<int16_t>(req->content[i].amount), static_cast<int16_t>(0));
-
-    target_amt += req->content[i].amount;
+    const int16_t tmp = std::max(static_cast<int16_t>(req->content[i].amount), static_cast<int16_t>(0));
+    amt_var = tmp;
+    target_amt += tmp;
 
     std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, unit_amt_id[req->content[i].unit_id], amt_var, opcua::useFuture);
     futures.push_back(std::move(future));
@@ -276,6 +275,7 @@ void DispenserStationNode::dis_req_handle(
   RCLCPP_INFO(this->get_logger(), "Verifing the amount of request and target amount");
 
   res->success = true;
+  
   std::thread(std::bind(&DispenserStationNode::clear_cmd_req, this)).detach();
   std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
   RCLCPP_INFO(this->get_logger(), "Dispenser operation completed, proceeding...");
@@ -285,34 +285,6 @@ void DispenserStationNode::unit_req_handle(
   const std::shared_ptr<UnitRequest::Request> req, 
   std::shared_ptr<UnitRequest::Response> res)
 {
-  // auto valid_action = [&](const std::shared_ptr<UnitRequest::Request> req, const DispenserUnitStatus &unit_status) {
-  //   switch (req->type) {
-  //   case UnitType::BIN:
-  //     return (unit_status.bin_opened && req->data == false) || 
-  //            (unit_status.bin_closed && req->data == true);
-  //   case UnitType::BAFFLE:
-  //     return (unit_status.baffle_opened && req->data == false) || 
-  //            (unit_status.baffle_closed && req->data == true);
-  //   default:
-  //     return false;
-  //   }
-  // };
-
-  // bool action_criteria_satisfied = false;
-  // std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
-
-  // lock.lock();
-  // const uint8_t id_index = req->unit_id - 1;
-  // const auto &unit_status = status_->unit_status[id_index];
-  // action_criteria_satisfied = valid_action(req, unit_status);
-  // lock.unlock();
-
-  // if (!action_criteria_satisfied)
-  // {
-  //   res->success = false;
-  //   res->message = "The target is either opening, closing, opened, or closed";
-  //   return;
-  // }
   bool success;
 
   switch (req->type)

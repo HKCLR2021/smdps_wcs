@@ -351,7 +351,7 @@ std::vector<std::string> PackagingMachineNode::get_print_label_cmd(PackageInfo m
     cmds.emplace_back(d);
     std::string t = "TEXT 300,550,\"4\",270,1,1,\"" + msg.time + "\"";
     cmds.emplace_back(t);
-    std::string q = "QRCODE 250,150,L,6,A,270,\"" + msg.qr_code + "\"";
+    std::string q = "QRCODE 250,125,L,6,A,270,\"" + msg.qr_code + "\"";
     cmds.emplace_back(q);
     for (size_t index = 0; index < msg.drugs.size(); index++) 
     {
