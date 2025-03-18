@@ -34,7 +34,7 @@ prod_line_ctrl:
     ip: 192.168.8.104
     port: "4840"
     simulation: False
-    enable: True            #1     #2     #3    #4    #5    #6     #7     #8    #9     #10    #11    #12
+    enable: False           #1     #2     #3    #4    #5    #6     #7     #8    #9     #10    #11    #12
     dispenser_unit_enable: [False, False, True, True, True, False, False, True, False, False, False, False]
 
 /dispenser_station_5/dis_sta_node:
@@ -58,7 +58,7 @@ prod_line_ctrl:
     ip: 192.168.8.107
     port: "4840"
     simulation: False
-    enable: True            #1    #2    #3    #4    #5    #6    #7    #8    #9    #10   #11   #12
+    enable: False            #1    #2    #3    #4    #5    #6    #7    #8    #9    #10   #11   #12
     dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
 
 /dispenser_station_8/dis_sta_node:

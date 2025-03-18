@@ -111,6 +111,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   wait_for_opcua_connection(200ms);
 
   initiate();
+  std::this_thread::sleep_for(500ms);
   reset();
 
   RCLCPP_INFO(this->get_logger(), "OPCUA Server: %s", form_opcua_url().c_str());
@@ -277,6 +278,7 @@ void DispenserStationNode::dis_req_handle(
   res->success = true;
   
   std::thread(std::bind(&DispenserStationNode::clear_cmd_req, this)).detach();
+  std::this_thread::sleep_for(500ms);
   std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
   RCLCPP_INFO(this->get_logger(), "Dispenser operation completed, proceeding...");
 }

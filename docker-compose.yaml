@@ -159,19 +159,19 @@ services:
     ipc: host
     pid: host
 
-  ros_bridge:
-    build:
-      context: .
-      target: pkg_mac_sys
-    container_name: pkg_mac_bridge
-    hostname: pkg_mac_bridge
-    depends_on:
-      ros2_canopen:
-        condition: service_completed_successfully
-    command: ["sh", "-c", "ros2 launch rosbridge_server rosbridge_websocket_launch.xml"]
-    volumes:
-      - ./logs:/logs
-    restart: no
-    network_mode: host
-    ipc: host
-    pid: host
+  # ros_bridge:
+  #   build:
+  #     context: .
+  #     target: pkg_mac_sys
+  #   container_name: pkg_mac_bridge
+  #   hostname: pkg_mac_bridge
+  #   depends_on:
+  #     ros2_canopen:
+  #       condition: service_completed_successfully
+  #   command: ["sh", "-c", "ros2 launch rosbridge_server rosbridge_websocket_launch.xml"]
+  #   volumes:
+  #     - ./logs:/logs
+  #   restart: no
+  #   network_mode: host
+  #   ipc: host
+  #   pid: host

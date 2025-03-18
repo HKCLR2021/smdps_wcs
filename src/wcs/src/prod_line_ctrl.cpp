@@ -384,7 +384,9 @@ void ProdLineCtrl::order_execute(const std::shared_ptr<GaolHandlerNewOrder> goal
   auto feedback = std::make_shared<NewOrder::Feedback>();
   auto &running = feedback->running;
   auto result = std::make_shared<NewOrder::Result>();
-  RCLCPP_INFO(this->get_logger(), "Executing goal");
+
+  auto order_id = goal->request.order_id;
+  RCLCPP_INFO(this->get_logger(), "Executing goal for order id: %ld", order_id);
   
   nlohmann::json req_json, res_json;
   nlohmann::json req_json_temp;

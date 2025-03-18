@@ -8,7 +8,7 @@ void DispenserStationNode::initiate(void)
     return;
   }
 
-  std::this_thread::sleep_for(100ms);
+  std::this_thread::sleep_for(250ms);
 
   // wait forever until triggered
   if (rclcpp::ok())
@@ -21,7 +21,7 @@ void DispenserStationNode::initiate(void)
     init_signal.is_triggered_ = false;
   }
 
-  std::this_thread::sleep_for(100ms);
+  std::this_thread::sleep_for(250ms);
 
   if (!write_opcua_value(initiate_id, false)) 
   {
@@ -49,7 +49,7 @@ void DispenserStationNode::reset(void)
     return;
   }
 
-  std::this_thread::sleep_for(100ms);
+  std::this_thread::sleep_for(250ms);
 
   // wait forever until triggered
   if (rclcpp::ok())
@@ -62,7 +62,7 @@ void DispenserStationNode::reset(void)
     reset_signal.is_triggered_ = false;
   }
 
-  std::this_thread::sleep_for(100ms);
+  std::this_thread::sleep_for(250ms);
 
   if (!write_opcua_value(reset_id, false))
   {
@@ -166,7 +166,7 @@ void DispenserStationNode::clear_req(const opcua::NodeId req_node_id, const opcu
     loop_rate.sleep();
   }
 
-  std::this_thread::sleep_for(100ms);
+  std::this_thread::sleep_for(250ms);
 
   if (!write_opcua_value(req_node_id, false))
   {
