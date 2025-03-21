@@ -275,12 +275,14 @@ void DispenserStationNode::dis_req_handle(
 
   RCLCPP_INFO(this->get_logger(), "Verifing the amount of request and target amount");
 
-  res->success = true;
-  
   std::thread(std::bind(&DispenserStationNode::clear_cmd_req, this)).detach();
   std::this_thread::sleep_for(500ms);
   std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
   RCLCPP_INFO(this->get_logger(), "Dispenser operation completed, proceeding...");
+  
+  res->success = true;
+  std::this_thread::sleep_for(1s);
+  return;
 }
 
 void DispenserStationNode::unit_req_handle(
