@@ -215,11 +215,11 @@ void PackagingMachineNode::pub_status_cb(void)
 
 void PackagingMachineNode::heater_cb(void)
 {
-  // if (enable_heater_ && info_->temperature < MIN_TEMP)
-  // {
-  //   RCLCPP_INFO(this->get_logger(), "Current heater temperature: %d", info_->temperature);
-  //   ctrl_heater(HEATER_ON);
-  // }
+  if (enable_heater_ && info_->temperature < MIN_TEMP)
+  {
+    RCLCPP_INFO(this->get_logger(), "Current heater temperature: %d", info_->temperature);
+    ctrl_heater(HEATER_ON);
+  }
 }
 
 void PackagingMachineNode::con_state_cb(void)
