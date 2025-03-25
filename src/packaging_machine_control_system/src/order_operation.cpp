@@ -294,20 +294,30 @@ void PackagingMachineNode::init_packaging_machine(void)
 
 void PackagingMachineNode::skip_order_execute(const std::shared_ptr<GaolHandlerPackagingOrder> goal_handle)
 {
-  RCLCPP_INFO(this->get_logger(), "Executing goal");
+  RCLCPP_INFO(this->get_logger(), "Executing goal w/ skip operation");
   
   const auto goal = goal_handle->get_goal();
   auto feedback = std::make_shared<PackagingOrder::Feedback>();
   auto& curr_order_status = feedback->curr_order_status;
+  auto& are_drugs_fallen = feedback->are_drugs_fallen;
   auto result = std::make_shared<PackagingOrder::Result>();
 
+  std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
+
+  are_drugs_fallen = true;
+  RCLCPP_INFO(this->get_logger(), "Set are_drugs_fallen to True");
   goal_handle->publish_feedback(feedback);
+
+  lock.lock();
+  status_->waiting_material_box = false;
+  lock.unlock();
 
   UnbindRequest msg;
   msg.packaging_machine_id = status_->packaging_machine_id;
   msg.order_id = goal->order_id;
   msg.material_box_id = goal->material_box_id;
   unbind_mtrl_box_publisher_->publish(msg);
+  RCLCPP_INFO(this->get_logger(), "Published an unbind material box id request");
 
   if (rclcpp::ok()) 
   {
