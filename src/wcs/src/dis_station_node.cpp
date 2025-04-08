@@ -280,8 +280,9 @@ void DispenserStationNode::dis_req_handle(
   std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
   RCLCPP_INFO(this->get_logger(), "Dispenser operation completed, proceeding...");
   
-  res->success = true;
   std::this_thread::sleep_for(1s);
+  
+  res->success = true;
   return;
 }
 
