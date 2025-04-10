@@ -129,12 +129,12 @@ PackagingMachineManager::PackagingMachineManager(
   last_pkg_mac_scan_2 = 0;
 
   release_blocking_timer_ = this->create_wall_timer(
-    500ms, 
+    100ms, 
     std::bind(&PackagingMachineManager::release_blocking_cb, this),
     timer_cbg_);
 
   queue_handler_timer_ = this->create_wall_timer(
-    500ms, 
+    200ms, 
     std::bind(&PackagingMachineManager::queue_handler_cb, this),
     timer_cbg_);
 
@@ -200,7 +200,7 @@ void PackagingMachineManager::release_blocking_cb(void)
   bool success = true;
   for (const auto &future : futures)
   {
-    std::future_status status = future.wait_for(500ms);
+    std::future_status status = future.wait_for(100ms);
     switch (status)
     {
     case std::future_status::ready:
