@@ -28,6 +28,8 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   }
   
   status_pub_ = this->create_publisher<DispenserStationStatus>("/dispenser_station_status", 10);
+  dis_result_pub_ = this->create_publisher<DispenseResult>("/dispense_result", 10);
+  
   status_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::dis_station_status_cb, this));
 
   dis_req_srv_ = this->create_service<DispenseDrug>(
@@ -283,6 +285,13 @@ void DispenserStationNode::dis_req_handle(
   std::this_thread::sleep_for(1s);
   
   res->success = true;
+
+  DispenseResult msg;
+  msg.id = status_->id;
+  msg.success = true;
+  dis_result_pub_->publish(msg);
+  RCLCPP_INFO(this->get_logger(), "Dispense result published");
+
   return;
 }
 

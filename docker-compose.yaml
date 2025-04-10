@@ -160,9 +160,7 @@ services:
     pid: host
 
   ros_bridge:
-    build:
-      context: .
-      target: pkg_mac_sys
+    image: pkg_mac_sys:latest
     container_name: pkg_mac_bridge
     hostname: pkg_mac_bridge
     depends_on:

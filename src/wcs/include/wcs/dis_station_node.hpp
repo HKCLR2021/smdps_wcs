@@ -14,6 +14,7 @@
 #include "std_srvs/srv/trigger.hpp"
 
 #include "smdps_msgs/msg/dispense_content.hpp"
+#include "smdps_msgs/msg/dispense_result.hpp"
 #include "smdps_msgs/msg/dispenser_station_status.hpp"
 #include "smdps_msgs/msg/dispenser_unit_status.hpp"
 #include "smdps_msgs/msg/unit_type.hpp"
@@ -48,6 +49,7 @@ class DispenserStationNode : public rclcpp::Node
   using Trigger = std_srvs::srv::Trigger;
 
   using DispenseContent = smdps_msgs::msg::DispenseContent;
+  using DispenseResult = smdps_msgs::msg::DispenseResult;
   using DispenserStationStatus = smdps_msgs::msg::DispenserStationStatus;
   using DispenserUnitStatus = smdps_msgs::msg::DispenserUnitStatus;
   using DispenseDrug = smdps_msgs::srv::DispenseDrug;
@@ -154,6 +156,7 @@ private:
   rclcpp::TimerBase::SharedPtr opcua_heartbeat_timer_;
   rclcpp::TimerBase::SharedPtr units_lack_timer_;
   rclcpp::Publisher<DispenserStationStatus>::SharedPtr status_pub_;
+  rclcpp::Publisher<DispenseResult>::SharedPtr dis_result_pub_;
 
   rclcpp::Subscription<DispenseContent>::SharedPtr dis_ctx_sub_;
 

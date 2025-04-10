@@ -129,7 +129,7 @@ PackagingMachineManager::PackagingMachineManager(
   last_pkg_mac_scan_2 = 0;
 
   release_blocking_timer_ = this->create_wall_timer(
-    1s, 
+    500ms, 
     std::bind(&PackagingMachineManager::release_blocking_cb, this),
     timer_cbg_);
 
@@ -233,7 +233,7 @@ void PackagingMachineManager::release_blocking_cb(void)
 
 void PackagingMachineManager::queue_handler_cb(void)
 {
-  const double TIME_GAP_THRESHOLD = 1.5;
+  const double TIME_GAP_THRESHOLD = 1.0;
   const std::lock_guard<std::mutex> lock(mutex_);
 
   rclcpp::Time curr_time = this->get_clock()->now();
