@@ -144,6 +144,7 @@ private:
   std::string ip_;
   std::string port_;
 
+  rclcpp::CallbackGroup::SharedPtr status_cbg_;
   rclcpp::CallbackGroup::SharedPtr srv_ser_cbg_;
   rclcpp::CallbackGroup::SharedPtr ree_srv_ser_cbg_;
 

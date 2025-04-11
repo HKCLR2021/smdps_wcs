@@ -129,14 +129,19 @@ PackagingMachineManager::PackagingMachineManager(
   last_pkg_mac_scan_2 = 0;
 
   release_blocking_timer_ = this->create_wall_timer(
-    100ms, 
+    250ms, 
     std::bind(&PackagingMachineManager::release_blocking_cb, this),
     timer_cbg_);
 
   queue_handler_timer_ = this->create_wall_timer(
-    200ms, 
+    250ms, 
     std::bind(&PackagingMachineManager::queue_handler_cb, this),
     timer_cbg_);
+  
+  // second_machine_blocking_timer_ = this->create_wall_timer(
+  //   1s, 
+  //   std::bind(&PackagingMachineManager::second_machine_blocking_handler_cb, this),
+  //   timer_cbg_);
 
   RCLCPP_INFO(this->get_logger(), "Packaging Machine Manager is up.");
   RCLCPP_INFO(this->get_logger(), "Total: %ld Packaging Machines are monitored", no_of_pkg_mac);
@@ -157,7 +162,7 @@ void PackagingMachineManager::release_blocking_cb(void)
 
   if (iter == pkg_mac_status_.rend())
   {
-    RCLCPP_INFO(this->get_logger(), "The conveyor of packaging machines are available and not waiting the material box");
+    RCLCPP_INFO(this->get_logger(), "The conveyor of packaging machines are available and not waiting the material box, wait for next callback");
     // This operation is used for storing material box to container
     // if (income_box_.empty())
     // {
@@ -200,7 +205,7 @@ void PackagingMachineManager::release_blocking_cb(void)
   bool success = true;
   for (const auto &future : futures)
   {
-    std::future_status status = future.wait_for(100ms);
+    std::future_status status = future.wait_for(500ms);
     switch (status)
     {
     case std::future_status::ready:
@@ -233,7 +238,7 @@ void PackagingMachineManager::release_blocking_cb(void)
 
 void PackagingMachineManager::queue_handler_cb(void)
 {
-  const double TIME_GAP_THRESHOLD = 1.0;
+  const double TIME_GAP_THRESHOLD = 0.5;
   const std::lock_guard<std::mutex> lock(mutex_);
 
   rclcpp::Time curr_time = this->get_clock()->now();
@@ -255,8 +260,7 @@ void PackagingMachineManager::queue_handler_cb(void)
     else
     {
       RCLCPP_WARN(this->get_logger(), "Large time gap detected: %.2f seconds", time_gap);
-      RCLCPP_ERROR(this->get_logger(), "Error occur to determine the action of queues");
-      packaging_order_.pop(); // FIXME: are this case is possible?
+      packaging_order_.pop();
     }
     return;
   }
@@ -266,6 +270,7 @@ void PackagingMachineManager::queue_handler_cb(void)
   {
     rclcpp::Duration time_diff = curr_time - income_box_.front().second;
     const double time_gap = time_diff.seconds();
+
     if (time_gap < TIME_GAP_THRESHOLD)
     {  
       RCLCPP_INFO(this->get_logger(), "The packaging order maybe delayed. Try to handle in next callback."); 
@@ -273,15 +278,15 @@ void PackagingMachineManager::queue_handler_cb(void)
     }
   }
 
-  if (income_box_.front().first == packaging_order_.front().first)
-  {
-    RCLCPP_INFO(this->get_logger(), "The income material box is handled by packaging order service");
-    income_box_.pop();
-    RCLCPP_INFO(this->get_logger(), "A element is poped form income_box_");
-    packaging_order_.pop();
-    RCLCPP_INFO(this->get_logger(), "A element is poped form packaging_order_");
-    return;
-  }
+  // if (income_box_.front().first == packaging_order_.front().first)
+  // {
+  //   RCLCPP_INFO(this->get_logger(), "The income material box is handled by packaging order service");
+  //   income_box_.pop();
+  //   RCLCPP_INFO(this->get_logger(), "A element is poped form income_box_");
+  //   packaging_order_.pop();
+  //   RCLCPP_INFO(this->get_logger(), "A element is poped form packaging_order_");
+  //   return;
+  // }
   
   RCLCPP_INFO(this->get_logger(), "The incoming material box [%d] does not handled", income_box_.front().first); 
   RCLCPP_INFO(this->get_logger(), "The incoming material box should be passing the packaging machines");
@@ -353,6 +358,58 @@ void PackagingMachineManager::queue_handler_cb(void)
   else
     RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is blocked unsuccessfully", target_id);
 }
+
+// void PackagingMachineManager::second_machine_blocking_handler_cb(void)
+// {
+//   if (!income_box_.empty() || !packaging_order_.empty())
+//     return;
+
+//   const uint8_t target_id = 2;
+//   if (pkg_mac_status_[target_id].waiting_material_box)
+//     return;
+  
+//   const auto &cli_pair = conveyor_stopper_client_[target_id];
+
+//   std::shared_ptr<SetBool::Request> request = std::make_shared<SetBool::Request>();
+//   request->data = true;
+//   auto future = cli_pair.second->async_send_request(request, response_received_cb);
+
+//   RCLCPP_INFO(this->get_logger(), "Packaging Machine [%d] Stopper Service are called", target_id);
+
+//   bool success = true;
+
+//   std::future_status status = future.wait_for(500ms);
+//   switch (status)
+//   {
+//   case std::future_status::ready:
+//     break; 
+//   case std::future_status::timeout: {
+//     success = false;
+//     const std::string err_msg = "The Operation Service is timeout.";
+//     RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+//     break; 
+//   }
+//   case std::future_status::deferred: {
+//     success = false;
+//     const std::string err_msg = "The Operation Service is deferred.";
+//     RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
+//     break;
+//   }
+//   }
+
+//   if (success)
+//   {
+//     RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is blocked successfully", target_id);
+//     if (!income_box_.empty())
+//     {
+//       income_box_.pop();
+//       RCLCPP_INFO(this->get_logger(), "A element is poped form income_box_");
+//     }
+//   }
+//   else
+//     RCLCPP_ERROR(this->get_logger(), "The conveyor of Packaging Machine [%d] is blocked unsuccessfully", target_id);
+  
+// }
 
 void PackagingMachineManager::status_cb(const PackagingMachineStatus::SharedPtr msg)
 {

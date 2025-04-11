@@ -30,7 +30,8 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   status_pub_ = this->create_publisher<DispenserStationStatus>("/dispenser_station_status", 10);
   dis_result_pub_ = this->create_publisher<DispenseResult>("/dispense_result", 10);
   
-  status_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::dis_station_status_cb, this));
+  status_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  status_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::dis_station_status_cb, this), status_cbg_);
 
   dis_req_srv_ = this->create_service<DispenseDrug>(
     "dispense_request", 
@@ -163,6 +164,7 @@ void DispenserStationNode::dis_req_handle(
   int16_t target_amt = 0;
   // Write Unit_Amount
   std::vector<std::future<opcua::StatusCode>> futures;
+  std::string dispense;
   for (size_t i = 0; i < req->content.size(); i++)
   {
     if (req->content[i].unit_id == 0 || req->content[i].unit_id > NO_OF_UNITS)
@@ -182,9 +184,12 @@ void DispenserStationNode::dis_req_handle(
     amt_var = tmp;
     target_amt += tmp;
 
+    dispense += "[id: " + std::to_string(req->content[i].unit_id) + ", amount: " + std::to_string(req->content[i].amount) + "] ";
     std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, unit_amt_id[req->content[i].unit_id], amt_var, opcua::useFuture);
     futures.push_back(std::move(future));
   }
+  dispense = "Dispense: " + dispense;
+  RCLCPP_INFO(this->get_logger(), dispense.c_str());
   RCLCPP_INFO(this->get_logger(), "Sent the amount of requested");
 
   bool all_good = wait_for_futures(futures);

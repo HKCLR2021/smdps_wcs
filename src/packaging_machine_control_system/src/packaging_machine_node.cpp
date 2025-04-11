@@ -243,6 +243,7 @@ void PackagingMachineNode::init_timer(void)
   once_timer_->cancel();
 
   ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
+  
   ctrl_stopper(STOPPER_SUNK);
   wait_for_stopper(STOPPER_SUNK_STATE);
 
