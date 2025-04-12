@@ -158,6 +158,12 @@ void DispenserStationNode::dis_req_handle(
 {
   if (!status_->enable)
     return;
+
+  if (req->content.size() == 0)
+  {
+    res->success = true;
+    return;
+  }
   
   wait_for_opcua_connection(200ms);
   
