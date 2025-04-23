@@ -162,7 +162,7 @@ void PackagingMachineManager::release_blocking_cb(void)
 
   if (iter == pkg_mac_status_.rend())
   {
-    RCLCPP_INFO(this->get_logger(), "The conveyor of packaging machines are available and not waiting the material box, wait for next callback");
+    RCLCPP_DEBUG(this->get_logger(), "The conveyor of packaging machines are available and not waiting the material box, wait for next callback");
     // This operation is used for storing material box to container
     // if (income_box_.empty())
     // {
@@ -195,6 +195,8 @@ void PackagingMachineManager::release_blocking_cb(void)
   auto conveyor_future = cli_pair.first->async_send_request(conveyor_request, response_received_cb);
   futures.push_back(std::move(conveyor_future));
 
+  std::this_thread::sleep_for(250ms);
+
   std::shared_ptr<SetBool::Request> stopper_request = std::make_shared<SetBool::Request>();
   stopper_request->data = false;
   auto stopper_future = cli_pair.second->async_send_request(stopper_request, response_received_cb);
@@ -224,6 +226,7 @@ void PackagingMachineManager::release_blocking_cb(void)
       break;
     }
     }
+    std::this_thread::sleep_for(250ms);
   }
 
   if (success)

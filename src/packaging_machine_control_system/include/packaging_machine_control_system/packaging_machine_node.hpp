@@ -148,10 +148,13 @@ private:
   std::shared_ptr<MotorStatus> motor_status_;
   std::shared_ptr<PackagingMachineInfo> info_;
 
-  rclcpp::CallbackGroup::SharedPtr co_cli_cbg_;
+  rclcpp::CallbackGroup::SharedPtr co_cli_read_cbg_;
+  rclcpp::CallbackGroup::SharedPtr co_cli_write_cbg_;
   rclcpp::CallbackGroup::SharedPtr action_ser_cbg_;
   rclcpp::CallbackGroup::SharedPtr rpdo_cbg_;
   rclcpp::CallbackGroup::SharedPtr status_cbg_;
+  rclcpp::CallbackGroup::SharedPtr srv_conveyor_ser_cbg_;
+  rclcpp::CallbackGroup::SharedPtr srv_stopper_ser_cbg_;
   rclcpp::CallbackGroup::SharedPtr srv_ser_cbg_;
 
   rclcpp::TimerBase::SharedPtr status_timer_;

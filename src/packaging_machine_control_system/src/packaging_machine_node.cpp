@@ -69,10 +69,13 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   status_->canopen_state = PackagingMachineStatus::NORMAL;
   status_->package_length = 80; // FIXME
 
-  co_cli_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  co_cli_read_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  co_cli_write_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  srv_conveyor_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  srv_stopper_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   action_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-  status_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  status_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   rpdo_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
   rclcpp::SubscriptionOptions rpdo_options;
@@ -101,11 +104,11 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   co_read_client_ = this->create_client<CORead>(
     "/packaging_machine_" + std::to_string(status_->packaging_machine_id) + "/sdo_read",
     rmw_qos_profile_services_default,
-    co_cli_cbg_);
+    co_cli_read_cbg_);
   co_write_client_ = this->create_client<COWrite>(
     "/packaging_machine_" + std::to_string(status_->packaging_machine_id) + "/sdo_write",
     rmw_qos_profile_services_default,
-    co_cli_cbg_);
+    co_cli_write_cbg_);
 
   init_pkg_mac_service_ = this->create_service<Trigger>(
     "init_package_machine", 
@@ -123,7 +126,7 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
     "stopper_operation", 
     std::bind(&PackagingMachineNode::stopper_handle, this, _1, _2),
     rmw_qos_profile_services_default,
-    srv_ser_cbg_);
+    srv_stopper_ser_cbg_);
 
   mtrl_box_gate_service_ = this->create_service<SetBool>(
     "material_box_gate_operation", 
@@ -135,7 +138,7 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
     "conveyor_operation", 
     std::bind(&PackagingMachineNode::conveyor_handle, this, _1, _2),
     rmw_qos_profile_services_default,
-    srv_ser_cbg_);
+    srv_conveyor_ser_cbg_);
 
   pill_gate_service_ = this->create_service<SetBool>(
     "pill_gate_operation", 
@@ -384,6 +387,8 @@ void PackagingMachineNode::stopper_handle(
     }
   }
 
+  std::this_thread::sleep_for(50ms);
+
   if (ctrl_stopper(request->data ? STOPPER_PROTRUDE : STOPPER_SUNK))
   {
     response->success = true;
@@ -393,6 +398,8 @@ void PackagingMachineNode::stopper_handle(
     response->success = false;
     response->message = "Error to control the stopper";
   }
+
+  std::this_thread::sleep_for(50ms);
 }
 
 void PackagingMachineNode::mtrl_box_gate_handle(
@@ -452,6 +459,8 @@ void PackagingMachineNode::conveyor_handle(
     }
   }
 
+  std::this_thread::sleep_for(50ms);
+
   if (ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, request->data))
     response->success = true;
   else
@@ -459,6 +468,8 @@ void PackagingMachineNode::conveyor_handle(
     response->success = false;
     response->message = "Error to control the conveyor";
   }
+
+  std::this_thread::sleep_for(50ms);
 }
 
 void PackagingMachineNode::pill_gate_handle(
@@ -658,7 +669,7 @@ rclcpp_action::GoalResponse PackagingMachineNode::handle_goal(
   init_printer_config();
 
   uint16_t retry = 0;
-  const uint8_t MAX_RETIRES = 60;
+  const uint8_t MAX_RETIRES = 90;
   rclcpp::Rate loop_rate(1s); 
   for (; retry < MAX_RETIRES && rclcpp::ok(); retry++) 
   {

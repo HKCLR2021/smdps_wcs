@@ -321,6 +321,8 @@ void PackagingMachineNode::skip_order_execute(const std::shared_ptr<GaolHandlerP
 
   if (rclcpp::ok()) 
   {
+    printer_.reset();
+    RCLCPP_INFO(this->get_logger(), "printer destroyed");
     result->order_result = curr_order_status;
     goal_handle->succeed(result);
     
