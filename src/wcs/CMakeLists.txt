@@ -23,29 +23,29 @@ find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(smdps_msgs REQUIRED)
-find_package(nlohmann_json REQUIRED)
+# find_package(nlohmann_json REQUIRED)
 find_package(open62541pp REQUIRED)
 
 include_directories(
   include 
 )
 
-add_executable(prod_line_ctrl 
-  src/prod_line_ctrl.cpp
-  src/http_svr_handler.cpp
-  src/http_svr_utilities.cpp
-  src/http_cli.cpp
-)
-target_link_libraries(prod_line_ctrl
-  nlohmann_json::nlohmann_json
-)
-ament_target_dependencies(prod_line_ctrl 
-  rclcpp 
-  rclcpp_action
-  std_msgs
-  std_srvs
-  smdps_msgs
-)
+# add_executable(prod_line_ctrl 
+#   src/prod_line_ctrl.cpp
+#   src/http_svr_handler.cpp
+#   src/http_svr_utilities.cpp
+#   src/http_cli.cpp
+# )
+# target_link_libraries(prod_line_ctrl
+#   nlohmann_json::nlohmann_json
+# )
+# ament_target_dependencies(prod_line_ctrl 
+#   rclcpp 
+#   rclcpp_action
+#   std_msgs
+#   std_srvs
+#   smdps_msgs
+# )
 
 add_executable(dis_station_node 
   src/dis_station_node.cpp
@@ -84,7 +84,7 @@ ament_target_dependencies(fake_new_order_cli_node
 )
 
 install(TARGETS
-  prod_line_ctrl
+  # prod_line_ctrl
   dis_station_node
   fake_printing_srv_node
   fake_new_order_cli_node

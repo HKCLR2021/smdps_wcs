@@ -6,6 +6,7 @@ x-common-variables: &common-variables
   CAN_CHANNEL: can0
 
 services:
+# ======================== Build Images ===========================
   ros2_base:
     build:
       context: .
@@ -36,6 +37,17 @@ services:
       ros2_canopen:
         condition: service_completed_successfully
 
+  build_dis_station:
+    image: dis_station
+    build:
+      context: .
+      target: dis_station
+      tags: 
+        - "dis_station:latest"
+    depends_on:
+      ros2_base:
+        condition: service_completed_successfully
+
   build_prod_line_sys:
     image: prod_line_sys
     build:
@@ -47,6 +59,7 @@ services:
       ros2_base:
         condition: service_completed_successfully
 
+# ======================== ROS2 Nodes ===========================
   pkg_mac_comm:
     image: pkg_mac_sys:latest
     container_name: pkg_mac_comm
@@ -116,37 +129,37 @@ services:
     ipc: host
     pid: host
 
-  # prod_line:
-  #   image: prod_line_sys:latest
-  #   container_name: prod_line
-  #   hostname: prod_line
-  #   depends_on:
-  #     build_prod_line_sys:
-  #       condition: service_completed_successfully
-  #     activate_can:
-  #       condition: service_completed_successfully
-  #     dis_station:
-  #       condition: service_started
-  #   environment: *common-variables
-  #   command: ["sh", "-c", "ros2 launch wcs prod_line.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
-  #   volumes:
-  #     - ./logs:/logs
-  #   restart: no
-  #   network_mode: host
-  #   ipc: host
-  #   pid: host
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl --silent --fail 192.168.8.51:8000/api/v1/health || exit 1"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
+  prod_line:
+    image: prod_line_sys:latest
+    container_name: prod_line
+    hostname: prod_line
+    depends_on:
+      build_prod_line_sys:
+        condition: service_completed_successfully
+      activate_can:
+        condition: service_completed_successfully
+      dis_station:
+        condition: service_started
+    environment: *common-variables
+    command: ["sh", "-c", "ros2 launch wcs prod_line.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
+    volumes:
+      - ./logs:/logs
+    restart: no
+    network_mode: host
+    ipc: host
+    pid: host
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail 192.168.8.51:8000/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   dis_station:
-    image: prod_line_sys:latest
+    image: dis_station:latest
     container_name: dis_station
     hostname: dis_station
     depends_on:
-      build_prod_line_sys:
+      build_dis_station:
         condition: service_completed_successfully
       activate_can:
         condition: service_completed_successfully
@@ -167,6 +180,54 @@ services:
       ros2_canopen:
         condition: service_completed_successfully
     command: ["sh", "-c", "ros2 launch rosbridge_server rosbridge_websocket_launch.xml"]
+    volumes:
+      - ./logs:/logs
+    restart: no
+    network_mode: host
+    ipc: host
+    pid: host
+
+  qr_camera:
+    image: prod_line_sys:latest
+    container_name: qr_camera
+    hostname: qr_camera
+    depends_on:
+      build_prod_line_sys:
+        condition: service_completed_successfully
+    environment: *common-variables
+    command: ["sh", "-c", "ros2 launch qr_camera qr_camera.launch.py"]
+    volumes:
+      - ./logs:/logs
+    restart: no
+    network_mode: host
+    ipc: host
+    pid: host
+
+  plc_comm:
+    image: prod_line_sys:latest
+    container_name: plc_comm
+    hostname: plc_comm
+    depends_on:
+      build_prod_line_sys:
+        condition: service_completed_successfully
+    environment: *common-variables
+    command: ["sh", "-c", "ros2 launch prod_line_plc_comm plc_comm.launch.py"]
+    volumes:
+      - ./logs:/logs
+    restart: no
+    network_mode: host
+    ipc: host
+    pid: host
+
+  prod_line_sys:
+    image: prod_line_sys:latest
+    container_name: prod_line_sys
+    hostname: prod_line_sys
+    depends_on:
+      build_prod_line_sys:
+        condition: service_completed_successfully
+    environment: *common-variables
+    command: ["sh", "-c", "ros2 launch prod_line_sys bringup.launch.py"]
     volumes:
       - ./logs:/logs
     restart: no

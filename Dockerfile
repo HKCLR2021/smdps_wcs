@@ -30,58 +30,8 @@ RUN apt install -y build-essential cmake git wget dos2unix \
 # ========== ros2_canopen_img ========== 
 FROM ros2_img:latest AS ros2_canopen_img
 
-RUN apt install -y \
-    ros-${ROS_DISTRO}-rosbridge-server \
-    ros-${ROS_DISTRO}-controller-interface \ 
-    ros-${ROS_DISTRO}-diagnostic-updater \
-    ros-${ROS_DISTRO}-controller-manager \
-    libusb-1.0-0-dev \
-    autoconf automake autotools-dev gfortran gfortran-11 ibverbs-providers \
-    icu-devtools libboost-all-dev libboost-atomic-dev libboost-atomic1.74-dev \
-    libboost-atomic1.74.0 libboost-chrono-dev libboost-chrono1.74-dev \
-    libboost-chrono1.74.0 libboost-container-dev libboost-container1.74-dev \
-    libboost-container1.74.0 libboost-context-dev libboost-context1.74-dev \
-    libboost-context1.74.0 libboost-coroutine-dev libboost-coroutine1.74-dev \
-    libboost-coroutine1.74.0 libboost-date-time-dev libboost-date-time1.74-dev \
-    libboost-date-time1.74.0 libboost-dev libboost-exception-dev \
-    libboost-exception1.74-dev libboost-fiber-dev libboost-fiber1.74-dev \
-    libboost-fiber1.74.0 libboost-filesystem-dev libboost-filesystem1.74-dev \
-    libboost-filesystem1.74.0 libboost-graph-dev libboost-graph-parallel-dev \
-    libboost-graph-parallel1.74-dev libboost-graph-parallel1.74.0 \
-    libboost-graph1.74-dev libboost-graph1.74.0 libboost-iostreams-dev \
-    libboost-iostreams1.74-dev libboost-iostreams1.74.0 libboost-locale-dev \
-    libboost-locale1.74-dev libboost-locale1.74.0 libboost-log-dev \
-    libboost-log1.74-dev libboost-log1.74.0 libboost-math-dev \
-    libboost-math1.74-dev libboost-math1.74.0 libboost-mpi-dev \
-    libboost-mpi-python-dev libboost-mpi-python1.74-dev \
-    libboost-mpi-python1.74.0 libboost-mpi1.74-dev libboost-mpi1.74.0 \
-    libboost-nowide-dev libboost-nowide1.74-dev libboost-nowide1.74.0 \
-    libboost-numpy-dev libboost-numpy1.74-dev libboost-numpy1.74.0 \
-    libboost-program-options-dev libboost-program-options1.74-dev \
-    libboost-program-options1.74.0 libboost-python-dev libboost-python1.74-dev \
-    libboost-python1.74.0 libboost-random-dev libboost-random1.74-dev \
-    libboost-random1.74.0 libboost-regex-dev libboost-regex1.74-dev \
-    libboost-regex1.74.0 libboost-serialization-dev \
-    libboost-serialization1.74-dev libboost-serialization1.74.0 \
-    libboost-stacktrace-dev libboost-stacktrace1.74-dev \
-    libboost-stacktrace1.74.0 libboost-system-dev libboost-system1.74-dev \
-    libboost-system1.74.0 libboost-test-dev libboost-test1.74-dev \
-    libboost-test1.74.0 libboost-thread-dev libboost-thread1.74-dev \
-    libboost-thread1.74.0 libboost-timer-dev libboost-timer1.74-dev \
-    libboost-timer1.74.0 libboost-tools-dev libboost-type-erasure-dev \
-    libboost-type-erasure1.74-dev libboost-type-erasure1.74.0 libboost-wave-dev \
-    libboost-wave1.74-dev libboost-wave1.74.0 libboost1.74-dev \
-    libboost1.74-tools-dev libcaf-openmpi-3 libcoarrays-dev \
-    libcoarrays-openmpi-dev libevent-2.1-7 libevent-core-2.1-7 libevent-dev \
-    libevent-extra-2.1-7 libevent-openssl-2.1-7 libevent-pthreads-2.1-7 \
-    libfabric1 libgfortran-11-dev libhwloc-dev libhwloc-plugins libhwloc15 \
-    libibverbs-dev libibverbs1 libicu-dev libjs-jquery-ui libltdl-dev \
-    libnl-3-200 libnl-3-dev libnl-route-3-200 libnl-route-3-dev libnuma-dev \
-    libnuma1 libopenmpi-dev libopenmpi3 libpciaccess0 libpmix-dev libpmix2 \
-    libpsm-infinipath1 libpsm2-2 librdmacm1 libsigsegv2 libtool libucx0 \
-    libxnvctrl0 m4 mpi-default-bin mpi-default-dev ocl-icd-libopencl1 \
-    openmpi-bin openmpi-common libtool-bin
-    
+RUN apt install -y ros-${ROS_DISTRO}-rosbridge-server libusb-1.0-0-dev 
+
 ENV WS_NAME=smdps_wcs
 RUN mkdir -p /${WS_NAME}/src
 
@@ -90,9 +40,31 @@ WORKDIR /${WS_NAME}
 COPY ./src/smdps_msgs ./src/smdps_msgs
 COPY ./src/ros2_canopen ./src/ros2_canopen
 
+RUN rosdep init
+RUN rosdep fix-permissions
+RUN rosdep update
+RUN rosdep install --from-paths src/ros2_canopen --ignore-src -r -y
+
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 RUN rm -rf ./src/smdps_msgs ./src/ros2_canopen
+
+# ========== dis_station_img ========== 
+FROM ros2_img:latest AS dis_station_img
+
+ENV WS_NAME=smdps_wcs
+RUN mkdir -p /${WS_NAME}/src
+
+WORKDIR /${WS_NAME}
+
+COPY ./src/smdps_msgs ./src/smdps_msgs
+# COPY ./src/nlohmann ./src/nlohmann
+COPY ./src/open62541pp ./src/open62541pp
+
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+# RUN rm -rf ./src/smdps_msgs ./src/nlohmann ./src/open62541pp
+RUN rm -rf ./src/smdps_msgs ./src/open62541pp
 
 # ========== prod_line_img ========== 
 FROM ros2_img:latest AS prod_line_img
@@ -103,12 +75,15 @@ RUN mkdir -p /${WS_NAME}/src
 WORKDIR /${WS_NAME}
 
 COPY ./src/smdps_msgs ./src/smdps_msgs
-COPY ./src/nlohmann ./src/nlohmann
-COPY ./src/open62541pp ./src/open62541pp
+COPY ./src/qr_camera ./src/qr_camera
+COPY ./src/prod_line_plc_comm ./src/prod_line_plc_comm
+COPY ./src/prod_line_sys ./src/prod_line_sys
 
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 
-RUN rm -rf ./src/smdps_msgs ./src/nlohmann ./src/open62541pp
+RUN pip install pymodbus==3.8.6
+
+RUN rm -rf ./src/smdps_msgs ./src/qr_camera ./src/prod_line_plc_comm ./src/prod_line_sys
 
 # ========== pkg_mac_sys ========== 
 FROM ros2_canopen_img AS pkg_mac_sys
@@ -138,10 +113,8 @@ COPY --chmod=755 ./docker/entrypoint.sh /
 RUN dos2unix /entrypoint.sh 
 ENTRYPOINT [ "/entrypoint.sh" ]
 
-# ========== prod_line_sys ========== 
-FROM prod_line_img AS prod_line_sys
-
-EXPOSE 8000
+# ========== dis_station ========== 
+FROM dis_station_img AS dis_station
 
 COPY ./src/wcs ./src/wcs
 COPY ./fastdds_profiles.xml ./
@@ -156,6 +129,24 @@ RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
     colcon build \
     --packages-select wcs \
     --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+RUN mkdir -p /logs
+ENV ROS_LOG_DIR=/logs
+VOLUME [ "/logs" ]
+
+COPY --chmod=755 ./docker/entrypoint.sh /
+RUN dos2unix /entrypoint.sh 
+ENTRYPOINT [ "/entrypoint.sh" ]
+
+# ========== prod_line_sys ========== 
+FROM prod_line_img AS prod_line_sys
+
+COPY ./fastdds_profiles.xml ./
+
+ENV FASTRTPS_DEFAULT_PROFILES_FILE=/${WS_NAME}/fastdds_profiles.xml
+ENV ROS_LOCALHOST_ONLY=0
+ENV ROS_VERSION=2
+ENV ROS_PYTHON_VERSION=3
 
 RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs
