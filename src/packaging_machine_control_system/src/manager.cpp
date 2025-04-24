@@ -129,12 +129,12 @@ PackagingMachineManager::PackagingMachineManager(
   last_pkg_mac_scan_2 = 0;
 
   release_blocking_timer_ = this->create_wall_timer(
-    250ms, 
+    1s, 
     std::bind(&PackagingMachineManager::release_blocking_cb, this),
     timer_cbg_);
 
   queue_handler_timer_ = this->create_wall_timer(
-    250ms, 
+    1s, 
     std::bind(&PackagingMachineManager::queue_handler_cb, this),
     timer_cbg_);
   
@@ -195,8 +195,6 @@ void PackagingMachineManager::release_blocking_cb(void)
   auto conveyor_future = cli_pair.first->async_send_request(conveyor_request, response_received_cb);
   futures.push_back(std::move(conveyor_future));
 
-  std::this_thread::sleep_for(250ms);
-
   std::shared_ptr<SetBool::Request> stopper_request = std::make_shared<SetBool::Request>();
   stopper_request->data = false;
   auto stopper_future = cli_pair.second->async_send_request(stopper_request, response_received_cb);
@@ -207,7 +205,7 @@ void PackagingMachineManager::release_blocking_cb(void)
   bool success = true;
   for (const auto &future : futures)
   {
-    std::future_status status = future.wait_for(500ms);
+    std::future_status status = future.wait_for(1s);
     switch (status)
     {
     case std::future_status::ready:
@@ -226,7 +224,6 @@ void PackagingMachineManager::release_blocking_cb(void)
       break;
     }
     }
-    std::this_thread::sleep_for(250ms);
   }
 
   if (success)
@@ -330,7 +327,7 @@ void PackagingMachineManager::queue_handler_cb(void)
 
   bool success = true;
 
-  std::future_status status = future.wait_for(500ms);
+  std::future_status status = future.wait_for(1s);
   switch (status)
   {
   case std::future_status::ready:
@@ -768,6 +765,7 @@ void PackagingMachineManager::manually_release_handle(
   RCLCPP_INFO(this->get_logger(), "Handle a manually release material box service"); 
 
   const std::lock_guard<std::mutex> lock(mutex_);
+
   if (!release_blk_.empty())
     release_blk_.pop();
 }

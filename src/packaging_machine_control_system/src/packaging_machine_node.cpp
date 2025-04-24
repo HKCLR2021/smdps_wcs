@@ -387,9 +387,15 @@ void PackagingMachineNode::stopper_handle(
     }
   }
 
-  std::this_thread::sleep_for(50ms);
+  bool success = true;
+  uint8_t MAX_RETIRES = 3;
+  for (uint8_t i = 0; i < MAX_RETIRES; i++)
+  {
+    success &= ctrl_stopper(request->data ? STOPPER_PROTRUDE : STOPPER_SUNK);
+    std::this_thread::sleep_for(100ms);
+  }
 
-  if (ctrl_stopper(request->data ? STOPPER_PROTRUDE : STOPPER_SUNK))
+  if (success)
   {
     response->success = true;
   }
@@ -398,8 +404,6 @@ void PackagingMachineNode::stopper_handle(
     response->success = false;
     response->message = "Error to control the stopper";
   }
-
-  std::this_thread::sleep_for(50ms);
 }
 
 void PackagingMachineNode::mtrl_box_gate_handle(
@@ -459,17 +463,21 @@ void PackagingMachineNode::conveyor_handle(
     }
   }
 
-  std::this_thread::sleep_for(50ms);
+  bool success = true;
+  uint8_t MAX_RETIRES = 3;
+  for (uint8_t i = 0; i < MAX_RETIRES; i++)
+  {
+    success &= ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, request->data);
+    std::this_thread::sleep_for(100ms);
+  }
 
-  if (ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, request->data))
+  if (success)
     response->success = true;
   else
   {
     response->success = false;
     response->message = "Error to control the conveyor";
   }
-
-  std::this_thread::sleep_for(50ms);
 }
 
 void PackagingMachineNode::pill_gate_handle(

@@ -1,6 +1,10 @@
 # ========== ros2_img ========== 
 FROM ubuntu:22.04 AS ros2_img
 
+ARG http_proxy
+ARG https_proxy
+ARG any_proxy
+
 RUN apt update
 RUN DEBIAN_FRONTEND="noninteractive" apt install -y tzdata
 

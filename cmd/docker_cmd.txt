@@ -19,3 +19,8 @@ ros2 run packaging_machine_control_system packaging_order_client
 ros2 topic echo /packaging_machine_1/info
 
 source install/setup.bash && source /opt/ros/humble/setup.bash && ros2 service call /packaging_machine_1/state_control std_srvs/srv/SetBool "{data: 1}" &&  ros2 service call /packaging_machine_2/state_control std_srvs/srv/SetBool "{data: 1}"
+
+docker compose build \
+  --build-arg http_proxy=http://192.168.7.254:7890 \
+  --build-arg https_proxy=http://192.168.7.254:7890 \
+  --build-arg all_proxy=http://192.168.7.254:7890

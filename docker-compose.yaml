@@ -12,6 +12,10 @@ services:
       context: .
       tags: 
         - "ros2_img:latest"
+      args:
+        - http_proxy
+        - https_proxy
+        - any_proxy
       target: ros2_img
     entrypoint: ["sh", "-c", "exit"]
 
@@ -71,7 +75,7 @@ services:
     environment: *common-variables 
     command: ["sh", "-c", "ros2 launch packaging_machine_comm futian_lifecycle_setup.launch.py can_channel:=$${CAN_CHANNEL}"]
     volumes:
-      - ./logs:/logs
+      - /home/hkclr/smdps_wcs/logs:/logs
     restart: no
     network_mode: host
     ipc: host
@@ -94,22 +98,6 @@ services:
     ipc: host
     pid: host
   
-  pkg_mac_manager:
-    image: pkg_mac_sys:latest
-    container_name: pkg_mac_manager
-    hostname: pkg_mac_manager
-    depends_on:
-      activate_can:
-        condition: service_completed_successfully
-    environment: *common-variables 
-    command: ["sh", "-c", "ros2 launch packaging_machine_control_system manager.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
-    volumes:
-      - ./logs:/logs
-    restart: no
-    network_mode: host
-    ipc: host
-    pid: host
-
   pkg_mac:
     image: pkg_mac_sys:latest
     container_name: pkg_mac
@@ -121,9 +109,25 @@ services:
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch packaging_machine_control_system pkg_mac.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
     volumes:
-      - ./logs:/logs
+      - /home/hkclr/smdps_wcs/logs:/logs
       - /dev/bus:/dev/bus
       - /dev/serial:/dev/serial
+    restart: no
+    network_mode: host
+    ipc: host
+    pid: host
+
+  pkg_mac_manager:
+    image: pkg_mac_sys:latest
+    container_name: pkg_mac_manager
+    hostname: pkg_mac_manager
+    depends_on:
+      activate_can:
+        condition: service_completed_successfully
+    environment: *common-variables 
+    command: ["sh", "-c", "ros2 launch packaging_machine_control_system manager.launch.py no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
+    volumes:
+      - /home/hkclr/smdps_wcs/logs:/logs
     restart: no
     network_mode: host
     ipc: host
@@ -143,7 +147,7 @@ services:
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch wcs prod_line.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
     volumes:
-      - ./logs:/logs
+      - /home/hkclr/smdps_wcs/logs:/logs
     restart: no
     network_mode: host
     ipc: host
@@ -161,12 +165,10 @@ services:
     depends_on:
       build_dis_station:
         condition: service_completed_successfully
-      activate_can:
-        condition: service_completed_successfully
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch wcs dis_station.launch.py no_of_dis_station:=$${NO_OF_DIS_STA}"]
     volumes:
-      - ./logs:/logs
+      - /home/hkclr/smdps_wcs/logs:/logs
     restart: no
     network_mode: host
     ipc: host
@@ -181,7 +183,7 @@ services:
         condition: service_completed_successfully
     command: ["sh", "-c", "ros2 launch rosbridge_server rosbridge_websocket_launch.xml"]
     volumes:
-      - ./logs:/logs
+      - /home/hkclr/smdps_wcs/logs:/logs
     restart: no
     network_mode: host
     ipc: host
@@ -197,7 +199,7 @@ services:
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch qr_camera qr_camera.launch.py"]
     volumes:
-      - ./logs:/logs
+      - /home/hkclr/smdps_wcs/logs:/logs
     restart: no
     network_mode: host
     ipc: host
@@ -213,7 +215,7 @@ services:
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch prod_line_plc_comm plc_comm.launch.py"]
     volumes:
-      - ./logs:/logs
+      - /home/hkclr/smdps_wcs/logs:/logs
     restart: no
     network_mode: host
     ipc: host
@@ -229,7 +231,7 @@ services:
     environment: *common-variables
     command: ["sh", "-c", "ros2 launch prod_line_sys bringup.launch.py"]
     volumes:
-      - ./logs:/logs
+      - /home/hkclr/smdps_wcs/logs:/logs
     restart: no
     network_mode: host
     ipc: host
