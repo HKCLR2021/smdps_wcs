@@ -31,6 +31,10 @@ RUN apt install -y ros-${ROS_DISTRO}-ros-base
 RUN apt install -y build-essential cmake git wget dos2unix \
     python3-colcon-common-extensions python3-pip python3-rosdep python3-vcstool
 
+COPY --chmod=755 ./docker/entrypoint.sh /
+RUN dos2unix /entrypoint.sh 
+ENTRYPOINT [ "/entrypoint.sh" ]
+
 # ========== ros2_canopen_img ========== 
 FROM ros2_img:latest AS ros2_canopen_img
 
@@ -113,10 +117,6 @@ RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs
 VOLUME [ "/logs", "/dev/bus", "/dev/serial" ]
 
-COPY --chmod=755 ./docker/entrypoint.sh /
-RUN dos2unix /entrypoint.sh 
-ENTRYPOINT [ "/entrypoint.sh" ]
-
 # ========== dis_station ========== 
 FROM dis_station_img AS dis_station
 
@@ -138,10 +138,6 @@ RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs
 VOLUME [ "/logs" ]
 
-COPY --chmod=755 ./docker/entrypoint.sh /
-RUN dos2unix /entrypoint.sh 
-ENTRYPOINT [ "/entrypoint.sh" ]
-
 # ========== prod_line_sys ========== 
 FROM prod_line_img AS prod_line_sys
 
@@ -156,6 +152,3 @@ RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs
 VOLUME [ "/logs" ]
 
-COPY --chmod=755 ./docker/entrypoint.sh /
-RUN dos2unix /entrypoint.sh 
-ENTRYPOINT [ "/entrypoint.sh" ]
