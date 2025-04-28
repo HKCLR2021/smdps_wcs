@@ -42,8 +42,10 @@
 
 #define SQUEEZER_SPEED 1100
 
-#define HEATER_ON  1
-#define HEATER_OFF 0
+#define HEATER_ON        1
+#define HEATER_ON_STATE  1
+#define HEATER_OFF       0
+#define HEATER_OFF_STATE 0
 
 #define SQUEEZER_ACTION_PUSH 1
 #define SQUEEZER_ACTION_PULL 0

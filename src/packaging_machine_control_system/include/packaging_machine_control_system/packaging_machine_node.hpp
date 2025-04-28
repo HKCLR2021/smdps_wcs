@@ -14,6 +14,7 @@
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "rclcpp_components/register_node_macro.hpp"
 
+#include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/u_int8.hpp"
 
 #include "std_srvs/srv/trigger.hpp"
@@ -44,6 +45,7 @@ using std::placeholders::_3;
 class PackagingMachineNode : public rclcpp::Node
 {
 public:
+  using Bool = std_msgs::msg::Bool;
   using UInt8 = std_msgs::msg::UInt8;
 
   using Trigger = std_srvs::srv::Trigger;
@@ -156,6 +158,7 @@ private:
   rclcpp::CallbackGroup::SharedPtr srv_conveyor_ser_cbg_;
   rclcpp::CallbackGroup::SharedPtr srv_stopper_ser_cbg_;
   rclcpp::CallbackGroup::SharedPtr srv_ser_cbg_;
+  rclcpp::CallbackGroup::SharedPtr normal_timer_cbg_;
 
   rclcpp::TimerBase::SharedPtr status_timer_;
   rclcpp::TimerBase::SharedPtr heater_timer_;
@@ -166,6 +169,7 @@ private:
   rclcpp::Publisher<MotorStatus>::SharedPtr motor_status_publisher_;
   rclcpp::Publisher<PackagingMachineInfo>::SharedPtr info_publisher_;
   rclcpp::Publisher<UnbindRequest>::SharedPtr unbind_mtrl_box_publisher_;
+  rclcpp::Publisher<Bool>::SharedPtr skip_pkg_publisher_;
 
   rclcpp::Publisher<COData>::SharedPtr tpdo_pub_;
   rclcpp::Subscription<COData>::SharedPtr rpdo_sub_;

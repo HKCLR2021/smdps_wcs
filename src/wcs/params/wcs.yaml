@@ -59,7 +59,7 @@ prod_line_ctrl:
     port: "4840"
     simulation: False
     enable: True            #1    #2    #3    #4    #5    #6    #7    #8     #9    #10   #11   #12
-    dispenser_unit_enable: [True, True, True, True, True, True, True, False, True, True, True, True]
+    dispenser_unit_enable: [True, True, True, True, True, True, True, True, True, True, True, True]
 
 /dispenser_station_8/dis_sta_node:
   ros__parameters:

@@ -76,21 +76,23 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   action_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   status_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  normal_timer_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   rpdo_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
   rclcpp::SubscriptionOptions rpdo_options;
   rpdo_options.callback_group = rpdo_cbg_;
 
   status_timer_ = this->create_wall_timer(500ms, std::bind(&PackagingMachineNode::pub_status_cb, this), status_cbg_);
-  heater_timer_ = this->create_wall_timer(1s, std::bind(&PackagingMachineNode::heater_cb, this));
-  con_state_timer_ = this->create_wall_timer(100ms, std::bind(&PackagingMachineNode::con_state_cb, this));
-  once_timer_ = this->create_wall_timer(3s, std::bind(&PackagingMachineNode::init_timer, this));
+  heater_timer_ = this->create_wall_timer(1s, std::bind(&PackagingMachineNode::heater_cb, this), normal_timer_cbg_);
+  con_state_timer_ = this->create_wall_timer(100ms, std::bind(&PackagingMachineNode::con_state_cb, this), status_cbg_);
+  once_timer_ = this->create_wall_timer(3s, std::bind(&PackagingMachineNode::init_timer, this), normal_timer_cbg_);
 
   // add a "/" prefix to topic name avoid adding a namespace
   status_publisher_ = this->create_publisher<PackagingMachineStatus>("/packaging_machine_status", 10); 
   motor_status_publisher_ = this->create_publisher<MotorStatus>("/motor_status", 10); 
   info_publisher_ = this->create_publisher<PackagingMachineInfo>("/info", 10); 
   unbind_mtrl_box_publisher_ = this->create_publisher<UnbindRequest>("unbind_material_box_id", 10); 
+  skip_pkg_publisher_ = this->create_publisher<Bool>("skip_packaging", 10); 
 
   tpdo_pub_ = this->create_publisher<COData>(
     "/packaging_machine_" + std::to_string(status_->packaging_machine_id) + "/tpdo", 
@@ -210,10 +212,17 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
 
 void PackagingMachineNode::pub_status_cb(void)
 {
-  status_->header.stamp = this->get_clock()->now();
+  Bool skip_pkg_msg;
+  {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    skip_pkg_msg.data = skip_pkg_;
+    status_->header.stamp = this->get_clock()->now();
+  }
+
   status_publisher_->publish(*status_);
   motor_status_publisher_->publish(*motor_status_);
   info_publisher_->publish(*info_);
+  skip_pkg_publisher_->publish(skip_pkg_msg);
 }
 
 void PackagingMachineNode::heater_cb(void)
@@ -221,7 +230,14 @@ void PackagingMachineNode::heater_cb(void)
   if (enable_heater_ && info_->temperature < MIN_TEMP)
   {
     RCLCPP_INFO(this->get_logger(), "Current heater temperature: %d", info_->temperature);
-    ctrl_heater(HEATER_ON);
+
+    std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>();
+    bool success = read_heater(state);
+    if (success && *state == HEATER_OFF_STATE)
+    {
+      ctrl_heater(HEATER_ON);
+      RCLCPP_INFO(this->get_logger(), "Turn on in the timer callback");
+    }
   }
 }
 
@@ -243,14 +259,18 @@ void PackagingMachineNode::con_state_cb(void)
 
 void PackagingMachineNode::init_timer(void)
 {
-  once_timer_->cancel();
-
-  ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
+  RCLCPP_INFO(this->get_logger(), "Init timer start");
+  bool success = true;
+  success &= ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
   
-  ctrl_stopper(STOPPER_SUNK);
+  success &= ctrl_stopper(STOPPER_SUNK);
   wait_for_stopper(STOPPER_SUNK_STATE);
 
-  RCLCPP_INFO(this->get_logger(), "Init timer done!");
+  if (success)
+  {
+    once_timer_->cancel();
+    RCLCPP_INFO(this->get_logger(), "Init timer cancelled!");
+  }
 }
 
 void PackagingMachineNode::rpdo_cb(const COData::SharedPtr msg)
@@ -368,6 +388,7 @@ void PackagingMachineNode::stopper_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
+  const std::lock_guard<std::mutex> lock(mutex_);
   if (request->data)
   {
     if (info_->stopper == STOPPER_SUNK_STATE)
@@ -392,7 +413,7 @@ void PackagingMachineNode::stopper_handle(
   for (uint8_t i = 0; i < MAX_RETIRES; i++)
   {
     success &= ctrl_stopper(request->data ? STOPPER_PROTRUDE : STOPPER_SUNK);
-    std::this_thread::sleep_for(100ms);
+    std::this_thread::sleep_for(50ms);
   }
 
   if (success)
@@ -410,6 +431,7 @@ void PackagingMachineNode::mtrl_box_gate_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
+  const std::lock_guard<std::mutex> lock(mutex_);
   if (request->data)
   {
     if (info_->material_box_gate == MTRL_BOX_GATE_OPEN_STATE)
@@ -444,6 +466,7 @@ void PackagingMachineNode::conveyor_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
+  const std::lock_guard<std::mutex> lock(mutex_);
   if (request->data)
   {
     if (motor_status_->con_state != MotorStatus::IDLE)
@@ -468,7 +491,7 @@ void PackagingMachineNode::conveyor_handle(
   for (uint8_t i = 0; i < MAX_RETIRES; i++)
   {
     success &= ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, request->data);
-    std::this_thread::sleep_for(100ms);
+    std::this_thread::sleep_for(50ms);
   }
 
   if (success)

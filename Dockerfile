@@ -5,6 +5,10 @@ ARG http_proxy
 ARG https_proxy
 ARG any_proxy
 
+RUN echo $http_proxy
+RUN echo $https_proxy
+RUN echo $any_proxy
+
 RUN apt update
 RUN DEBIAN_FRONTEND="noninteractive" apt install -y tzdata
 
@@ -25,7 +29,13 @@ RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
 RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
     | tee /etc/apt/sources.list.d/ros2.list > /dev/null
 RUN apt update && apt -y upgrade
+
+ENV ROS_VERSION=2
 ENV ROS_DISTRO=humble
+ENV ROS_PYTHON_VERSION=3
+ENV ROS_LOCALHOST_ONLY=0
+ENV ROS_DOMAIN_ID=0
+
 RUN apt install -y ros-${ROS_DISTRO}-ros-base
 
 RUN apt install -y build-essential cmake git wget dos2unix \
@@ -66,12 +76,10 @@ RUN mkdir -p /${WS_NAME}/src
 WORKDIR /${WS_NAME}
 
 COPY ./src/smdps_msgs ./src/smdps_msgs
-# COPY ./src/nlohmann ./src/nlohmann
 COPY ./src/open62541pp ./src/open62541pp
 
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 
-# RUN rm -rf ./src/smdps_msgs ./src/nlohmann ./src/open62541pp
 RUN rm -rf ./src/smdps_msgs ./src/open62541pp
 
 # ========== prod_line_img ========== 
@@ -103,15 +111,14 @@ COPY ./src/packaging_machine_control_system ./src/packaging_machine_control_syst
 COPY ./fastdds_profiles.xml ./
 
 ENV FASTRTPS_DEFAULT_PROFILES_FILE=/${WS_NAME}/fastdds_profiles.xml
-ENV ROS_LOCALHOST_ONLY=0
-ENV ROS_VERSION=2
-ENV ROS_PYTHON_VERSION=3
 
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
     . install/setup.sh && \
     colcon build \
     --packages-select packaging_machine_comm packaging_machine_control_system \
     --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+RUN rm -rf ./src/packaging_machine_comm ./src/packaging_machine_control_system
 
 RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs
@@ -124,15 +131,14 @@ COPY ./src/wcs ./src/wcs
 COPY ./fastdds_profiles.xml ./
 
 ENV FASTRTPS_DEFAULT_PROFILES_FILE=/${WS_NAME}/fastdds_profiles.xml
-ENV ROS_LOCALHOST_ONLY=0
-ENV ROS_VERSION=2
-ENV ROS_PYTHON_VERSION=3
 
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
     . install/setup.sh && \
     colcon build \
     --packages-select wcs \
     --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+RUN rm -rf ./src/wcs
 
 RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs
@@ -144,9 +150,6 @@ FROM prod_line_img AS prod_line_sys
 COPY ./fastdds_profiles.xml ./
 
 ENV FASTRTPS_DEFAULT_PROFILES_FILE=/${WS_NAME}/fastdds_profiles.xml
-ENV ROS_LOCALHOST_ONLY=0
-ENV ROS_VERSION=2
-ENV ROS_PYTHON_VERSION=3
 
 RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs
