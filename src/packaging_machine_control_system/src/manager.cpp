@@ -676,7 +676,7 @@ void PackagingMachineManager::packaging_order_handle(
 
   auto future = load_node_client_->async_send_request(load_node_srv_request, response_received_cb);
 
-  std::future_status status = future.wait_for(1000ms);
+  std::future_status status = future.wait_for(1s);
   switch (status)
   {
   case std::future_status::ready:

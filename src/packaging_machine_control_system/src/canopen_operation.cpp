@@ -13,15 +13,38 @@ bool PackagingMachineNode::call_co_write(uint16_t index, uint8_t subindex, uint3
   using ServiceResponseFuture = rclcpp::Client<COWrite>::SharedFuture;
   auto response_received_cb = [this](ServiceResponseFuture future) {
     auto srv_response = future.get();
+
     if (srv_response) 
       RCLCPP_DEBUG(this->get_logger(), "Inside the COWrite Callback OK");
     else 
       RCLCPP_ERROR(this->get_logger(), "Inside the COWrite Callback NOT OK");
+
+    // if (rclcpp::ok())
+    // {
+    //   std::lock_guard<std::mutex> lock(co_write_signal.cv_mutex_);
+    //   co_write_signal.is_triggered_ = true;
+    // }
+
+    // co_write_signal.cv_.notify_one();  // Wake up service
   };
 
   auto future = co_write_client_->async_send_request(request, response_received_cb);
+  // future.wait();
 
-  std::future_status status = future.wait_for(1s);
+  // if (rclcpp::ok())
+  // {
+  //   RCLCPP_INFO(this->get_logger(), "Waiting the canopen write signal...");
+  //   std::unique_lock<std::mutex> lock(co_write_signal.cv_mutex_);
+
+  //   co_write_signal.cv_.wait(lock, [this]() { 
+  //     return co_write_signal.is_triggered_; 
+  //   });
+
+  //   co_write_signal.is_triggered_ = false;
+  // }
+
+  // return true;
+  std::future_status status = future.wait_for(3s);
   switch (status)
   {
   case std::future_status::ready:
@@ -48,19 +71,43 @@ bool PackagingMachineNode::call_co_read(uint16_t index, uint8_t subindex, std::s
   using ServiceResponseFuture = rclcpp::Client<CORead>::SharedFuture;
   auto response_received_cb = [this, data](ServiceResponseFuture future) {
     auto srv_response = future.get();
+    
     if (srv_response) 
     {
       *data = srv_response->data;
       RCLCPP_DEBUG(this->get_logger(), "Inside the CORead Callback OK, data: %d", *data);
-    } else 
+    } 
+    else 
     {
       RCLCPP_ERROR(this->get_logger(), "Inside the CORead Callback NOT OK");
     }
+
+    // if (rclcpp::ok())
+    // {
+    //   std::lock_guard<std::mutex> lock(co_read_signal.cv_mutex_);
+    //   co_read_signal.is_triggered_ = true;
+    // }
+
+    // co_read_signal.cv_.notify_one();  // Wake up service
   };
  
   auto future = co_read_client_->async_send_request(request, response_received_cb);
+  // future.wait();
 
-  std::future_status status = future.wait_for(1s);
+  // if (rclcpp::ok())
+  // {
+  //   RCLCPP_INFO(this->get_logger(), "Waiting the canopen read signal...");
+  //   std::unique_lock<std::mutex> lock(co_read_signal.cv_mutex_);
+
+  //   co_read_signal.cv_.wait(lock, [this]() { 
+  //     return co_read_signal.is_triggered_; 
+  //   });
+
+  //   co_read_signal.is_triggered_ = false;
+  // }
+
+  // return true;
+  std::future_status status = future.wait_for(3s);
   switch (status)
   {
   case std::future_status::ready:
@@ -91,7 +138,9 @@ bool PackagingMachineNode::call_co_write_w_spin(uint16_t index, uint8_t subindex
   {
     auto response = future.get();
     return response->success;
-  } else {
+  } 
+  else 
+  {
     return false;
   }
 }
@@ -112,7 +161,9 @@ bool PackagingMachineNode::call_co_read_w_spin(uint16_t index, uint8_t subindex,
     auto response = future.get();
     *data = response->data;
     return response->success;
-  } else {
+  } 
+  else 
+  {
     return false;
   }
 }
@@ -126,6 +177,7 @@ void PackagingMachineNode::co_write_wait_for_service(void)
       RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting");
       rclcpp::shutdown();
     }
+
     RCLCPP_ERROR(this->get_logger(), "COWrite Service not available, waiting again...");
     std::this_thread::sleep_for(1s);
   }
@@ -140,6 +192,7 @@ void PackagingMachineNode::co_read_wait_for_service(void)
       RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting");
       rclcpp::shutdown();
     }
+
     RCLCPP_ERROR(this->get_logger(), "CORead Service not available, waiting again...");
     std::this_thread::sleep_for(1s);
   }

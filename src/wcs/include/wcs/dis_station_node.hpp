@@ -133,6 +133,9 @@ public:
   void init_handle(
     const std::shared_ptr<Trigger::Request> req, 
     std::shared_ptr<Trigger::Response> res);    
+  void restart_handle(
+    const std::shared_ptr<Trigger::Request> req, 
+    std::shared_ptr<Trigger::Response> res);    
 
 private:
   std::mutex mutex_;
@@ -144,8 +147,10 @@ private:
   std::string ip_;
   std::string port_;
 
+  rclcpp::CallbackGroup::SharedPtr heartbeat_cbg_;
   rclcpp::CallbackGroup::SharedPtr status_cbg_;
   rclcpp::CallbackGroup::SharedPtr srv_ser_cbg_;
+  rclcpp::CallbackGroup::SharedPtr restart_cbg_;
   rclcpp::CallbackGroup::SharedPtr ree_srv_ser_cbg_;
 
   uint32_t heartbeat_counter_ = 0;
@@ -169,6 +174,7 @@ private:
   rclcpp::Service<Trigger>::SharedPtr init_baffle_srv_;
   rclcpp::Service<Trigger>::SharedPtr reset_srv_;
   rclcpp::Service<Trigger>::SharedPtr init_srv_;
+  rclcpp::Service<Trigger>::SharedPtr restart_srv_;
 
 protected:
   bool sim_;

@@ -42,6 +42,14 @@ using std::placeholders::_1;
 using std::placeholders::_2;
 using std::placeholders::_3;
 
+class CallbackSignal
+{
+public:
+  std::mutex cv_mutex_;
+  std::condition_variable cv_;
+  bool is_triggered_ = false;
+};
+
 class PackagingMachineNode : public rclcpp::Node
 {
 public:
@@ -142,6 +150,9 @@ private:
 
   std::shared_ptr<Printer> printer_;
   std::shared_ptr<Config> printer_config_;
+
+  CallbackSignal co_read_signal;
+  CallbackSignal co_write_signal;
 
   bool sim_;
   bool skip_pkg_;

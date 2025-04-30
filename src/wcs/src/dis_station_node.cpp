@@ -30,7 +30,12 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   status_pub_ = this->create_publisher<DispenserStationStatus>("/dispenser_station_status", 10);
   dis_result_pub_ = this->create_publisher<DispenseResult>("/dispense_result", 10);
   
+  heartbeat_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   status_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  restart_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  ree_srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  
   status_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::dis_station_status_cb, this), status_cbg_);
 
   dis_req_srv_ = this->create_service<DispenseDrug>(
@@ -70,9 +75,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
     rclcpp::shutdown();
   }
 
-  srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-  ree_srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
-  opcua_heartbeat_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::heartbeat_valid_cb, this));
+  opcua_heartbeat_timer_ = this->create_wall_timer(1s, std::bind(&DispenserStationNode::heartbeat_valid_cb, this), heartbeat_cbg_);
 
   bin_req_srv_ = this->create_service<UnitRequest>(
     "bin_operation_request", 
@@ -110,7 +113,14 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
     rmw_qos_profile_services_default,
     ree_srv_ser_cbg_);
 
-  cli_thread_ = std::thread(std::bind(&DispenserStationNode::start_opcua_cli, this)); 
+  restart_srv_ = this->create_service<Trigger>(
+    "restart_request", 
+    std::bind(&DispenserStationNode::restart_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    restart_cbg_);
+
+  cli_thread_ = std::thread(std::bind(&DispenserStationNode::start_opcua_cli, this));
+  
   wait_for_opcua_connection(200ms);
 
   initiate();
@@ -162,6 +172,7 @@ void DispenserStationNode::dis_req_handle(
   if (req->content.size() == 0)
   {
     res->success = true;
+    RCLCPP_ERROR(this->get_logger(), "Test the dispense request successfully!");
     return;
   }
   
@@ -289,21 +300,22 @@ void DispenserStationNode::dis_req_handle(
   RCLCPP_INFO(this->get_logger(), "Verifing the amount of request and target amount");
 
   std::thread(std::bind(&DispenserStationNode::clear_cmd_req, this)).detach();
-  std::this_thread::sleep_for(500ms);
+  std::this_thread::sleep_for(200ms);
   std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
   RCLCPP_INFO(this->get_logger(), "Dispenser operation completed, proceeding...");
   
-  std::this_thread::sleep_for(1s);
+  std::this_thread::sleep_for(600ms); // Caution: be careful to set this delay
   
   res->success = true;
 
   DispenseResult msg;
-  msg.id = status_->id;
-  msg.success = true;
+  {
+    const std::lock_guard<std::mutex> lock(mutex_);
+    msg.id = status_->id;
+  }
+  msg.success = res->success;
   dis_result_pub_->publish(msg);
   RCLCPP_INFO(this->get_logger(), "Dispense result published");
-
-  return;
 }
 
 void DispenserStationNode::unit_req_handle(
@@ -375,6 +387,21 @@ void DispenserStationNode::init_handle(
 {
   (void)req;
   std::thread{std::bind(&DispenserStationNode::initiate, this)}.detach();
+  res->success = true;
+}
+
+void DispenserStationNode::restart_handle(
+  const std::shared_ptr<Trigger::Request> req, 
+  std::shared_ptr<Trigger::Response> res)
+{
+  (void)req;
+
+  std::thread{[&] {
+    RCLCPP_ERROR(this->get_logger(), "This node will be shurdown after 1 second");
+    std::this_thread::sleep_for(1s);
+    rclcpp::shutdown();
+  }}.detach();
+
   res->success = true;
 }
 

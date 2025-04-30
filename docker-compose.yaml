@@ -92,7 +92,7 @@ services:
     command: ["sh", "-c", "\
               sleep 1 && \
               ros2 lifecycle set /lifecycle_manager configure && \
-              sleep 3 && \
+              sleep 1 && \
               ros2 lifecycle set /lifecycle_manager activate"]
     network_mode: host
     ipc: host

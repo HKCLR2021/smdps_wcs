@@ -6,6 +6,7 @@ bool PackagingMachineNode::ctrl_heater(const bool on)
   bool success = write_heater(on ? 1 : 0);
   if (success)
     RCLCPP_INFO(this->get_logger(), "%s the heater", on ? "turn on" : "turn off");
+
   return success;
 }
 
@@ -25,6 +26,7 @@ bool PackagingMachineNode::ctrl_stopper(const bool protrude)
   bool success = write_stopper(protrude ? 0 : 1);
   if (success)
     RCLCPP_INFO(this->get_logger(), "%s the stopper", protrude ? "protrude" : "sunk");
+
   return success;
 }
 
@@ -44,6 +46,7 @@ bool PackagingMachineNode::ctrl_material_box_gate(const bool open)
   bool success = write_material_box_gate(open ? 1 : 0);
   if (success)
     RCLCPP_INFO(this->get_logger(), "%s the material box gate", open ? "Open" : "Close");
+
   return success;
 }
 
@@ -63,6 +66,7 @@ bool PackagingMachineNode::ctrl_cutter(const bool cut)
   bool success = write_cutter(cut ? 1 : 0);
   if (success)
     RCLCPP_INFO(this->get_logger(), "%s the cutter", cut ? "Switch-on" : "Switch-off");
+
   return success;
 }
 
@@ -91,6 +95,7 @@ bool PackagingMachineNode::ctrl_pkg_dis(
 
   if (success)
     RCLCPP_INFO(this->get_logger(), "%s the package: %.2fmm", feed ? "feed" : "unfeed", length);
+  
   return success;
 }
 

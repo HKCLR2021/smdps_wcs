@@ -82,8 +82,8 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   rclcpp::SubscriptionOptions rpdo_options;
   rpdo_options.callback_group = rpdo_cbg_;
 
-  status_timer_ = this->create_wall_timer(500ms, std::bind(&PackagingMachineNode::pub_status_cb, this), status_cbg_);
-  heater_timer_ = this->create_wall_timer(1s, std::bind(&PackagingMachineNode::heater_cb, this), normal_timer_cbg_);
+  status_timer_ = this->create_wall_timer(1s, std::bind(&PackagingMachineNode::pub_status_cb, this), status_cbg_);
+  heater_timer_ = this->create_wall_timer(3s, std::bind(&PackagingMachineNode::heater_cb, this), normal_timer_cbg_);
   con_state_timer_ = this->create_wall_timer(100ms, std::bind(&PackagingMachineNode::con_state_cb, this), status_cbg_);
   once_timer_ = this->create_wall_timer(3s, std::bind(&PackagingMachineNode::init_timer, this), normal_timer_cbg_);
 
@@ -97,6 +97,7 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   tpdo_pub_ = this->create_publisher<COData>(
     "/packaging_machine_" + std::to_string(status_->packaging_machine_id) + "/tpdo", 
     10);
+
   rpdo_sub_ = this->create_subscription<COData>(
     "/packaging_machine_" + std::to_string(status_->packaging_machine_id) + "/rpdo", 
     10,
@@ -107,6 +108,7 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
     "/packaging_machine_" + std::to_string(status_->packaging_machine_id) + "/sdo_read",
     rmw_qos_profile_services_default,
     co_cli_read_cbg_);
+
   co_write_client_ = this->create_client<COWrite>(
     "/packaging_machine_" + std::to_string(status_->packaging_machine_id) + "/sdo_write",
     rmw_qos_profile_services_default,
@@ -204,12 +206,6 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   }
 }
 
-// PackagingMachineNode::~DispenserStationNode()
-// {
-//   ctrl_heater(0);
-//   ctrl_conveyor(0, 0, CONVEYOR_FWD, MOTOR_DISABLE);
-// }
-
 void PackagingMachineNode::pub_status_cb(void)
 {
   Bool skip_pkg_msg;
@@ -217,6 +213,7 @@ void PackagingMachineNode::pub_status_cb(void)
     const std::lock_guard<std::mutex> lock(mutex_);
     skip_pkg_msg.data = skip_pkg_;
     status_->header.stamp = this->get_clock()->now();
+    // status_->skip_packaging = skip_pkg_;
   }
 
   status_publisher_->publish(*status_);
@@ -229,10 +226,11 @@ void PackagingMachineNode::heater_cb(void)
 {
   if (enable_heater_ && info_->temperature < MIN_TEMP)
   {
-    RCLCPP_INFO(this->get_logger(), "Current heater temperature: %d", info_->temperature);
+    RCLCPP_INFO(this->get_logger(), "Current heater temperature: %d [less than 100 Celsius]", info_->temperature);
 
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>();
     bool success = read_heater(state);
+
     if (success && *state == HEATER_OFF_STATE)
     {
       ctrl_heater(HEATER_ON);
@@ -736,6 +734,7 @@ rclcpp_action::CancelResponse PackagingMachineNode::handle_cancel(
 
 void PackagingMachineNode::handle_accepted(const std::shared_ptr<GaolHandlerPackagingOrder> goal_handle)
 {
+  const std::lock_guard<std::mutex> lock(mutex_);
   if (skip_pkg_)
     std::thread{std::bind(&PackagingMachineNode::skip_order_execute, this, _1), goal_handle}.detach();
   else

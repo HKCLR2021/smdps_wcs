@@ -89,7 +89,7 @@ def generate_launch_description():
             {"no_of_pkg_mac": no_of_pkg_mac},
         ],
         respawn=use_respawn,
-        respawn_delay=3.0,
+        respawn_delay=1.0,
         output="screen",
     )
 

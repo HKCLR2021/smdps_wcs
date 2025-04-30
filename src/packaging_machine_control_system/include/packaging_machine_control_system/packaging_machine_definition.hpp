@@ -73,6 +73,6 @@
 #define DELAY_MOTOR_WAIT_FOR          250ms // wait_for delay for motors
 #define DELAY_ORDER_START_WAIT_FOR    1s    // wait_for delay for order start
 
-#define MIN_TEMP 80
+#define MIN_TEMP 100
 
 #endif  // PACKAGING_MACHINE_DEFINITION_HPP_

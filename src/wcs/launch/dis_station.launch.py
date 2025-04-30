@@ -51,7 +51,7 @@ def generate_launch_description():
                     {"id": i + 1},
                 ],
                 respawn=use_respawn,
-                respawn_delay=3.0,
+                respawn_delay=1.0,
                 output="screen",
             )
             ld.add_action(node)
