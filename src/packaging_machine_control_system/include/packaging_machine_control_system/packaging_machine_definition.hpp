@@ -69,8 +69,8 @@
 #define DELAY_MTRL_BOX_GATE           1s    // material box gate in seconds
 #define DELAY_CO                      50ms  // CANopen delay
 #define DELAY_CO_L                    200ms // CANopen delay larger delay
-#define DELAY_VALVE_WAIT_FOR          250ms // wait_for delay for valves
-#define DELAY_MOTOR_WAIT_FOR          250ms // wait_for delay for motors
+#define DELAY_VALVE_WAIT_FOR          200ms // wait_for delay for valves
+#define DELAY_MOTOR_WAIT_FOR          200ms // wait_for delay for motors
 #define DELAY_ORDER_START_WAIT_FOR    1s    // wait_for delay for order start
 
 #define MIN_TEMP 100

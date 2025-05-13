@@ -139,7 +139,9 @@ public:
   void wait_for_roller(const uint8_t target_state);
   void wait_for_pkg_len(const uint8_t target_state);
 
+  void init_printer(void);
   void init_printer_config(void);
+  smdps_msgs::msg::PackageInfo create_printer_info_temp(void);
   std::vector<std::string> get_print_label_cmd(std::string name, int total, int current);
   std::vector<std::string> get_print_label_cmd(PackageInfo msg);
 
@@ -194,6 +196,7 @@ private:
   rclcpp::Service<SetBool>::SharedPtr roller_service_;
   rclcpp::Service<Trigger>::SharedPtr squeezer_service_;
   rclcpp::Service<Trigger>::SharedPtr print_one_pkg_service_;
+  rclcpp::Service<Trigger>::SharedPtr print_one_pkg_wo_squ_service_;
   rclcpp::Service<SetBool>::SharedPtr state_ctrl_service_;
   rclcpp::Service<SetBool>::SharedPtr skip_pkg_service_;
   rclcpp::Service<SetBool>::SharedPtr enable_heater_service_;
@@ -238,6 +241,9 @@ private:
     const std::shared_ptr<Trigger::Request> request, 
     std::shared_ptr<Trigger::Response> response);
   void print_one_pkg_handle(
+    const std::shared_ptr<Trigger::Request> request, 
+    std::shared_ptr<Trigger::Response> response);
+  void print_one_pkg_wo_squ_handle(
     const std::shared_ptr<Trigger::Request> request, 
     std::shared_ptr<Trigger::Response> response);
   void state_ctrl_handle(

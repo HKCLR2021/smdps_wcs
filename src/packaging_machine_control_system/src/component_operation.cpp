@@ -320,7 +320,20 @@ bool PackagingMachineNode::read_pkg_len_ctrl(std::shared_ptr<uint32_t> data)
 }
 
 // ===================================== printer =====================================
-void PackagingMachineNode::init_printer_config()
+
+void PackagingMachineNode::init_printer(void)
+{
+  printer_.reset();
+  printer_ = std::make_shared<Printer>(
+    printer_config_->vendor_id, 
+    printer_config_->product_id, 
+    printer_config_->serial,
+    printer_config_->port);
+
+  RCLCPP_INFO(this->get_logger(), "printer initialized");
+}
+
+void PackagingMachineNode::init_printer_config(void)
 {
   printer_->configure(printer_config_->endpoint_in, printer_config_->endpoint_out, printer_config_->timeout);
   printer_->addDefaultConfig("SIZE", "75 mm,80 mm");
@@ -337,6 +350,21 @@ void PackagingMachineNode::init_printer_config()
   printer_->addDefaultConfig("SET", "CUTTER OFF");
   printer_->addDefaultConfig("SET", "PARTIAL_CUTTER OFF");
   printer_->addDefaultConfig("CLS");
+}
+
+smdps_msgs::msg::PackageInfo PackagingMachineNode::create_printer_info_temp(void)
+{
+  PackageInfo msg;
+
+  msg.cn_name = "HKCLR";
+  msg.en_name = "Sam";
+  msg.date = "2024-11-30";
+  msg.time = "Morning";
+  msg.qr_code = "www.hkclr.hk";
+  msg.drugs.push_back("Spasmolyt 20mg   1");
+  msg.drugs.push_back("Hydralazine HCI 25mg   1");
+
+  return msg;
 }
 
 std::vector<std::string> PackagingMachineNode::get_print_label_cmd(PackageInfo msg)
@@ -384,6 +412,7 @@ void PackagingMachineNode::wait_for_stopper(const uint32_t stop_condition)
   {
     std::shared_ptr<uint32_t> data = std::make_shared<uint32_t>(0);
     read_stopper(data);
+    std::this_thread::sleep_for(DELAY_CO);
     info_->stopper = *data;
     RCLCPP_DEBUG(this->get_logger(), "stopper: %d", *data);
 
@@ -409,6 +438,7 @@ void PackagingMachineNode::wait_for_material_box_gate(const uint32_t stop_condit
   {
     std::shared_ptr<uint32_t> data = std::make_shared<uint32_t>(0);
     read_material_box_gate(data);
+    std::this_thread::sleep_for(DELAY_CO);
     info_->material_box_gate = *data;
     RCLCPP_DEBUG(this->get_logger(), "material_box_gate: %d", *data);
 
@@ -434,6 +464,7 @@ void PackagingMachineNode::wait_for_cutter(const uint32_t stop_condition)
   {
     std::shared_ptr<uint32_t> data = std::make_shared<uint32_t>(0);
     read_cutter(data);
+    std::this_thread::sleep_for(DELAY_CO);
     info_->cutter = *data;
     RCLCPP_DEBUG(this->get_logger(), "cutter: %d", *data);
 
@@ -508,7 +539,7 @@ void PackagingMachineNode::wait_for_squeezer(const uint8_t target_state)
 {
   std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
 
-  rclcpp::Rate rate(1);
+  rclcpp::Rate rate(2);
   while (rclcpp::ok())
   {
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
@@ -536,7 +567,7 @@ void PackagingMachineNode::wait_for_conveyor(const uint8_t target_state)
 {
   std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
 
-  rclcpp::Rate rate(1);
+  rclcpp::Rate rate(2);
   while (rclcpp::ok())
   {
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);

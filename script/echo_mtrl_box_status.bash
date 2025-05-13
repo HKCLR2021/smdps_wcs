@@ -1,6 +1,6 @@
 #! /bin/bash
 
-CONTAINER_NAME=prod_line_sys
+CONTAINER_NAME=dis_station
 WS_NAME=smdps_wcs
 ROS_DISTRO=humble
 

@@ -231,13 +231,7 @@ void PackagingMachineNode::init_packaging_machine(void)
 
   std::this_thread::sleep_for(DELAY_GENERAL_STEP);
 
-  printer_.reset();
-  printer_ = std::make_shared<Printer>(
-    printer_config_->vendor_id, 
-    printer_config_->product_id, 
-    printer_config_->serial,
-    printer_config_->port);
-  RCLCPP_INFO(this->get_logger(), "printer initialized");
+  init_printer();
   init_printer_config();
 
   for (uint8_t i = 0; i < PKG_PREFIX; i++)

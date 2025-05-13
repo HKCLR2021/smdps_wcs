@@ -168,6 +168,12 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
 
+  print_one_pkg_wo_squ_service_ = this->create_service<Trigger>(
+    "print_one_package_wo_squeeze", 
+    std::bind(&PackagingMachineNode::print_one_pkg_wo_squ_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
   state_ctrl_service_ = this->create_service<SetBool>(
     "state_control", 
     std::bind(&PackagingMachineNode::state_ctrl_handle, this, _1, _2),
@@ -583,29 +589,14 @@ void PackagingMachineNode::print_one_pkg_handle(
     return;
   }
 
-  printer_.reset();
-  printer_ = std::make_shared<Printer>(
-    printer_config_->vendor_id, 
-    printer_config_->product_id, 
-    printer_config_->serial,
-    printer_config_->port);
-  RCLCPP_INFO(this->get_logger(), "printer initialized");
+  init_printer();
   init_printer_config();
 
-  PackageInfo msg;
-  msg.cn_name = "cn_name";
-  msg.en_name = "en_name";
-  msg.date = "2024-11-30";
-  msg.time = "17:00";
-  msg.qr_code = "www.hkclr.hk";
-  msg.drugs.push_back("DRUG 1");
-  msg.drugs.push_back("DRUG 2");
-  msg.drugs.push_back("DRUG 3");
+  PackageInfo msg = create_printer_info_temp();
   auto cmd = get_print_label_cmd(msg);
   
   printer_->runTask(cmd);
   RCLCPP_INFO(this->get_logger(), "printed a empty package");
-  response->success = true;
 
   std::this_thread::sleep_for(DELAY_PKG_DIS_WAIT_PRINTER);
   ctrl_pkg_dis(status_->package_length * PKG_DIS_MARGIN_FACTOR, PKG_DIS_FEED_DIR, MOTOR_ENABLE);
@@ -622,6 +613,41 @@ void PackagingMachineNode::print_one_pkg_handle(
   ctrl_squeezer(SQUEEZER_ACTION_PULL, MOTOR_ENABLE);
   wait_for_squeezer(MotorStatus::IDLE);
   printer_.reset();
+
+  response->success = true;
+}
+
+void PackagingMachineNode::print_one_pkg_wo_squ_handle(
+  const std::shared_ptr<Trigger::Request> request, 
+  std::shared_ptr<Trigger::Response> response)
+{
+  (void) request;
+  if (status_->packaging_machine_state != PackagingMachineStatus::IDLE)
+  {
+    response->success = false;
+    response->message = "State is not IDLE";
+    return;
+  }
+
+  init_printer();
+  init_printer_config();
+
+  PackageInfo msg = create_printer_info_temp();
+  auto cmd = get_print_label_cmd(msg);
+  
+  printer_->runTask(cmd);
+  RCLCPP_INFO(this->get_logger(), "printed a empty package");
+
+  std::this_thread::sleep_for(DELAY_PKG_DIS_WAIT_PRINTER);
+  ctrl_pkg_dis(status_->package_length * PKG_DIS_MARGIN_FACTOR, PKG_DIS_FEED_DIR, MOTOR_ENABLE);
+  wait_for_pkg_dis(MotorStatus::IDLE);
+
+  ctrl_pkg_dis(PKG_DIS_UNFEED_LEN, PKG_DIS_UNFEED_DIR, MOTOR_ENABLE);
+  wait_for_pkg_dis(MotorStatus::IDLE);
+
+  printer_.reset();
+
+  response->success = true;
 }
 
 // This service is designed for debugging only
@@ -646,7 +672,7 @@ void PackagingMachineNode::skip_pkg_ctrl_handle(
   std::shared_ptr<SetBool::Response> response)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
-  skip_pkg_ = request->data;
+  status_->skip_packaging = request->data;
   response->success = true;
 }
 
@@ -688,17 +714,11 @@ rclcpp_action::GoalResponse PackagingMachineNode::handle_goal(
   RCLCPP_INFO(this->get_logger(), "set packaging_machine_state to BUSY");
   RCLCPP_INFO(this->get_logger(), "set conveyor_state to UNAVAILABLE");
 
-  printer_.reset();
-  printer_ = std::make_shared<Printer>(
-    printer_config_->vendor_id, 
-    printer_config_->product_id, 
-    printer_config_->serial,
-    printer_config_->port);
-  RCLCPP_INFO(this->get_logger(), "printer initialized");
+  init_printer();
   init_printer_config();
 
   uint16_t retry = 0;
-  const uint8_t MAX_RETIRES = 90;
+  const uint8_t MAX_RETIRES = 120;
   rclcpp::Rate loop_rate(1s); 
   for (; retry < MAX_RETIRES && rclcpp::ok(); retry++) 
   {
@@ -735,7 +755,7 @@ rclcpp_action::CancelResponse PackagingMachineNode::handle_cancel(
 void PackagingMachineNode::handle_accepted(const std::shared_ptr<GaolHandlerPackagingOrder> goal_handle)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
-  if (skip_pkg_)
+  if (status_->skip_packaging)
     std::thread{std::bind(&PackagingMachineNode::skip_order_execute, this, _1), goal_handle}.detach();
   else
     std::thread{std::bind(&PackagingMachineNode::order_execute, this, _1), goal_handle}.detach();
