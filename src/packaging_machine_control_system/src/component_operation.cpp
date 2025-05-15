@@ -291,10 +291,10 @@ bool PackagingMachineNode::ctrl_pkg_len(
   switch (level)
   {
   case 1:
-    success &= call_co_write(0x6042, 0x0, 0); // moving downward
+    success &= call_co_write(0x6042, 0x0, 1); // moving upward
     break;
   case 2:
-    success &= call_co_write(0x6042, 0x0, 1); // moving upward
+    success &= call_co_write(0x6042, 0x0, 0); // moving downward
     break;
   default:
     return ctrl_pkg_len(0, 0);
@@ -336,7 +336,10 @@ void PackagingMachineNode::init_printer(void)
 void PackagingMachineNode::init_printer_config(void)
 {
   printer_->configure(printer_config_->endpoint_in, printer_config_->endpoint_out, printer_config_->timeout);
-  printer_->addDefaultConfig("SIZE", "75 mm,80 mm");
+
+  std::string size_str = "75 mm," + std::to_string(status_->package_length) + " mm";
+  
+  printer_->addDefaultConfig("SIZE", size_str);
   printer_->addDefaultConfig("GAP", "0 mm, 0mm");
   printer_->addDefaultConfig("SPEED", "1");
   printer_->addDefaultConfig("DENSITY", "15");
@@ -358,11 +361,29 @@ smdps_msgs::msg::PackageInfo PackagingMachineNode::create_printer_info_temp(void
 
   msg.cn_name = "HKCLR";
   msg.en_name = "Sam";
-  msg.date = "2024-11-30";
-  msg.time = "Morning";
+
+  if (printer_test_date_index < printer_test_date.size())
+    msg.date = printer_test_date[printer_test_date_index];
+  else
+    msg.date = "out of range";
+
+  if (printer_test_meal_index < printer_test_meal.size())
+    msg.time = printer_test_meal[printer_test_meal_index++];
+  else
+    msg.time = "out of range";
+  
   msg.qr_code = "www.hkclr.hk";
   msg.drugs.push_back("Spasmolyt 20mg   1");
   msg.drugs.push_back("Hydralazine HCI 25mg   1");
+
+  if (printer_test_meal_index >= printer_test_meal.size())
+  {
+    printer_test_meal_index = 0; 
+    printer_test_date_index++;
+  }
+  
+  if (printer_test_date_index >= printer_test_date.size())
+    printer_test_date_index = 0;
 
   return msg;
 }

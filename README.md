@@ -13,8 +13,14 @@
 git clone --recurse-submodules https://github.com/samkwok-hkclr/smdps_wcs
 ```
 
-### 2. Build and Run the Containers
+### 2. Build the Containers
 
 ```bash
-docker compose up --build --force-recreate
+docker compose build
+```
+
+### 3. Run the Containers
+
+```bash
+docker compose up --detach
 ```

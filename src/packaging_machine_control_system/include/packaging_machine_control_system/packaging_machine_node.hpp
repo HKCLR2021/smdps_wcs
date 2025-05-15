@@ -28,6 +28,8 @@
 #include "smdps_msgs/msg/motor_status.hpp"
 #include "smdps_msgs/msg/unbind_request.hpp"
 
+#include "smdps_msgs/srv/u_int8.hpp"
+
 #include "canopen_interfaces/msg/co_data.hpp"
 #include "canopen_interfaces/srv/co_read.hpp"
 #include "canopen_interfaces/srv/co_write.hpp"
@@ -69,6 +71,8 @@ public:
   using MotorStatus = smdps_msgs::msg::MotorStatus;
   using UnbindRequest = smdps_msgs::msg::UnbindRequest;
   using PackagingOrder = smdps_msgs::action::PackagingOrder;
+
+  using UInt8Srv = smdps_msgs::srv::UInt8;
 
   using GaolHandlerPackagingOrder = rclcpp_action::ServerGoalHandle<PackagingOrder>;
 
@@ -156,8 +160,13 @@ private:
   CallbackSignal co_read_signal;
   CallbackSignal co_write_signal;
 
+  std::vector<std::string> printer_test_date;
+  std::vector<std::string> printer_test_meal;
+  uint8_t printer_test_date_index = 0;
+  uint8_t printer_test_meal_index = 0;
+
+  bool is_initialized_ = false;
   bool sim_;
-  bool skip_pkg_;
   bool enable_heater_;
   std::shared_ptr<PackagingMachineStatus> status_;
   std::shared_ptr<MotorStatus> motor_status_;
@@ -195,6 +204,7 @@ private:
   rclcpp::Service<SetBool>::SharedPtr pill_gate_service_;
   rclcpp::Service<SetBool>::SharedPtr roller_service_;
   rclcpp::Service<Trigger>::SharedPtr squeezer_service_;
+  rclcpp::Service<UInt8Srv>::SharedPtr pkg_len_service_;
   rclcpp::Service<Trigger>::SharedPtr print_one_pkg_service_;
   rclcpp::Service<Trigger>::SharedPtr print_one_pkg_wo_squ_service_;
   rclcpp::Service<SetBool>::SharedPtr state_ctrl_service_;
@@ -240,6 +250,9 @@ private:
   void squeezer_handle(
     const std::shared_ptr<Trigger::Request> request, 
     std::shared_ptr<Trigger::Response> response);
+  void pkg_len_handle(
+    const std::shared_ptr<UInt8Srv::Request> request, 
+    std::shared_ptr<UInt8Srv::Response> response);
   void print_one_pkg_handle(
     const std::shared_ptr<Trigger::Request> request, 
     std::shared_ptr<Trigger::Response> response);

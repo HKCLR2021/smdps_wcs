@@ -1,4 +1,4 @@
-#include "wcs/dis_station_node.hpp"
+#include "dis_station/dis_station_node.hpp"
 
 template bool DispenserStationNode::read_opcua_value<bool>(const opcua::NodeId&, std::shared_ptr<bool>);
 template bool DispenserStationNode::read_opcua_value<int16_t>(const opcua::NodeId&, std::shared_ptr<int16_t>);

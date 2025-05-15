@@ -1,9 +1,9 @@
-prod_line_ctrl:
-  ros__parameters:
-    hkclr_ip: 192.168.8.51
-    hkclr_port: 8000
-    jinli_ip: 192.168.8.51
-    jinli_port: 8080
+# prod_line_ctrl:
+#   ros__parameters:
+#     hkclr_ip: 192.168.8.51
+#     hkclr_port: 8000
+#     jinli_ip: 192.168.8.51
+#     jinli_port: 8080
 
 /dispenser_station_1/dis_sta_node:
   ros__parameters:

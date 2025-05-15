@@ -1,4 +1,4 @@
-#include "wcs/dis_station_node.hpp"
+#include "dis_station/dis_station_node.hpp"
 
 DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
 : Node("dis_station_node", options),

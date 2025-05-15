@@ -78,10 +78,12 @@ PackagingMachineManager::PackagingMachineManager(
     load_node_service_name,
     rmw_qos_profile_services_default,
     srv_cli_cbg_);
+    
   unload_node_client_ = this->create_client<UnloadNode>(
     unload_node_service_name,
     rmw_qos_profile_services_default,
     srv_cli_cbg_);
+    
   list_node_client_ = this->create_client<ListNodes>(
     list_nodes_service_name,
     rmw_qos_profile_services_default,

@@ -1,16 +1,6 @@
-[submodule "src/wcs/include/httplib"]
-	path = src/wcs/include/httplib
-	url = https://github.com/yhirose/cpp-httplib
-	branch = master
-	
 [submodule "src/smdps_msgs"]
 	path = src/smdps_msgs
 	url = https://github.com/samkwok-hkclr/smdps_msgs
-	branch = master
-	
-[submodule "src/nlohmann"]
-	path = src/nlohmann
-	url = https://github.com/nlohmann/json
 	branch = master
 
 [submodule "src/open62541pp"]

@@ -16,7 +16,15 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   this->get_parameter("packaging_machine_id", status_->packaging_machine_id);
   this->get_parameter("simulation", sim_);
 
-  skip_pkg_ = false;
+  printer_test_date.push_back("2024-03-31");
+  printer_test_date.push_back("2024-04-01");
+  printer_test_date.push_back("2024-04-02");
+
+  printer_test_meal.push_back("Morning");
+  printer_test_meal.push_back("Noon");
+  printer_test_meal.push_back("Afternoon");
+  printer_test_meal.push_back("Evening");
+
   enable_heater_ = true;
 
   std::vector<long int> default_states = this->get_parameter("default_states").as_integer_array();
@@ -162,6 +170,12 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
 
+  pkg_len_service_ = this->create_service<UInt8Srv>(
+    "package_length_operation", 
+    std::bind(&PackagingMachineNode::pkg_len_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
   print_one_pkg_service_ = this->create_service<Trigger>(
     "print_one_package", 
     std::bind(&PackagingMachineNode::print_one_pkg_handle, this, _1, _2),
@@ -217,9 +231,8 @@ void PackagingMachineNode::pub_status_cb(void)
   Bool skip_pkg_msg;
   {
     const std::lock_guard<std::mutex> lock(mutex_);
-    skip_pkg_msg.data = skip_pkg_;
+    skip_pkg_msg.data = status_->skip_packaging;
     status_->header.stamp = this->get_clock()->now();
-    // status_->skip_packaging = skip_pkg_;
   }
 
   status_publisher_->publish(*status_);
@@ -272,6 +285,7 @@ void PackagingMachineNode::init_timer(void)
 
   if (success)
   {
+    is_initialized_ = true;
     once_timer_->cancel();
     RCLCPP_INFO(this->get_logger(), "Init timer cancelled!");
   }
@@ -344,6 +358,12 @@ void PackagingMachineNode::rpdo_cb(const COData::SharedPtr msg)
     info_->pill_gate_home  = (input >> 5) & 0x1;
     info_->pkg_len_level_1 = (input >> 6) & 0x1;
     info_->pkg_len_level_2 = (input >> 7) & 0x1;
+
+    if (info_->pkg_len_level_1)
+      status_->package_length = 90;
+    else if (info_->pkg_len_level_2)
+      status_->package_length = 80;
+
     RCLCPP_DEBUG(this->get_logger(), "conveyor: %s", info_->conveyor ? "1" : "0");
     RCLCPP_DEBUG(this->get_logger(), "squeeze: %s", info_->squeeze ? "1" : "0");
     RCLCPP_DEBUG(this->get_logger(), "squeeze_home: %s", info_->squeeze_home ? "1" : "0");
@@ -393,6 +413,10 @@ void PackagingMachineNode::stopper_handle(
   std::shared_ptr<SetBool::Response> response)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!is_initialized_)
+    return;
+
   if (request->data)
   {
     if (info_->stopper == STOPPER_SUNK_STATE)
@@ -436,6 +460,10 @@ void PackagingMachineNode::mtrl_box_gate_handle(
   std::shared_ptr<SetBool::Response> response)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
+  
+  if (!is_initialized_)
+    return;
+
   if (request->data)
   {
     if (info_->material_box_gate == MTRL_BOX_GATE_OPEN_STATE)
@@ -471,6 +499,10 @@ void PackagingMachineNode::conveyor_handle(
   std::shared_ptr<SetBool::Response> response)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!is_initialized_)
+    return;
+
   if (request->data)
   {
     if (motor_status_->con_state != MotorStatus::IDLE)
@@ -511,6 +543,11 @@ void PackagingMachineNode::pill_gate_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
+  const std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!is_initialized_)
+    return;
+
   if (request->data)
   {
     if (ctrl_pill_gate(PILL_GATE_WIDTH, PILL_GATE_OPEN_DIR, MOTOR_ENABLE))
@@ -537,6 +574,11 @@ void PackagingMachineNode::roller_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
+  const std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!is_initialized_)
+    return;
+
   if (request->data)
   {
     if (ctrl_roller(1, 0, MOTOR_ENABLE))
@@ -564,6 +606,10 @@ void PackagingMachineNode::squeezer_handle(
   std::shared_ptr<Trigger::Response> response)
 {
   (void)request;
+  const std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!is_initialized_)
+    return;
 
   ctrl_squeezer(SQUEEZER_ACTION_PUSH, MOTOR_ENABLE);
   wait_for_squeezer(MotorStatus::IDLE);
@@ -576,12 +622,46 @@ void PackagingMachineNode::squeezer_handle(
   response->success = true;
 }
 
+void PackagingMachineNode::pkg_len_handle(
+  const std::shared_ptr<UInt8Srv::Request> request, 
+  std::shared_ptr<UInt8Srv::Response> response)
+{
+  const std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!is_initialized_)
+    return;
+  
+  if (request->data == 1 && info_->pkg_len_level_2)
+  {
+    // 90mm -> 80mm
+    ctrl_pkg_len(1, MOTOR_ENABLE);
+    wait_for_pkg_len(MotorStatus::IDLE);
+    
+    // FIXME: 
+    // ctrl_pkg_dis(50, PKG_DIS_FEED_DIR, MOTOR_ENABLE);
+    // wait_for_pkg_dis(MotorStatus::IDLE);
+  }
+  else if ((request->data == 2 && info_->pkg_len_level_1))
+  {
+    // 80mm -> 90mm
+    ctrl_pkg_len(2, MOTOR_ENABLE);
+    wait_for_pkg_len(MotorStatus::IDLE);
+
+    // FIXME: required to print out pkg 
+  }
+
+  response->success = true;
+}
 
 void PackagingMachineNode::print_one_pkg_handle(
   const std::shared_ptr<Trigger::Request> request, 
   std::shared_ptr<Trigger::Response> response)
 {
   (void) request;
+
+  if (!is_initialized_)
+    return;
+
   if (status_->packaging_machine_state != PackagingMachineStatus::IDLE)
   {
     response->success = false;
@@ -622,6 +702,10 @@ void PackagingMachineNode::print_one_pkg_wo_squ_handle(
   std::shared_ptr<Trigger::Response> response)
 {
   (void) request;
+
+  if (!is_initialized_)
+    return;
+
   if (status_->packaging_machine_state != PackagingMachineStatus::IDLE)
   {
     response->success = false;
@@ -657,6 +741,7 @@ void PackagingMachineNode::state_ctrl_handle(
   std::shared_ptr<SetBool::Response> response)
 {
   const std::lock_guard<std::mutex> lock(mutex_);
+  
   if (request->data)
     status_->packaging_machine_state = PackagingMachineStatus::BUSY;
   else

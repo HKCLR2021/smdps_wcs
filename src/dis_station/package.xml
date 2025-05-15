@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>wcs</name>
+  <name>dis_station</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="mskwok@hkclr.hk">kms</maintainer>
@@ -13,8 +13,8 @@
   <test_depend>ament_lint_common</test_depend>
   
   <depend>smdps_msgs</depend>
-  <depend>nlohmann_json</depend>
-  <depend>httplib</depend>
+  <!-- <depend>nlohmann_json</depend> -->
+  <!-- <depend>httplib</depend> -->
   <depend>open62541pp</depend>
 
   <depend>rclcpp</depend>

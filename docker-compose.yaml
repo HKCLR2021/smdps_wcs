@@ -133,30 +133,30 @@ services:
     ipc: host
     pid: host
 
-  prod_line:
-    image: prod_line_sys:latest
-    container_name: prod_line
-    hostname: prod_line
-    depends_on:
-      build_prod_line_sys:
-        condition: service_completed_successfully
-      activate_can:
-        condition: service_completed_successfully
-      dis_station:
-        condition: service_started
-    environment: *common-variables
-    command: ["sh", "-c", "ros2 launch wcs prod_line.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
-    volumes:
-      - /home/hkclr/smdps_wcs/logs:/logs
-    restart: no
-    network_mode: host
-    ipc: host
-    pid: host
-    healthcheck:
-      test: ["CMD-SHELL", "curl --silent --fail 192.168.8.51:8000/api/v1/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # prod_line:
+  #   image: prod_line_sys:latest
+  #   container_name: prod_line
+  #   hostname: prod_line
+  #   depends_on:
+  #     build_prod_line_sys:
+  #       condition: service_completed_successfully
+  #     activate_can:
+  #       condition: service_completed_successfully
+  #     dis_station:
+  #       condition: service_started
+  #   environment: *common-variables
+  #   command: ["sh", "-c", "ros2 launch dis_station prod_line.launch.py no_of_dis_station:=$${NO_OF_DIS_STA} no_of_pkg_mac:=$${NO_OF_PKG_MAC}"]
+  #   volumes:
+  #     - /home/hkclr/smdps_wcs/logs:/logs
+  #   restart: no
+  #   network_mode: host
+  #   ipc: host
+  #   pid: host
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl --silent --fail 192.168.8.51:8000/api/v1/health || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   dis_station:
     image: dis_station:latest
@@ -166,7 +166,7 @@ services:
       build_dis_station:
         condition: service_completed_successfully
     environment: *common-variables
-    command: ["sh", "-c", "ros2 launch wcs dis_station.launch.py no_of_dis_station:=$${NO_OF_DIS_STA}"]
+    command: ["sh", "-c", "ros2 launch dis_station dis_station.launch.py no_of_dis_station:=$${NO_OF_DIS_STA}"]
     volumes:
       - /home/hkclr/smdps_wcs/logs:/logs
     restart: no

@@ -1,4 +1,4 @@
-#include "wcs/dis_station_node.hpp"
+#include "dis_station/dis_station_node.hpp"
 
 bool DispenserStationNode::init_opcua_cli(void)
 {

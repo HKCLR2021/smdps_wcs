@@ -127,7 +127,7 @@ VOLUME [ "/logs", "/dev/bus", "/dev/serial" ]
 # ========== dis_station ========== 
 FROM dis_station_img AS dis_station
 
-COPY ./src/wcs ./src/wcs
+COPY ./src/dis_station ./src/dis_station
 COPY ./fastdds_profiles.xml ./
 
 ENV FASTRTPS_DEFAULT_PROFILES_FILE=/${WS_NAME}/fastdds_profiles.xml
@@ -135,10 +135,10 @@ ENV FASTRTPS_DEFAULT_PROFILES_FILE=/${WS_NAME}/fastdds_profiles.xml
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
     . install/setup.sh && \
     colcon build \
-    --packages-select wcs \
+    --packages-select dis_station \
     --cmake-args -DCMAKE_BUILD_TYPE=Release
 
-RUN rm -rf ./src/wcs
+RUN rm -rf ./src/dis_station
 
 RUN mkdir -p /logs
 ENV ROS_LOG_DIR=/logs

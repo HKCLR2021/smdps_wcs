@@ -10,7 +10,7 @@ from launch.substitutions import LaunchConfiguration
 def generate_launch_description():
     ld = LaunchDescription()
 
-    pkg_name = "wcs"
+    pkg_name = "dis_station"
     bringup_dir = get_package_share_directory(pkg_name)
 
     no_of_dis_station = LaunchConfiguration("no_of_dis_station")
@@ -31,7 +31,7 @@ def generate_launch_description():
 
     declare_params_file_cmd = DeclareLaunchArgument(
         "params_file",
-        default_value=os.path.join(bringup_dir, "params", "wcs.yaml"),
+        default_value=os.path.join(bringup_dir, "params", "dis_station.yaml"),
         description="Full path to the ROS2 parameters file to use for all launched nodes",
     )
 
