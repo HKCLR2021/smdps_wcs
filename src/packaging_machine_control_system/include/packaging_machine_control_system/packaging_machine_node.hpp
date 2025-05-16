@@ -153,6 +153,7 @@ public:
 
 private:
   std::mutex mutex_;
+  std::recursive_mutex  r_mutex_;
 
   std::shared_ptr<Printer> printer_;
   std::shared_ptr<Config> printer_config_;

@@ -16,10 +16,10 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   this->get_parameter("packaging_machine_id", status_->packaging_machine_id);
   this->get_parameter("simulation", sim_);
 
+  // for testing only
   printer_test_date.push_back("2024-03-31");
   printer_test_date.push_back("2024-04-01");
   printer_test_date.push_back("2024-04-02");
-
   printer_test_meal.push_back("Morning");
   printer_test_meal.push_back("Noon");
   printer_test_meal.push_back("Afternoon");
@@ -33,10 +33,10 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   std::vector<long int> ports = this->get_parameter("ports").as_integer_array();
   printer_config_->port = ports[status_->packaging_machine_id - 1];
 
-  RCLCPP_DEBUG(this->get_logger(), "ID: %d", status_->packaging_machine_id);
-  RCLCPP_DEBUG(this->get_logger(), "default_states size: %ld", default_states.size());
-  RCLCPP_DEBUG(this->get_logger(), "packaging_machine_state: %d", status_->packaging_machine_state);
-  RCLCPP_DEBUG(this->get_logger(), "port: %d", printer_config_->port);
+  RCLCPP_INFO(this->get_logger(), "ID: %d", status_->packaging_machine_id);
+  RCLCPP_INFO(this->get_logger(), "default_states size: %ld", default_states.size());
+  RCLCPP_INFO(this->get_logger(), "packaging_machine_state: %d", status_->packaging_machine_state);
+  RCLCPP_INFO(this->get_logger(), "port: %d", printer_config_->port);
 
   motor_status_->id = status_->packaging_machine_id;
   info_->id = status_->packaging_machine_id;
@@ -77,8 +77,8 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   status_->canopen_state = PackagingMachineStatus::NORMAL;
   status_->package_length = 80; // FIXME
 
-  co_cli_read_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-  co_cli_write_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  co_cli_read_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  co_cli_write_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
   srv_conveyor_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   srv_stopper_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -230,7 +230,7 @@ void PackagingMachineNode::pub_status_cb(void)
 {
   Bool skip_pkg_msg;
   {
-    const std::lock_guard<std::mutex> lock(mutex_);
+    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
     skip_pkg_msg.data = status_->skip_packaging;
     status_->header.stamp = this->get_clock()->now();
   }
@@ -260,7 +260,7 @@ void PackagingMachineNode::heater_cb(void)
 
 void PackagingMachineNode::con_state_cb(void)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
 
   if (motor_status_->con_state == MotorStatus::RUNNING && info_->stopper == STOPPER_SUNK)
   {
@@ -293,7 +293,7 @@ void PackagingMachineNode::init_timer(void)
 
 void PackagingMachineNode::rpdo_cb(const COData::SharedPtr msg)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
   switch (msg->index)
   {
   case 0x6001:
@@ -412,7 +412,7 @@ void PackagingMachineNode::stopper_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
 
   if (!is_initialized_)
     return;
@@ -459,7 +459,7 @@ void PackagingMachineNode::mtrl_box_gate_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
   
   if (!is_initialized_)
     return;
@@ -498,7 +498,7 @@ void PackagingMachineNode::conveyor_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
 
   if (!is_initialized_)
     return;
@@ -543,7 +543,7 @@ void PackagingMachineNode::pill_gate_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
 
   if (!is_initialized_)
     return;
@@ -574,7 +574,7 @@ void PackagingMachineNode::roller_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
 
   if (!is_initialized_)
     return;
@@ -606,11 +606,12 @@ void PackagingMachineNode::squeezer_handle(
   std::shared_ptr<Trigger::Response> response)
 {
   (void)request;
-  const std::lock_guard<std::mutex> lock(mutex_);
+  
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
 
   if (!is_initialized_)
     return;
-
+  
   ctrl_squeezer(SQUEEZER_ACTION_PUSH, MOTOR_ENABLE);
   wait_for_squeezer(MotorStatus::IDLE);
 
@@ -626,7 +627,7 @@ void PackagingMachineNode::pkg_len_handle(
   const std::shared_ptr<UInt8Srv::Request> request, 
   std::shared_ptr<UInt8Srv::Response> response)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
 
   if (!is_initialized_)
     return;
@@ -740,7 +741,7 @@ void PackagingMachineNode::state_ctrl_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
   
   if (request->data)
     status_->packaging_machine_state = PackagingMachineStatus::BUSY;
@@ -756,7 +757,7 @@ void PackagingMachineNode::skip_pkg_ctrl_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
   status_->skip_packaging = request->data;
   response->success = true;
 }
@@ -767,7 +768,7 @@ void PackagingMachineNode::enable_heater_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
   ctrl_heater(HEATER_OFF);
   enable_heater_ = request->data;
   response->success = true;
@@ -839,7 +840,8 @@ rclcpp_action::CancelResponse PackagingMachineNode::handle_cancel(
 
 void PackagingMachineNode::handle_accepted(const std::shared_ptr<GaolHandlerPackagingOrder> goal_handle)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  
   if (status_->skip_packaging)
     std::thread{std::bind(&PackagingMachineNode::skip_order_execute, this, _1), goal_handle}.detach();
   else
