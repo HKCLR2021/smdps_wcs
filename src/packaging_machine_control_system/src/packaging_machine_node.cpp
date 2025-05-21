@@ -25,6 +25,8 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   printer_test_meal.push_back("Afternoon");
   printer_test_meal.push_back("Evening");
 
+  printer_font_ = 3;
+
   enable_heater_ = true;
 
   std::vector<long int> default_states = this->get_parameter("default_states").as_integer_array();
@@ -224,6 +226,18 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
     
     RCLCPP_INFO(this->get_logger(), "The CO Service client is up.");
   }
+  // for (uint8_t i = 0; i < 10; i++)
+  // {
+  //   init_printer();
+  //   init_printer_config();
+
+  //   PackageInfo msg = create_printer_info_temp();
+  //   auto cmd = get_print_label_cmd(msg);
+    
+  //   printer_->runTask(cmd);
+  //   RCLCPP_INFO(this->get_logger(), "printed a empty package");
+  //   printer_font_++;
+  // }
 }
 
 void PackagingMachineNode::pub_status_cb(void)
@@ -412,27 +426,29 @@ void PackagingMachineNode::stopper_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
-
-  if (!is_initialized_)
-    return;
-
-  if (request->data)
   {
-    if (info_->stopper == STOPPER_SUNK_STATE)
-    {
-      response->success = false;
-      response->message = "Stopper is in sunk state";
+    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+
+    if (!is_initialized_)
       return;
+
+    if (request->data)
+    {
+      if (info_->stopper == STOPPER_SUNK_STATE)
+      {
+        response->success = false;
+        response->message = "Stopper is in sunk state";
+        return;
+      }
     }
-  }
-  else
-  {
-    if (info_->stopper == STOPPER_PROTRUDE_STATE)
+    else
     {
-      response->success = false;
-      response->message = "Stopper is in protrude state";
-      return;
+      if (info_->stopper == STOPPER_PROTRUDE_STATE)
+      {
+        response->success = false;
+        response->message = "Stopper is in protrude state";
+        return;
+      }
     }
   }
 
@@ -459,27 +475,29 @@ void PackagingMachineNode::mtrl_box_gate_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
-  
-  if (!is_initialized_)
-    return;
+  {
+    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    
+    if (!is_initialized_)
+      return;
 
-  if (request->data)
-  {
-    if (info_->material_box_gate == MTRL_BOX_GATE_OPEN_STATE)
+    if (request->data)
     {
-      response->success = false;
-      response->message = "Material Box Gate is in open state";
-      return;
+      if (info_->material_box_gate == MTRL_BOX_GATE_OPEN_STATE)
+      {
+        response->success = false;
+        response->message = "Material Box Gate is in open state";
+        return;
+      }
     }
-  }
-  else
-  {
-    if (info_->material_box_gate == MTRL_BOX_GATE_CLOSE_STATE)
+    else
     {
-      response->success = false;
-      response->message = "Material Box Gate is in close state";
-      return;
+      if (info_->material_box_gate == MTRL_BOX_GATE_CLOSE_STATE)
+      {
+        response->success = false;
+        response->message = "Material Box Gate is in close state";
+        return;
+      }
     }
   }
 
@@ -498,27 +516,29 @@ void PackagingMachineNode::conveyor_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
-
-  if (!is_initialized_)
-    return;
-
-  if (request->data)
   {
-    if (motor_status_->con_state != MotorStatus::IDLE)
-    {
-      response->success = false;
-      response->message = "Conveyor is not idle";
+    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+
+    if (!is_initialized_)
       return;
+
+    if (request->data)
+    {
+      if (motor_status_->con_state != MotorStatus::IDLE)
+      {
+        response->success = false;
+        response->message = "Conveyor is not idle";
+        return;
+      }
     }
-  }
-  else
-  {
-    if (motor_status_->con_state == MotorStatus::IDLE)
+    else
     {
-      response->success = false;
-      response->message = "Conveyor is already idle";
-      return;
+      if (motor_status_->con_state == MotorStatus::IDLE)
+      {
+        response->success = false;
+        response->message = "Conveyor is already idle";
+        return;
+      }
     }
   }
 
@@ -543,10 +563,12 @@ void PackagingMachineNode::pill_gate_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  {
+    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
 
-  if (!is_initialized_)
-    return;
+    if (!is_initialized_)
+      return;
+  }
 
   if (request->data)
   {
@@ -574,10 +596,12 @@ void PackagingMachineNode::roller_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  {
+    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
 
-  if (!is_initialized_)
-    return;
+    if (!is_initialized_)
+      return;
+  }
 
   if (request->data)
   {
@@ -607,11 +631,13 @@ void PackagingMachineNode::squeezer_handle(
 {
   (void)request;
   
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  {
+    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
 
-  if (!is_initialized_)
-    return;
-  
+    if (!is_initialized_)
+      return;
+  }
+
   ctrl_squeezer(SQUEEZER_ACTION_PUSH, MOTOR_ENABLE);
   wait_for_squeezer(MotorStatus::IDLE);
 
@@ -627,16 +653,18 @@ void PackagingMachineNode::pkg_len_handle(
   const std::shared_ptr<UInt8Srv::Request> request, 
   std::shared_ptr<UInt8Srv::Response> response)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  {
+    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
 
-  if (!is_initialized_)
-    return;
+    if (!is_initialized_)
+      return;
+  }
   
   if (request->data == 1 && info_->pkg_len_level_2)
   {
     // 90mm -> 80mm
-    ctrl_pkg_len(1, MOTOR_ENABLE);
-    wait_for_pkg_len(MotorStatus::IDLE);
+    // ctrl_pkg_len(1, MOTOR_ENABLE);
+    // wait_for_pkg_len(MotorStatus::IDLE);
     
     // FIXME: 
     // ctrl_pkg_dis(50, PKG_DIS_FEED_DIR, MOTOR_ENABLE);
@@ -645,8 +673,8 @@ void PackagingMachineNode::pkg_len_handle(
   else if ((request->data == 2 && info_->pkg_len_level_1))
   {
     // 80mm -> 90mm
-    ctrl_pkg_len(2, MOTOR_ENABLE);
-    wait_for_pkg_len(MotorStatus::IDLE);
+    // ctrl_pkg_len(2, MOTOR_ENABLE);
+    // wait_for_pkg_len(MotorStatus::IDLE);
 
     // FIXME: required to print out pkg 
   }
@@ -659,15 +687,18 @@ void PackagingMachineNode::print_one_pkg_handle(
   std::shared_ptr<Trigger::Response> response)
 {
   (void) request;
-
-  if (!is_initialized_)
-    return;
-
-  if (status_->packaging_machine_state != PackagingMachineStatus::IDLE)
   {
-    response->success = false;
-    response->message = "State is not IDLE";
-    return;
+    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+
+    if (!is_initialized_)
+      return;
+
+    if (status_->packaging_machine_state != PackagingMachineStatus::IDLE)
+    {
+      response->success = false;
+      response->message = "State is not IDLE";
+      return;
+    }
   }
 
   init_printer();
@@ -703,15 +734,18 @@ void PackagingMachineNode::print_one_pkg_wo_squ_handle(
   std::shared_ptr<Trigger::Response> response)
 {
   (void) request;
-
-  if (!is_initialized_)
-    return;
-
-  if (status_->packaging_machine_state != PackagingMachineStatus::IDLE)
   {
-    response->success = false;
-    response->message = "State is not IDLE";
-    return;
+    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+
+    if (!is_initialized_)
+      return;
+
+    if (status_->packaging_machine_state != PackagingMachineStatus::IDLE)
+    {
+      response->success = false;
+      response->message = "State is not IDLE";
+      return;
+    }
   }
 
   init_printer();

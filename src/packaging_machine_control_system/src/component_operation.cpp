@@ -340,11 +340,11 @@ void PackagingMachineNode::init_printer_config(void)
   std::string size_str = "75 mm," + std::to_string(status_->package_length) + " mm";
   
   printer_->addDefaultConfig("SIZE", size_str);
-  printer_->addDefaultConfig("GAP", "0 mm, 0mm");
+  printer_->addDefaultConfig("GAP", "0 mm, 0 mm");
   printer_->addDefaultConfig("SPEED", "1");
   printer_->addDefaultConfig("DENSITY", "15");
-  printer_->addDefaultConfig("DIRECTION", "0, 0");
-  printer_->addDefaultConfig("REFERENCE", "0, 0"); // FIXME -120, -180
+  printer_->addDefaultConfig("DIRECTION", "0,0");
+  printer_->addDefaultConfig("REFERENCE", "0,0"); // FIXME -120, -180
   printer_->addDefaultConfig("OFFSET", "0 mm");
   printer_->addDefaultConfig("SHIFT", "0");
   printer_->addDefaultConfig("SET", "TEAR OFF");
@@ -353,6 +353,22 @@ void PackagingMachineNode::init_printer_config(void)
   printer_->addDefaultConfig("SET", "CUTTER OFF");
   printer_->addDefaultConfig("SET", "PARTIAL_CUTTER OFF");
   printer_->addDefaultConfig("CLS");
+}
+
+std::string PackagingMachineNode::add_drug_space(std::string drug_str)
+{
+  if (drug_str.length() > MAX_DRUG_LEN) 
+  {
+    drug_str = drug_str.substr(0, MAX_DRUG_LEN);
+    return drug_str;
+  }
+
+  while (drug_str.length() < MAX_DRUG_LEN)
+  {
+    drug_str.insert(drug_str.end() - 1, ' ');
+  }
+
+  return drug_str;
 }
 
 smdps_msgs::msg::PackageInfo PackagingMachineNode::create_printer_info_temp(void)
@@ -373,8 +389,25 @@ smdps_msgs::msg::PackageInfo PackagingMachineNode::create_printer_info_temp(void
     msg.time = "out of range";
   
   msg.qr_code = "www.hkclr.hk";
-  msg.drugs.push_back("Spasmolyt 20mg   1");
-  msg.drugs.push_back("Hydralazine HCI 25mg   1");
+  // msg.drugs.push_back("SPASMOLYT 20MG   1");
+  // msg.drugs.push_back("HYDRALAZINE HCI 25MG   1");
+  // msg.drugs.push_back("FAMOTIDINE TABLET 20MG   1");
+  // msg.drugs.push_back("COLCINA TABLET 0.5MG   1");
+  // msg.drugs.push_back("DIMETHYLPOLYSILOXANE TABLET 40MG   1");
+  // msg.drugs.push_back("SENNA TABLET 7.5MG   1");
+  std::string drug;
+  drug = "SPASMOLYT 20MG 1";
+  msg.drugs.push_back(add_drug_space(drug));
+  drug = "HYDRALAZINE HCI 25MG 1";
+  msg.drugs.push_back(add_drug_space(drug));
+  drug = "FAMOTIDINE TABLET 20MG 1";
+  msg.drugs.push_back(add_drug_space(drug));
+  drug = "COLCINA TABLET 0.5MG 1";
+  msg.drugs.push_back(add_drug_space(drug));
+  drug = "DIMETHYLPOLYSILOXANE TABLET 40MG 1";
+  msg.drugs.push_back(add_drug_space(drug));
+  drug = "SENNA TABLET 7.5MG 1";
+  msg.drugs.push_back(add_drug_space(drug));
 
   if (printer_test_meal_index >= printer_test_meal.size())
   {
@@ -397,28 +430,29 @@ std::vector<std::string> PackagingMachineNode::get_print_label_cmd(PackageInfo m
 
     // std::string gbk_cn = printer_->convert_utf8_to_gbk(msg.cn_name);
     // std::string cn = "TEXT 240,180,\"3\",0,2,2,\"" + gbk_cn + "\"";
-    std::string cn = "TEXT 200,450,\"4\",270,1,1,\"" + msg.cn_name + "\"";
+    std::string cn = "TEXT 150,575,\"" + std::to_string(printer_font_) + "\",270,1,1,\"" + msg.cn_name + "\"";
     cmds.emplace_back(cn);
-    std::string en = "TEXT 200,100,\"4\",270,1,1,\"" + msg.en_name + "\"";
+    std::string en = "TEXT 150,225,\"" + std::to_string(printer_font_) + "\",270,1,1,\"" + msg.en_name + "\"";
     cmds.emplace_back(en);
-    std::string d = "TEXT 250,450,\"4\",270,1,1,\"" + msg.date + "\"";
+    std::string d = "TEXT 200,575,\"" + std::to_string(printer_font_) + "\",270,1,1,\"" + msg.date + "\"";
     cmds.emplace_back(d);
-    std::string t = "TEXT 300,450,\"4\",270,1,1,\"" + msg.time + "\"";
+    std::string t = "TEXT 250,575,\"" + std::to_string(printer_font_) + "\",270,1,1,\"" + msg.time + "\"";
     cmds.emplace_back(t);
-    std::string q = "QRCODE 250,100,L,4,A,270,\"" + msg.qr_code + "\"";
+    std::string q = "QRCODE 200,225,M,7,A,270,\"" + msg.qr_code + "\"";
     cmds.emplace_back(q);
     for (size_t index = 0; index < msg.drugs.size(); index++) 
     {
       std::string utf_md = msg.drugs[index];
       // std::string gbk_md = printer_->convert_utf8_to_gbk(utf_md);
-      int x = 450 + index * 50;
+      int x = 400 + index * 40;
       std::string x_label = std::to_string(x);
-      std::string m = "TEXT " + x_label + ",450,\"4\",270,1,1,\"" + utf_md + "\"";
+      std::string m = "TEXT " + x_label + ",575,\"" + std::to_string(printer_font_) + "\",270,1,1,\"" + utf_md + "\"";
       cmds.emplace_back(m);
     }
   }
 
   cmds.emplace_back("PRINT 1,1");
+  // cmds.emplace_back("EOP");
   RCLCPP_DEBUG(this->get_logger(), "printer commands are ready");
   return cmds;
 }

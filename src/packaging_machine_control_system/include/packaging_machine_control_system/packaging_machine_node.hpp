@@ -145,6 +145,7 @@ public:
 
   void init_printer(void);
   void init_printer_config(void);
+  std::string add_drug_space(std::string drug_str);
   smdps_msgs::msg::PackageInfo create_printer_info_temp(void);
   std::vector<std::string> get_print_label_cmd(std::string name, int total, int current);
   std::vector<std::string> get_print_label_cmd(PackageInfo msg);
@@ -160,6 +161,9 @@ private:
 
   CallbackSignal co_read_signal;
   CallbackSignal co_write_signal;
+
+  uint8_t printer_font_ = 0;
+  uint8_t MAX_DRUG_LEN = 36;
 
   std::vector<std::string> printer_test_date;
   std::vector<std::string> printer_test_meal;

@@ -179,7 +179,7 @@ void PackagingMachineNode::co_write_wait_for_service(void)
     }
 
     RCLCPP_ERROR(this->get_logger(), "COWrite Service not available, waiting again...");
-    std::this_thread::sleep_for(1s);
+    // std::this_thread::sleep_for(1s);
   }
 }
 
@@ -194,6 +194,6 @@ void PackagingMachineNode::co_read_wait_for_service(void)
     }
 
     RCLCPP_ERROR(this->get_logger(), "CORead Service not available, waiting again...");
-    std::this_thread::sleep_for(1s);
+    // std::this_thread::sleep_for(1s);
   }
 }

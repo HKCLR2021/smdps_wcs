@@ -31,8 +31,8 @@ void DispenserStationNode::start_opcua_cli(void)
     }
     catch (const opcua::BadStatus& e) 
     {
-      const std::lock_guard<std::mutex> lock(mutex_);
-      cli.disconnectAsync();
+      // const std::lock_guard<std::mutex> lock(mutex_);
+      // cli.disconnectAsync();
       RCLCPP_ERROR(this->get_logger(), "Error: %s, Retry to connect Station [%d] in %ld seconds", e.what(), status_->id, sleep_time.count());
     }
     catch (...)
