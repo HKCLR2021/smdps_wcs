@@ -13,7 +13,7 @@
 git clone --recurse-submodules https://github.com/samkwok-hkclr/smdps_wcs
 ```
 
-### 2. Build the Containers
+### 2. Build the images
 
 ```bash
 docker compose build
