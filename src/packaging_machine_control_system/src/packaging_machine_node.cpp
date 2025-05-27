@@ -95,6 +95,7 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   status_timer_ = this->create_wall_timer(1s, std::bind(&PackagingMachineNode::pub_status_cb, this), status_cbg_);
   heater_timer_ = this->create_wall_timer(3s, std::bind(&PackagingMachineNode::heater_cb, this), normal_timer_cbg_);
   con_state_timer_ = this->create_wall_timer(100ms, std::bind(&PackagingMachineNode::con_state_cb, this), status_cbg_);
+  remain_length_timer_ = this->create_wall_timer(500ms, std::bind(&PackagingMachineNode::remain_length_cb, this), normal_timer_cbg_);
   once_timer_ = this->create_wall_timer(3s, std::bind(&PackagingMachineNode::init_timer, this), normal_timer_cbg_);
 
   // add a "/" prefix to topic name avoid adding a namespace
@@ -208,6 +209,18 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
   
+  update_package_service_ = this->create_service<UInt32Srv>(
+    "update_remain_package_length", 
+    std::bind(&PackagingMachineNode::update_package_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
+  update_thermal_service_ = this->create_service<UInt32Srv>(
+    "update_remain_thermal_length", 
+    std::bind(&PackagingMachineNode::update_thermal_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
   this->action_server_ = rclcpp_action::create_server<PackagingOrder>(
     this,
     "packaging_order",
@@ -226,6 +239,8 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
     
     RCLCPP_INFO(this->get_logger(), "The CO Service client is up.");
   }
+  
+  // for testing printer only
   // for (uint8_t i = 0; i < 10; i++)
   // {
   //   init_printer();
@@ -238,6 +253,58 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   //   RCLCPP_INFO(this->get_logger(), "printed a empty package");
   //   printer_font_++;
   // }
+}
+
+uint32_t PackagingMachineNode::read_ribbon(std::string type)
+{
+  std::string filename = "/memory/remain_" + type + "_" + std::to_string(status_->packaging_machine_id);
+  std::ifstream read_file(filename);
+
+  if (!read_file.is_open()) 
+  {
+    throw std::runtime_error("Failed to open file: " + filename);
+  }
+
+  std::string length;
+  if (!std::getline(read_file, length) || length.empty()) 
+  {
+    throw std::runtime_error("File is empty or invalid: " + filename);
+  }
+
+  try 
+  {
+    size_t pos;
+    int value = std::stoi(length, &pos);
+    if (pos != length.size() || value < 0 || value > UINT32_MAX) 
+    {
+      throw std::runtime_error("Invalid ribbon length in file: " + filename);
+    }
+    return static_cast<uint32_t>(value);
+  }
+  catch (const std::exception& e) 
+  {
+    throw std::runtime_error("Failed to parse ribbon length: " + std::string(e.what()));
+  }
+}
+
+void PackagingMachineNode::write_ribbon(std::string type, uint32_t ribbon_length)
+{
+  std::string filename = "/memory/remain_" + type + "_" + std::to_string(status_->packaging_machine_id);
+  std::ofstream file(filename);
+
+  if (!file.is_open()) 
+  {
+    throw std::runtime_error("Failed to open file for writing: " + filename);
+  }
+
+  file << std::to_string(ribbon_length);
+
+  if (!file.good()) 
+  {
+    throw std::runtime_error("Failed to write to file: " + filename);
+  }
+
+  file.close();
 }
 
 void PackagingMachineNode::pub_status_cb(void)
@@ -286,6 +353,16 @@ void PackagingMachineNode::con_state_cb(void)
     status_->conveyor_state = PackagingMachineStatus::UNAVAILABLE;
     RCLCPP_DEBUG(this->get_logger(), "set conveyor_state to UNAVAILABLE");
   }
+}
+
+void PackagingMachineNode::remain_length_cb(void)
+{
+  uint32_t remain_package = read_ribbon("package");
+  uint32_t remain_thermal = read_ribbon("thermal");
+
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  status_->remain_package_length = remain_package;
+  status_->remain_thermal_length = remain_thermal;
 }
 
 void PackagingMachineNode::init_timer(void)
@@ -724,7 +801,14 @@ void PackagingMachineNode::print_one_pkg_handle(
 
   ctrl_squeezer(SQUEEZER_ACTION_PULL, MOTOR_ENABLE);
   wait_for_squeezer(MotorStatus::IDLE);
+  
   printer_.reset();
+
+  uint32_t remain_package = read_ribbon("package");
+  uint32_t remain_thermal = read_ribbon("thermal");
+
+  write_ribbon("package", remain_package - (status_->package_length));
+  write_ribbon("thermal", remain_thermal - (status_->package_length));
 
   response->success = true;
 }
@@ -766,6 +850,12 @@ void PackagingMachineNode::print_one_pkg_wo_squ_handle(
 
   printer_.reset();
 
+    uint32_t remain_package = read_ribbon("package");
+  uint32_t remain_thermal = read_ribbon("thermal");
+
+  write_ribbon("package", remain_package - (status_->package_length));
+  write_ribbon("thermal", remain_thermal - (status_->package_length));
+
   response->success = true;
 }
 
@@ -802,9 +892,26 @@ void PackagingMachineNode::enable_heater_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
   ctrl_heater(HEATER_OFF);
+  response->success = true;
+
+  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
   enable_heater_ = request->data;
+}
+
+void PackagingMachineNode::update_package_handle(
+  const std::shared_ptr<UInt32Srv::Request> request, 
+  std::shared_ptr<UInt32Srv::Response> response)
+{
+  write_ribbon("package", request->data);
+  response->success = true;
+}
+
+void PackagingMachineNode::update_thermal_handle(
+  const std::shared_ptr<UInt32Srv::Request> request, 
+  std::shared_ptr<UInt32Srv::Response> response)
+{
+  write_ribbon("thermal", request->data);
   response->success = true;
 }
 
@@ -820,6 +927,21 @@ rclcpp_action::GoalResponse PackagingMachineNode::handle_goal(
   if (info_->temperature <= MIN_TEMP)
   {
     RCLCPP_ERROR(this->get_logger(), "Temperature <= %d", MIN_TEMP);
+    return rclcpp_action::GoalResponse::REJECT;
+  }
+
+  uint32_t remain_package = read_ribbon("package");
+  uint32_t remain_thermal = read_ribbon("thermal");
+
+  if (remain_package + PackagingMachineStatus::REMAIN_MARGIN > goal->print_info.size() * status_->package_length)
+  {
+    RCLCPP_ERROR(this->get_logger(), "The remain package length may not eneugh to handle the order. [Remain: %d]", remain_package);
+    return rclcpp_action::GoalResponse::REJECT;
+  }
+
+  if (remain_thermal + PackagingMachineStatus::REMAIN_MARGIN > goal->print_info.size() * status_->package_length)
+  {
+    RCLCPP_ERROR(this->get_logger(), "The remain thermal length may not eneugh to handle the order. [Remain: %d]", remain_thermal);
     return rclcpp_action::GoalResponse::REJECT;
   }
 

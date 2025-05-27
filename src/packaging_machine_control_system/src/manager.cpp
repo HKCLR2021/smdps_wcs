@@ -700,11 +700,10 @@ void PackagingMachineManager::release_blocking_handle(
 {
   (void)request;
 
-  const std::lock_guard<std::mutex> lock(mutex_);
-
   constexpr double TIME_GAP_THRESHOLD = 3.0;
   rclcpp::Time curr_time = this->get_clock()->now();
 
+  const std::lock_guard<std::mutex> lock(mutex_);
   bool is_empty = release_blk_.empty();
   bool is_larger = !is_empty && (curr_time - release_blk_.front()).seconds() >= TIME_GAP_THRESHOLD;
 
@@ -728,8 +727,9 @@ void PackagingMachineManager::income_mtrl_box_handle(
   response->success = true;
   RCLCPP_INFO(this->get_logger(), "Handle a incoming material box service"); 
 
-  const std::lock_guard<std::mutex> lock(mutex_);
   last_pkg_mac_scan_1 = request->data;
+
+  const std::lock_guard<std::mutex> lock(mutex_);
 
   bool is_empty = income_box_.empty();
   bool is_different = !is_empty && (income_box_.back().first != request->data);

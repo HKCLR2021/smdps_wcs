@@ -3,11 +3,11 @@ FROM ubuntu:22.04 AS ros2_img
 
 ARG http_proxy
 ARG https_proxy
-ARG any_proxy
+ARG all_proxy
 
 RUN echo $http_proxy
 RUN echo $https_proxy
-RUN echo $any_proxy
+RUN echo $all_proxy
 
 RUN apt update
 RUN DEBIAN_FRONTEND="noninteractive" apt install -y tzdata
@@ -62,6 +62,9 @@ RUN rosdep init
 RUN rosdep fix-permissions
 RUN rosdep update
 RUN rosdep install --from-paths src/ros2_canopen --ignore-src -r -y
+
+RUN mkdir /memory
+VOLUME [ "/memory" ]
 
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
 

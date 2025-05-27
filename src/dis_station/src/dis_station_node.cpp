@@ -72,6 +72,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   if (!init_opcua_cli())
   {
     RCLCPP_ERROR(this->get_logger(), "Initiate the OPCUA Client error occurred");
+    std::this_thread::sleep_for(1s);
     rclcpp::shutdown();
   }
 
@@ -121,7 +122,16 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
 
   cli_thread_ = std::thread(std::bind(&DispenserStationNode::start_opcua_cli, this));
   
-  wait_for_opcua_connection(200ms);
+  try 
+  {
+    wait_for_opcua_connection(std::chrono::milliseconds(1000), std::chrono::seconds(30));
+  } 
+  catch (const std::runtime_error& e) 
+  {
+    RCLCPP_ERROR(this->get_logger(), "Failed to connect to OPC UA: %s", e.what());
+    std::this_thread::sleep_for(1s);
+    rclcpp::shutdown();
+  }
 
   initiate();
   std::this_thread::sleep_for(500ms);
@@ -176,7 +186,7 @@ void DispenserStationNode::dis_req_handle(
     return;
   }
   
-  wait_for_opcua_connection(200ms);
+  // wait_for_opcua_connection(200ms);
   
   int16_t target_amt = 0;
   // Write Unit_Amount
@@ -196,25 +206,32 @@ void DispenserStationNode::dis_req_handle(
     if (req->content[i].amount <= 0)
       continue;
 
-    opcua::Variant amt_var;
+    // opcua::Variant amt_var;
     const int16_t tmp = std::max(static_cast<int16_t>(req->content[i].amount), static_cast<int16_t>(0));
-    amt_var = tmp;
+    // amt_var = tmp;
     target_amt += tmp;
 
     dispense += "[id: " + std::to_string(req->content[i].unit_id) + ", amount: " + std::to_string(req->content[i].amount) + "] ";
-    std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, unit_amt_id[req->content[i].unit_id], amt_var, opcua::useFuture);
-    futures.push_back(std::move(future));
+    // std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, unit_amt_id[req->content[i].unit_id], amt_var, opcua::useFuture);
+    // futures.push_back(std::move(future));
+
+    // Write UnitAmount
+    if (!write_opcua_value(unit_amt_id[req->content[i].unit_id], tmp))
+    {
+      RCLCPP_ERROR(this->get_logger(), "Error occur in Write Unit%dAmount", tmp);
+      return;
+    }
   }
   dispense = "Dispense: " + dispense;
   RCLCPP_INFO(this->get_logger(), dispense.c_str());
   RCLCPP_INFO(this->get_logger(), "Sent the amount of requested");
 
-  bool all_good = wait_for_futures(futures);
-  if (!all_good)
-  {
-    RCLCPP_ERROR(this->get_logger(), "Error during amount write in %s", __FUNCTION__);
-    return;
-  }
+  // bool all_good = wait_for_futures(futures);
+  // if (!all_good)
+  // {
+  //   RCLCPP_ERROR(this->get_logger(), "Error during amount write in %s", __FUNCTION__);
+  //   return;
+  // }
 
   // Write CmdRequest
   if (!write_opcua_value(cmd_req_id, true))
@@ -225,18 +242,20 @@ void DispenserStationNode::dis_req_handle(
   RCLCPP_INFO(this->get_logger(), "Sent the Command Request");
 
   // Read CmdAmount
-  uint16_t i;
-  int16_t result;
+  uint16_t tries = 0;
+  int16_t result = 0;
   const uint16_t MAX_RETRIES = 100;
-  for (; i < MAX_RETRIES && rclcpp::ok(); i++)
+  for (; tries < MAX_RETRIES && rclcpp::ok(); tries++)
   {    
     if (rclcpp::ok())
     {
       RCLCPP_INFO(this->get_logger(), "Waiting the CmdAmount signal...");
+
       std::unique_lock<std::mutex> lock(cmd_amt_signal.cv_mutex_);
       cmd_amt_signal.cv_.wait(lock, [this]() { 
         return cmd_amt_signal.is_triggered_; 
       });
+
       result = cmd_amt_signal.val;
       cmd_amt_signal.is_triggered_ = false;
       cmd_amt_signal.val = 0;
@@ -252,7 +271,7 @@ void DispenserStationNode::dis_req_handle(
     }
   }
 
-  if (i >= MAX_RETRIES)
+  if (tries >= MAX_RETRIES)
   {
     RCLCPP_ERROR(this->get_logger(), "cmd_amt_val: %d does not matches target: %d", result, target_amt);
     RCLCPP_ERROR(this->get_logger(), "i >= MAX_RETRIES");

@@ -180,6 +180,19 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
   // std::this_thread::sleep_for(DELAY_GENERAL_VALVE);
   // ctrl_cutter(0);
 
+  uint8_t num_printed = 0;
+  for (size_t i = 0; i < CELLS; i++)
+  {
+    if (!goal->print_info[i].en_name.empty()) // FIXME
+      num_printed++;
+  }
+
+  uint32_t remain_package = read_ribbon("package");
+  uint32_t remain_thermal = read_ribbon("thermal");
+
+  write_ribbon("package", remain_package - (num_printed * status_->package_length));
+  write_ribbon("thermal", remain_thermal - (num_printed * status_->package_length));
+
   if (rclcpp::ok()) 
   {
     printer_.reset();

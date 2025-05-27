@@ -8,25 +8,51 @@ template bool DispenserStationNode::write_opcua_value<int16_t>(const opcua::Node
 template <typename T>
 bool DispenserStationNode::write_opcua_value(const opcua::NodeId& node_id, T value) 
 {
-  if (!cli.isConnected())
-    return false;
+  // constexpr int max_attempts = 100;
+  // int attempts = 0;
+  bool done = false;
 
-  opcua::Variant var;
-  var = value;
-  std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, node_id, var, opcua::useFuture);
-
-  // Wait with timeout and shutdown awareness
-  if (future.wait_for(std::chrono::milliseconds(1000)) != std::future_status::ready) 
+  while (!done)
   {
-    RCLCPP_ERROR(this->get_logger(), "writeValueAsync timed out after 1000ms in %s", __FUNCTION__);
-    return false;
-  }
+    try
+    {
+      if (!cli.isConnected())
+      {
+        RCLCPP_ERROR(this->get_logger(), "OPC UA Server is not connected in %s", __FUNCTION__);
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        continue;
+      }
 
-  opcua::StatusCode code = future.get();
-  if (code != UA_STATUSCODE_GOOD) 
-  {
-    RCLCPP_ERROR(this->get_logger(), "The statusCode %s in %s", std::to_string(code).c_str(), __FUNCTION__);
-    return false;
+      opcua::Variant var;
+      var = value;
+      std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, node_id, var, opcua::useFuture);
+
+      // Wait with timeout and shutdown awareness
+      if (future.wait_for(std::chrono::milliseconds(1000)) != std::future_status::ready) 
+      {
+        RCLCPP_ERROR(this->get_logger(), "Timeout in %s", __FUNCTION__);
+        continue;
+      }
+
+      opcua::StatusCode code = future.get();
+      if (code != UA_STATUSCODE_GOOD) 
+      {
+        RCLCPP_ERROR(this->get_logger(), "The statusCode %s in %s", std::to_string(code).c_str(), __FUNCTION__);
+        continue;
+      }
+
+      done = true;
+    }
+    catch (const std::exception& e) 
+    {
+      RCLCPP_ERROR(this->get_logger(), "Exception in %s: %s", __FUNCTION__, e.what());
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    catch (...) 
+    {
+      RCLCPP_ERROR(this->get_logger(), "Unknown exception in %s", __FUNCTION__);
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
   }
 
   return true;
@@ -35,35 +61,121 @@ bool DispenserStationNode::write_opcua_value(const opcua::NodeId& node_id, T val
 template <typename T>
 bool DispenserStationNode::read_opcua_value(const opcua::NodeId& node_id, std::shared_ptr<T> value) 
 {
-  if (!cli.isConnected())
-    return false;
+  // constexpr int max_attempts = 100;
+  // int attempts = 0;
+  bool done = false;
 
-  std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, node_id, opcua::useFuture);
-
-  // Wait with timeout and shutdown awareness
-  if (future.wait_for(std::chrono::milliseconds(1000)) != std::future_status::ready) 
+  while (!done)
   {
-    RCLCPP_ERROR(this->get_logger(), "readValueAsync timed out after 1000ms in %s", __FUNCTION__);
-    return false;
+    try
+    {
+      if (!cli.isConnected())
+      {
+        RCLCPP_ERROR(this->get_logger(), "OPC UA Server is not connected in %s", __FUNCTION__);
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        continue;
+      }
+
+      std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, node_id, opcua::useFuture);
+
+      // Wait with timeout and shutdown awareness
+      if (future.wait_for(std::chrono::milliseconds(1000)) != std::future_status::ready) 
+      {
+        RCLCPP_ERROR(this->get_logger(), "Timeout in %s", __FUNCTION__);
+        continue;
+      }
+
+      opcua::Result<opcua::Variant> result = future.get();
+      if (result.code() != UA_STATUSCODE_GOOD) 
+      {
+        RCLCPP_ERROR(this->get_logger(), "The result code: %s", std::to_string(result.code()).c_str());
+        continue;
+      }
+
+      std::optional<T> val = result.value().scalar<T>();
+      if (!val) 
+      {
+        RCLCPP_ERROR(this->get_logger(), "Value type mismatch or extraction failed in %s", __FUNCTION__);
+        continue;
+      }
+
+      *value = val.value();
+      done = true;
+    }
+    catch (const std::exception& e) 
+    {
+      RCLCPP_ERROR(this->get_logger(), "Exception in %s: %s", __FUNCTION__, e.what());
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    catch (...) 
+    {
+      RCLCPP_ERROR(this->get_logger(), "Unknown exception in %s", __FUNCTION__);
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
   }
 
-  opcua::Result<opcua::Variant> result = future.get();
-  if (result.code() != UA_STATUSCODE_GOOD) 
-  {
-    RCLCPP_ERROR(this->get_logger(), "The result code: %s", std::to_string(result.code()).c_str());
-    return false;
-  }
-
-  std::optional<T> val = result.value().scalar<T>();
-  if (!val) 
-  {
-    RCLCPP_ERROR(this->get_logger(), "Value type mismatch or extraction failed in %s", __FUNCTION__);
-    return false;
-  }
-
-  *value = val.value();
   return true;
 }
+
+// template <typename T>
+// bool DispenserStationNode::write_opcua_value(const opcua::NodeId& node_id, T value) 
+// {
+//   if (!cli.isConnected())
+//     return false;
+
+//   opcua::Variant var;
+//   var = value;
+//   std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, node_id, var, opcua::useFuture);
+
+//   // Wait with timeout and shutdown awareness
+//   if (future.wait_for(std::chrono::milliseconds(1000)) != std::future_status::ready) 
+//   {
+//     RCLCPP_ERROR(this->get_logger(), "Timeout in %s", __FUNCTION__);
+//     return false;
+//   }
+
+//   opcua::StatusCode code = future.get();
+//   if (code != UA_STATUSCODE_GOOD) 
+//   {
+//     RCLCPP_ERROR(this->get_logger(), "The statusCode %s in %s", std::to_string(code).c_str(), __FUNCTION__);
+//     return false;
+//   }
+
+//   return true;
+// }
+
+// template <typename T>
+// bool DispenserStationNode::read_opcua_value(const opcua::NodeId& node_id, std::shared_ptr<T> value) 
+// {
+//   if (!cli.isConnected())
+//     return false;
+
+//   std::future<opcua::Result<opcua::Variant>> future = opcua::services::readValueAsync(cli, node_id, opcua::useFuture);
+
+//   // Wait with timeout and shutdown awareness
+//   if (future.wait_for(std::chrono::milliseconds(1000)) != std::future_status::ready) 
+//   {
+//     RCLCPP_ERROR(this->get_logger(), "Timeout in %s", __FUNCTION__);
+//     return false;
+//   }
+
+//   opcua::Result<opcua::Variant> result = future.get();
+//   if (result.code() != UA_STATUSCODE_GOOD) 
+//   {
+//     RCLCPP_ERROR(this->get_logger(), "The result code: %s", std::to_string(result.code()).c_str());
+//     return false;
+//   }
+
+//   std::optional<T> val = result.value().scalar<T>();
+//   if (!val) 
+//   {
+//     RCLCPP_ERROR(this->get_logger(), "Value type mismatch or extraction failed in %s", __FUNCTION__);
+//     return false;
+//   }
+
+//   *value = val.value();
+//   return true;
+// }
 
 bool DispenserStationNode::wait_for_futures(std::vector<std::future<opcua::StatusCode>> &futures) 
 {
@@ -91,15 +203,34 @@ bool DispenserStationNode::wait_for_futures(std::vector<std::future<opcua::Statu
   return all_good && rclcpp::ok();
 }
 
-void DispenserStationNode::wait_for_opcua_connection(const std::chrono::milliseconds freq)
+void DispenserStationNode::wait_for_opcua_connection(const std::chrono::milliseconds freq, const std::chrono::seconds timeout)
 {
   RCLCPP_DEBUG(this->get_logger(), "Started to wait the OPCUA connection <<<<<<<<<<<<<");
 
-  rclcpp::Rate loop_rate(freq); 
-  while (rclcpp::ok() && !cli.isConnected())
+  // rclcpp::Rate loop_rate(freq); 
+  auto start_time = std::chrono::steady_clock::now();
+
+  while (rclcpp::ok())
   {
+    {
+      const std::lock_guard<std::mutex> lock(mutex_);
+      if (cli.isConnected())
+      {
+        RCLCPP_INFO(this->get_logger(), "OPC UA connection established.");
+        break;
+      }
+    }
+
+    auto elapsed = std::chrono::steady_clock::now() - start_time;
+    if (elapsed >= timeout)
+    {
+      RCLCPP_ERROR(this->get_logger(), "Timeout waiting for OPC UA connection after %ld seconds.", timeout.count());
+      throw std::runtime_error("OPC UA connection timeout");
+    }
+    
     RCLCPP_ERROR(this->get_logger(), "Waiting for opcua connection (%ld ms to retry)...", freq.count());
-    loop_rate.sleep();
+    std::this_thread::sleep_for(std::chrono::milliseconds(freq));
+    // loop_rate.sleep();
   }
 }
 

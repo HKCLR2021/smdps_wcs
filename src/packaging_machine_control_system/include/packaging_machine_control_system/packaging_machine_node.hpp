@@ -7,12 +7,16 @@
 #include <string>
 #include <sstream>
 #include <chrono>
+#include <iostream>
+#include <fstream>
 #include <queue>
 #include <math.h>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "rclcpp_components/register_node_macro.hpp"
+
+#include "ament_index_cpp/get_package_share_directory.hpp"
 
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/u_int8.hpp"
@@ -29,6 +33,7 @@
 #include "smdps_msgs/msg/unbind_request.hpp"
 
 #include "smdps_msgs/srv/u_int8.hpp"
+#include "smdps_msgs/srv/u_int32.hpp"
 
 #include "canopen_interfaces/msg/co_data.hpp"
 #include "canopen_interfaces/srv/co_read.hpp"
@@ -73,15 +78,20 @@ public:
   using PackagingOrder = smdps_msgs::action::PackagingOrder;
 
   using UInt8Srv = smdps_msgs::srv::UInt8;
+  using UInt32Srv = smdps_msgs::srv::UInt32;
 
   using GaolHandlerPackagingOrder = rclcpp_action::ServerGoalHandle<PackagingOrder>;
 
   explicit PackagingMachineNode(const rclcpp::NodeOptions& options);
   ~PackagingMachineNode() = default;
 
+  uint32_t read_ribbon(std::string type);
+  void write_ribbon(std::string type, uint32_t ribbon_length);
+
   void pub_status_cb(void);
   void heater_cb(void);
   void con_state_cb(void);
+  void remain_length_cb(void);
   void init_timer(void);
 
   void co_read_wait_for_service(void);
@@ -163,7 +173,7 @@ private:
   CallbackSignal co_write_signal;
 
   uint8_t printer_font_ = 0;
-  uint8_t MAX_DRUG_LEN = 36;
+  uint8_t MAX_DRUG_LEN = 34;
 
   std::vector<std::string> printer_test_date;
   std::vector<std::string> printer_test_meal;
@@ -190,6 +200,7 @@ private:
   rclcpp::TimerBase::SharedPtr status_timer_;
   rclcpp::TimerBase::SharedPtr heater_timer_;
   rclcpp::TimerBase::SharedPtr con_state_timer_;
+  rclcpp::TimerBase::SharedPtr remain_length_timer_;
   rclcpp::TimerBase::SharedPtr once_timer_;
 
   rclcpp::Publisher<PackagingMachineStatus>::SharedPtr status_publisher_;
@@ -215,6 +226,8 @@ private:
   rclcpp::Service<SetBool>::SharedPtr state_ctrl_service_;
   rclcpp::Service<SetBool>::SharedPtr skip_pkg_service_;
   rclcpp::Service<SetBool>::SharedPtr enable_heater_service_;
+  rclcpp::Service<UInt32Srv>::SharedPtr update_package_service_;
+  rclcpp::Service<UInt32Srv>::SharedPtr update_thermal_service_;
 
   rclcpp::Client<CORead>::SharedPtr co_read_client_;
   rclcpp::Client<COWrite>::SharedPtr co_write_client_;
@@ -273,6 +286,12 @@ private:
   void enable_heater_handle(
     const std::shared_ptr<SetBool::Request> request, 
     std::shared_ptr<SetBool::Response> response);
+  void update_package_handle(
+    const std::shared_ptr<UInt32Srv::Request> request, 
+    std::shared_ptr<UInt32Srv::Response> response);
+  void update_thermal_handle(
+    const std::shared_ptr<UInt32Srv::Request> request, 
+    std::shared_ptr<UInt32Srv::Response> response);
 
   void rpdo_cb(const COData::SharedPtr msg);
 
