@@ -214,6 +214,7 @@ private:
 
   rclcpp::Service<Trigger>::SharedPtr init_pkg_mac_service_;
   rclcpp::Service<SetBool>::SharedPtr heater_service_;
+  rclcpp::Service<SetBool>::SharedPtr cutter_service_;
   rclcpp::Service<SetBool>::SharedPtr stopper_service_;
   rclcpp::Service<SetBool>::SharedPtr mtrl_box_gate_service_;
   rclcpp::Service<SetBool>::SharedPtr conveyor_service_;
@@ -248,6 +249,9 @@ private:
     const std::shared_ptr<Trigger::Request> request, 
     std::shared_ptr<Trigger::Response> response);
   void heater_handle(
+    const std::shared_ptr<SetBool::Request> request, 
+    std::shared_ptr<SetBool::Response> response);
+  void cutter_handle(
     const std::shared_ptr<SetBool::Request> request, 
     std::shared_ptr<SetBool::Response> response);
   void stopper_handle(

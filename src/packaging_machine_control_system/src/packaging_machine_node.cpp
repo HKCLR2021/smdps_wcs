@@ -26,7 +26,6 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   printer_test_meal.push_back("Evening");
 
   printer_font_ = 3;
-
   enable_heater_ = true;
 
   std::vector<long int> default_states = this->get_parameter("default_states").as_integer_array();
@@ -93,7 +92,7 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   rpdo_options.callback_group = rpdo_cbg_;
 
   status_timer_ = this->create_wall_timer(1s, std::bind(&PackagingMachineNode::pub_status_cb, this), status_cbg_);
-  heater_timer_ = this->create_wall_timer(3s, std::bind(&PackagingMachineNode::heater_cb, this), normal_timer_cbg_);
+  heater_timer_ = this->create_wall_timer(5s, std::bind(&PackagingMachineNode::heater_cb, this), normal_timer_cbg_);
   con_state_timer_ = this->create_wall_timer(100ms, std::bind(&PackagingMachineNode::con_state_cb, this), status_cbg_);
   remain_length_timer_ = this->create_wall_timer(500ms, std::bind(&PackagingMachineNode::remain_length_cb, this), normal_timer_cbg_);
   once_timer_ = this->create_wall_timer(3s, std::bind(&PackagingMachineNode::init_timer, this), normal_timer_cbg_);
@@ -134,6 +133,12 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   heater_service_ = this->create_service<SetBool>(
     "heater_operation", 
     std::bind(&PackagingMachineNode::heater_handle, this, _1, _2),
+    rmw_qos_profile_services_default,
+    srv_ser_cbg_);
+
+  cutter_service_ = this->create_service<SetBool>(
+    "cutter_operation", 
+    std::bind(&PackagingMachineNode::cutter_handle, this, _1, _2),
     rmw_qos_profile_services_default,
     srv_ser_cbg_);
 
@@ -324,9 +329,16 @@ void PackagingMachineNode::pub_status_cb(void)
 
 void PackagingMachineNode::heater_cb(void)
 {
-  if (enable_heater_ && info_->temperature < MIN_TEMP)
+  std::unique_lock<std::recursive_mutex> lock(r_mutex_, std::defer_lock);
+  lock.lock();
+
+  // if (enable_heater_ && info_->temperature < MIN_TEMP)
+  if (enable_heater_)
   {
-    RCLCPP_INFO(this->get_logger(), "Current heater temperature: %d [less than 100 Celsius]", info_->temperature);
+    if (info_->temperature < MIN_TEMP)
+      RCLCPP_INFO(this->get_logger(), "Current heater temperature: %d [less than 100 Celsius]", info_->temperature);
+    
+    lock.unlock();
 
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>();
     bool success = read_heater(state);
@@ -496,6 +508,49 @@ void PackagingMachineNode::heater_handle(
   {
     response->success = false;
     response->message = "Error to control the heater";
+  }
+}
+
+void PackagingMachineNode::cutter_handle(
+  const std::shared_ptr<SetBool::Request> request, 
+  std::shared_ptr<SetBool::Response> response)
+{
+  {
+    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+
+    if (!is_initialized_)
+      return;
+
+    if (request->data)
+    {
+      if (info_->cutter == 1)
+      {
+        response->success = false;
+        response->message = "Cutter is in ON state";
+        return;
+      }
+    }
+    else
+    {
+      if (info_->cutter == 0)
+      {
+        response->success = false;
+        response->message = "Stopper is in OFF state";
+        return;
+      }
+    }
+  }
+
+  bool success = ctrl_cutter(request->data ? 1 : 0);
+
+  if (success)
+  {
+    response->success = true;
+  }
+  else
+  {
+    response->success = false;
+    response->message = "Error to control the stopper";
   }
 }
 
