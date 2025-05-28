@@ -234,7 +234,7 @@ void DispenserStationNode::dis_req_handle(
   // }
 
   // Write CmdRequest
-  if (!write_opcua_value(cmd_req_id, true))
+  if (!cmd_req(true))
   {
     RCLCPP_ERROR(this->get_logger(), "Error during command request write in %s", __FUNCTION__);
     return;
@@ -300,6 +300,9 @@ void DispenserStationNode::dis_req_handle(
     com_signal.is_triggered_ = false;
   }
 
+  // for waiting the AmountDispensed value
+  std::this_thread::sleep_for(100ms);
+
   // Read AmountDispensed
   std::shared_ptr<int16_t> amt_dis_val = std::make_shared<int16_t>();
   if (!read_opcua_value(amt_dis_id, amt_dis_val))
@@ -307,23 +310,33 @@ void DispenserStationNode::dis_req_handle(
     RCLCPP_ERROR(this->get_logger(), "Error occur in Read AmountDispensed");
     return;
   }
-
-  if (*amt_dis_val != target_amt)
+  
+  if (*amt_dis_val == target_amt)
   {
-    RCLCPP_INFO(this->get_logger(), "amt_dis_val.value(): %d", *amt_dis_val);
-    RCLCPP_INFO(this->get_logger(), "target_amt: %d", target_amt);
     RCLCPP_INFO(this->get_logger(), "Dispensed Amount is equal to request amount");
+  }
+  else
+  {
+    RCLCPP_ERROR(this->get_logger(), "*amt_dis_val: %d", *amt_dis_val);
+    RCLCPP_ERROR(this->get_logger(), "target_amt: %d", target_amt);
+    RCLCPP_ERROR(this->get_logger(), "Dispensed Amount is not equal to request amount");
     return;
   }
 
-  RCLCPP_INFO(this->get_logger(), "Verifing the amount of request and target amount");
+  RCLCPP_INFO(this->get_logger(), "Verified the amount of request and target amount");
 
-  std::thread(std::bind(&DispenserStationNode::clear_cmd_req, this)).detach();
-  std::this_thread::sleep_for(200ms);
+  // Reset CmdRequest
+  if (!cmd_req(false))
+  {
+    RCLCPP_ERROR(this->get_logger(), "Error during command request write in %s", __FUNCTION__);
+    return;
+  }
+  RCLCPP_INFO(this->get_logger(), "Reset the Command Request");
+
   std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
   RCLCPP_INFO(this->get_logger(), "Dispenser operation completed, proceeding...");
   
-  std::this_thread::sleep_for(600ms); // Caution: be careful to set this delay
+  std::this_thread::sleep_for(800ms); // Caution: be careful to set this delay
   
   res->success = true;
 

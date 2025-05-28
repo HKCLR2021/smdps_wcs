@@ -112,7 +112,7 @@ public:
   void units_lack_cb(void);
 
   void initiate(void);
-  void clear_cmd_req(void);
+  bool cmd_req(bool cmd);
   void clear_req(const opcua::NodeId req_node_id, const opcua::NodeId state_node_id);
 
   void dis_req_handle(

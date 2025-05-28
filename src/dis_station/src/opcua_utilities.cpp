@@ -59,7 +59,7 @@ bool DispenserStationNode::write_opcua_value(const opcua::NodeId& node_id, T val
 }
 
 template <typename T>
-bool DispenserStationNode::read_opcua_value(const opcua::NodeId& node_id, std::shared_ptr<T> value) 
+bool DispenserStationNode::read_opcua_value(const opcua::NodeId& node_id, std::shared_ptr<T> ptr_value) 
 {
   // constexpr int max_attempts = 100;
   // int attempts = 0;
@@ -99,7 +99,7 @@ bool DispenserStationNode::read_opcua_value(const opcua::NodeId& node_id, std::s
         continue;
       }
 
-      *value = val.value();
+      *ptr_value = val.value();
       done = true;
     }
     catch (const std::exception& e) 

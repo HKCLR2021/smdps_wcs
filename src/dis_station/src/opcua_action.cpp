@@ -8,7 +8,7 @@ void DispenserStationNode::initiate(void)
     return;
   }
 
-  std::this_thread::sleep_for(250ms);
+  std::this_thread::sleep_for(100ms);
 
   // wait forever until triggered
   if (rclcpp::ok())
@@ -21,7 +21,7 @@ void DispenserStationNode::initiate(void)
     init_signal.is_triggered_ = false;
   }
 
-  std::this_thread::sleep_for(250ms);
+  std::this_thread::sleep_for(100ms);
 
   if (!write_opcua_value(initiate_id, false)) 
   {
@@ -32,13 +32,15 @@ void DispenserStationNode::initiate(void)
   RCLCPP_INFO(this->get_logger(), "Initiated the Dispenser Station [%d] successfully", status_->id);
 }
 
-void DispenserStationNode::clear_cmd_req(void)
+bool DispenserStationNode::cmd_req(bool cmd)
 {
-  if (!write_opcua_value(cmd_req_id, false))
+  if (!write_opcua_value(cmd_req_id, cmd))
   {
     RCLCPP_ERROR(this->get_logger(), "Error occur in %s", __FUNCTION__);
-    return;
+    return false;
   }
+
+  return true;
 }
 
 void DispenserStationNode::reset(void)
@@ -49,7 +51,7 @@ void DispenserStationNode::reset(void)
     return;
   }
 
-  std::this_thread::sleep_for(250ms);
+  std::this_thread::sleep_for(100ms);
 
   // wait forever until triggered
   if (rclcpp::ok())
@@ -62,7 +64,7 @@ void DispenserStationNode::reset(void)
     reset_signal.is_triggered_ = false;
   }
 
-  std::this_thread::sleep_for(250ms);
+  std::this_thread::sleep_for(100ms);
 
   if (!write_opcua_value(reset_id, false))
   {
