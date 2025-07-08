@@ -244,7 +244,7 @@ void ProdLineCtrl::pkg_req_handler(
     if (std::get<0>(orders_[id]).material_box.slots[i].drugs.empty())
       continue;
 
-    // pkg_order_srv_req->print_info[i].cn_name = std::get<0>(orders_[id]).patient.name_cn;
+    // pkg_order_srv_req->print_info[i].cn_name = std::get<0>(orders_[id]).patient.name_ch;
     pkg_order_srv_req->print_info[i].en_name = std::get<0>(orders_[id]).patient.name;
     
     const uint8_t curr_meal = (std::get<0>(orders_[id]).start_meal + i) % 4;

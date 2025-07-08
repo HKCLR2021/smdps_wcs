@@ -124,7 +124,7 @@ DispenserStationNode::DispenserStationNode(const rclcpp::NodeOptions& options)
   
   try 
   {
-    wait_for_opcua_connection(std::chrono::milliseconds(1000), std::chrono::seconds(30));
+    wait_for_opcua_connection(std::chrono::milliseconds(1000), std::chrono::seconds(60));
   } 
   catch (const std::runtime_error& e) 
   {
@@ -152,6 +152,8 @@ DispenserStationNode::~DispenserStationNode()
   {
     cli_thread_.join();
   }
+
+  RCLCPP_INFO(this->get_logger(), "OPC UA Thread [%d] is deleted", status_->id);
 }
 
 void DispenserStationNode::dis_station_status_cb(void)
@@ -185,13 +187,11 @@ void DispenserStationNode::dis_req_handle(
     RCLCPP_ERROR(this->get_logger(), "Test the dispense request successfully!");
     return;
   }
-  
-  // wait_for_opcua_connection(200ms);
-  
+
   int16_t target_amt = 0;
   // Write Unit_Amount
-  std::vector<std::future<opcua::StatusCode>> futures;
-  std::string dispense;
+  // std::vector<std::future<opcua::StatusCode>> futures;
+  std::string dispense_str;
   for (size_t i = 0; i < req->content.size(); i++)
   {
     if (req->content[i].unit_id == 0 || req->content[i].unit_id > NO_OF_UNITS)
@@ -211,7 +211,7 @@ void DispenserStationNode::dis_req_handle(
     // amt_var = tmp;
     target_amt += tmp;
 
-    dispense += "[id: " + std::to_string(req->content[i].unit_id) + ", amount: " + std::to_string(req->content[i].amount) + "] ";
+    dispense_str += "[id: " + std::to_string(req->content[i].unit_id) + ", amount: " + std::to_string(req->content[i].amount) + "] ";
     // std::future<opcua::StatusCode> future = opcua::services::writeValueAsync(cli, unit_amt_id[req->content[i].unit_id], amt_var, opcua::useFuture);
     // futures.push_back(std::move(future));
 
@@ -222,8 +222,8 @@ void DispenserStationNode::dis_req_handle(
       return;
     }
   }
-  dispense = "Dispense: " + dispense;
-  RCLCPP_INFO(this->get_logger(), dispense.c_str());
+  dispense_str = "Dispense: " + dispense_str;
+  RCLCPP_INFO(this->get_logger(), dispense_str.c_str());
   RCLCPP_INFO(this->get_logger(), "Sent the amount of requested");
 
   // bool all_good = wait_for_futures(futures);
@@ -336,7 +336,7 @@ void DispenserStationNode::dis_req_handle(
   std::thread(std::bind(&DispenserStationNode::initiate, this)).detach(); 
   RCLCPP_INFO(this->get_logger(), "Dispenser operation completed, proceeding...");
   
-  std::this_thread::sleep_for(800ms); // Caution: be careful to set this delay
+  std::this_thread::sleep_for(600ms); // Caution: be careful to set this delay
   
   res->success = true;
 

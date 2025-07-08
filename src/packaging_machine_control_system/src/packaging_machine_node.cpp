@@ -262,7 +262,14 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
 
 uint32_t PackagingMachineNode::read_ribbon(std::string type)
 {
-  std::string filename = "/memory/remain_" + type + "_" + std::to_string(status_->packaging_machine_id);
+  const char* mem_path = std::getenv("PKG_MAC_MEMORY_PATH");
+  if (!mem_path)
+  {
+    RCLCPP_ERROR(this->get_logger(), "PKG_MAC_MEMORY_PATH does not existed!!!");
+    return 0;
+  }
+
+  std::string filename = std::string(mem_path) + "/remain_" + type + "_" + std::to_string(status_->packaging_machine_id);
   std::ifstream read_file(filename);
 
   if (!read_file.is_open()) 
@@ -280,7 +287,7 @@ uint32_t PackagingMachineNode::read_ribbon(std::string type)
   {
     size_t pos;
     int value = std::stoi(length, &pos);
-    if (pos != length.size() || value < 0 || value > UINT32_MAX) 
+    if (pos != length.size() || value < 0 || value > INT32_MAX) 
     {
       throw std::runtime_error("Invalid ribbon length in file: " + filename);
     }
@@ -294,7 +301,14 @@ uint32_t PackagingMachineNode::read_ribbon(std::string type)
 
 void PackagingMachineNode::write_ribbon(std::string type, uint32_t ribbon_length)
 {
-  std::string filename = "/memory/remain_" + type + "_" + std::to_string(status_->packaging_machine_id);
+  const char* mem_path = std::getenv("PKG_MAC_MEMORY_PATH");
+  if (!mem_path)
+  {
+    RCLCPP_ERROR(this->get_logger(), "PKG_MAC_MEMORY_PATH does not existed!!!");
+    return;
+  }
+  
+  std::string filename = std::string(mem_path) + "/remain_" + type + "_" + std::to_string(status_->packaging_machine_id);
   std::ofstream file(filename);
 
   if (!file.is_open()) 
@@ -541,7 +555,7 @@ void PackagingMachineNode::cutter_handle(
     }
   }
 
-  bool success = ctrl_cutter(request->data ? 1 : 0);
+  bool success = ctrl_cutter(request->data ? CUTTER_CLIP : CUTTER_RELEASE);
 
   if (success)
   {
@@ -849,6 +863,8 @@ void PackagingMachineNode::print_one_pkg_handle(
   ctrl_pkg_dis(PKG_DIS_UNFEED_LEN, PKG_DIS_UNFEED_DIR, MOTOR_ENABLE);
   wait_for_pkg_dis(MotorStatus::IDLE);
 
+  ctrl_cutter(CUTTER_CLIP);
+
   ctrl_squeezer(SQUEEZER_ACTION_PUSH, MOTOR_ENABLE);
   wait_for_squeezer(MotorStatus::IDLE);
 
@@ -856,6 +872,8 @@ void PackagingMachineNode::print_one_pkg_handle(
 
   ctrl_squeezer(SQUEEZER_ACTION_PULL, MOTOR_ENABLE);
   wait_for_squeezer(MotorStatus::IDLE);
+
+  ctrl_cutter(CUTTER_RELEASE);
   
   printer_.reset();
 
@@ -988,13 +1006,13 @@ rclcpp_action::GoalResponse PackagingMachineNode::handle_goal(
   uint32_t remain_package = read_ribbon("package");
   uint32_t remain_thermal = read_ribbon("thermal");
 
-  if (remain_package + PackagingMachineStatus::REMAIN_MARGIN > goal->print_info.size() * status_->package_length)
+  if (remain_package + PackagingMachineStatus::REMAIN_MARGIN < goal->print_info.size() * status_->package_length)
   {
     RCLCPP_ERROR(this->get_logger(), "The remain package length may not eneugh to handle the order. [Remain: %d]", remain_package);
     return rclcpp_action::GoalResponse::REJECT;
   }
 
-  if (remain_thermal + PackagingMachineStatus::REMAIN_MARGIN > goal->print_info.size() * status_->package_length)
+  if (remain_thermal + PackagingMachineStatus::REMAIN_MARGIN < goal->print_info.size() * status_->package_length)
   {
     RCLCPP_ERROR(this->get_logger(), "The remain thermal length may not eneugh to handle the order. [Remain: %d]", remain_thermal);
     return rclcpp_action::GoalResponse::REJECT;

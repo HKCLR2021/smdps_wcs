@@ -29,7 +29,7 @@ private:
     RCLCPP_INFO(this->get_logger(), "Received material_box_id: %d", request->material_box_id);
 
     response->info.patient_info.name = "Testing";
-    response->info.patient_info.name_cn = "HKCLR";
+    response->info.patient_info.name_ch = "HKCLR";
     response->info.qr_code = "https://www.hkclr.hk";
 
     for (size_t i = 0; i < 28; ++i)

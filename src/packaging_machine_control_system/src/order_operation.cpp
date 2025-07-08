@@ -47,6 +47,8 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
     ctrl_pkg_dis(PKG_DIS_UNFEED_LEN, PKG_DIS_UNFEED_DIR, MOTOR_ENABLE);
     wait_for_pkg_dis(MotorStatus::IDLE);
 
+    ctrl_cutter(CUTTER_CLIP);
+
     ctrl_squeezer(SQUEEZER_ACTION_PUSH, MOTOR_ENABLE);
     wait_for_squeezer(MotorStatus::IDLE);
 
@@ -54,6 +56,8 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
 
     ctrl_squeezer(SQUEEZER_ACTION_PULL, MOTOR_ENABLE);
     wait_for_squeezer(MotorStatus::IDLE);
+
+    ctrl_cutter(CUTTER_RELEASE);
   };
 
   auto print_empty_pkg = [&]() {
@@ -176,10 +180,6 @@ void PackagingMachineNode::order_execute(const std::shared_ptr<GaolHandlerPackag
   ctrl_roller(0, 1, MOTOR_ENABLE);
   wait_for_roller(MotorStatus::IDLE);
   
-  // ctrl_cutter(1);
-  // std::this_thread::sleep_for(DELAY_GENERAL_VALVE);
-  // ctrl_cutter(0);
-
   uint8_t num_printed = 0;
   for (size_t i = 0; i < CELLS; i++)
   {

@@ -44,7 +44,7 @@ bool PackagingMachineNode::call_co_write(uint16_t index, uint8_t subindex, uint3
   // }
 
   // return true;
-  std::future_status status = future.wait_for(200ms);
+  std::future_status status = future.wait_for(500ms);
   switch (status)
   {
   case std::future_status::ready:
@@ -107,7 +107,7 @@ bool PackagingMachineNode::call_co_read(uint16_t index, uint8_t subindex, std::s
   // }
 
   // return true;
-  std::future_status status = future.wait_for(200ms);
+  std::future_status status = future.wait_for(500ms);
   switch (status)
   {
   case std::future_status::ready:

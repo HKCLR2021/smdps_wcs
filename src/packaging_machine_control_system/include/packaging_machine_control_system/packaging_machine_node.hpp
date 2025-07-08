@@ -10,6 +10,7 @@
 #include <iostream>
 #include <fstream>
 #include <queue>
+#include <cstdlib>
 #include <math.h>
 
 #include "rclcpp/rclcpp.hpp"

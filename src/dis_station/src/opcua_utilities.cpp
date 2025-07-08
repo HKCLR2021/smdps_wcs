@@ -12,7 +12,7 @@ bool DispenserStationNode::write_opcua_value(const opcua::NodeId& node_id, T val
   // int attempts = 0;
   bool done = false;
 
-  while (!done)
+  while (rclcpp::ok() && !done)
   {
     try
     {
@@ -46,12 +46,12 @@ bool DispenserStationNode::write_opcua_value(const opcua::NodeId& node_id, T val
     catch (const std::exception& e) 
     {
       RCLCPP_ERROR(this->get_logger(), "Exception in %s: %s", __FUNCTION__, e.what());
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
     catch (...) 
     {
       RCLCPP_ERROR(this->get_logger(), "Unknown exception in %s", __FUNCTION__);
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
   }
 
@@ -65,7 +65,7 @@ bool DispenserStationNode::read_opcua_value(const opcua::NodeId& node_id, std::s
   // int attempts = 0;
   bool done = false;
 
-  while (!done)
+  while (rclcpp::ok() && !done)
   {
     try
     {
@@ -105,12 +105,12 @@ bool DispenserStationNode::read_opcua_value(const opcua::NodeId& node_id, std::s
     catch (const std::exception& e) 
     {
       RCLCPP_ERROR(this->get_logger(), "Exception in %s: %s", __FUNCTION__, e.what());
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
     catch (...) 
     {
       RCLCPP_ERROR(this->get_logger(), "Unknown exception in %s", __FUNCTION__);
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
   }
 

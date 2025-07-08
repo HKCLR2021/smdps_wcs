@@ -205,6 +205,7 @@ protected:
   const opcua::NodeId cmd_exe_id          = {ns_ind, rev_prefix + "CmdExecute"};
 
   const opcua::NodeId reset_id            = {ns_ind, rev_prefix + "reset"};
+  const opcua::NodeId re_HMI_estop_id     = {ns_ind, rev_prefix + "reHMIEstop"};
 
   std::map<uint8_t, opcua::NodeId> unit_amt_id;
   

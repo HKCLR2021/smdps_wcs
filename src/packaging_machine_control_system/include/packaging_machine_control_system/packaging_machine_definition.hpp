@@ -42,6 +42,9 @@
 
 #define SQUEEZER_SPEED 1100
 
+#define CUTTER_CLIP    1
+#define CUTTER_RELEASE 0
+
 #define HEATER_ON        1
 #define HEATER_ON_STATE  1
 #define HEATER_OFF       0

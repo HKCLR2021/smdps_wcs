@@ -2,8 +2,9 @@ x-common-variables: &common-variables
   NO_OF_DIS_STA: 14
   NO_OF_PKG_MAC: 2
   UID: 1000
-  RCUTILS_CONSOLE_OUTPUT_FORMAT: "[{severity}] {message}"
+  RCUTILS_CONSOLE_OUTPUT_FORMAT: "[{severity} {time}] {message}"
   CAN_CHANNEL: can0
+  PKG_MAC_MEMORY_PATH: "/memory"
 
 services:
 # ======================== Build Images ===========================
