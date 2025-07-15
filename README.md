@@ -10,7 +10,7 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone --recurse-submodules https://github.com/samkwok-hkclr/smdps_wcs
+git clone --recurse-submodules https://github.com/HKCLR2021/smdps_wcs
 ```
 
 ### 2. Build the images
