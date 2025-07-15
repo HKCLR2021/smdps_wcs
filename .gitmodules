@@ -15,15 +15,15 @@
 
 [submodule "src/qr_camera"]
 	path = src/qr_camera
-	url = https://github.com/samkwok-hkclr/qr_camera
+	url = https://github.com/HKCLR2021/qr_camera
 	branch = master
 
 [submodule "src/prod_line_plc_comm"]
 	path = src/prod_line_plc_comm
-	url = https://github.com/samkwok-hkclr/prod_line_plc_comm
+	url = https://github.com/HKCLR2021/prod_line_plc_comm
 	branch = master
 
 [submodule "src/prod_line_sys"]
 	path = src/prod_line_sys
-	url = https://github.com/samkwok-hkclr/prod_line_sys
+	url = https://github.com/HKCLR2021/prod_line_sys
 	branch = master
