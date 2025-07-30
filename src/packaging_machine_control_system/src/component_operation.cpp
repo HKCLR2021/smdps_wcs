@@ -1,5 +1,17 @@
 #include "packaging_machine_control_system/packaging_machine_node.hpp"
 
+template <uint16_t index>
+bool PackagingMachineNode::read_co(std::shared_ptr<uint32_t> data)
+{
+  std::optional<uint32_t> tmp = call_co_read(index, 0x0);
+  
+  if (!tmp.has_value())
+    return false;
+
+  *data = tmp.value();
+  return true;
+}
+
 // ===================================== heater =====================================
 bool PackagingMachineNode::ctrl_heater(const bool on)
 {
@@ -17,7 +29,7 @@ bool PackagingMachineNode::write_heater(const uint32_t data)
 
 bool PackagingMachineNode::read_heater(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6003, 0x0, data);
+  return read_co<0x6003>(data);
 }
 
 // ===================================== stopper =====================================
@@ -37,7 +49,7 @@ bool PackagingMachineNode::write_stopper(const uint32_t data)
 
 bool PackagingMachineNode::read_stopper(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6054, 0x0, data);
+  return read_co<0x6054>(data);
 }
 
 // ===================================== material_box_gate =====================================
@@ -57,7 +69,7 @@ bool PackagingMachineNode::write_material_box_gate(const uint32_t data)
 
 bool PackagingMachineNode::read_material_box_gate(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6055, 0x0, data);
+  return read_co<0x6055>(data);
 }
 
 // ===================================== cutter =====================================
@@ -77,15 +89,14 @@ bool PackagingMachineNode::write_cutter(const uint32_t data)
 
 bool PackagingMachineNode::read_cutter(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6056, 0x0, data);
+  return read_co<0x6056>(data);
 }
 
 // ===================================== pkg_dis =====================================
 bool PackagingMachineNode::ctrl_pkg_dis(
   const float length, 
   const bool feed, 
-  const bool ctrl
-)
+  const bool ctrl)
 {
   bool success = true;
 
@@ -101,12 +112,12 @@ bool PackagingMachineNode::ctrl_pkg_dis(
 
 bool PackagingMachineNode::read_pkg_dis_state(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6018, 0x0, data);
+  return read_co<0x6018>(data);
 }
 
 bool PackagingMachineNode::read_pkg_dis_ctrl(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6019, 0x0, data);
+  return read_co<0x6019>(data);
 }
 
 // ===================================== pill_gate =====================================
@@ -129,12 +140,12 @@ bool PackagingMachineNode::ctrl_pill_gate(
 
 bool PackagingMachineNode::read_pill_gate_state(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6028, 0x0, data);
+  return read_co<0x6028>(data);
 }
 
 bool PackagingMachineNode::read_pill_gate_ctrl(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6029, 0x0, data);
+  return read_co<0x6029>(data);
 }
 
 // ===================================== squeezer =====================================
@@ -177,12 +188,12 @@ bool PackagingMachineNode::ctrl_squeezer(
 
 bool PackagingMachineNode::read_squeezer_state(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6078, 0x0, data);
+  return read_co<0x6078>(data);
 }
 
 bool PackagingMachineNode::read_squeezer_ctrl(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6079, 0x0, data);
+  return read_co<0x6079>(data);
 }
 
 // ===================================== conveyor =====================================
@@ -216,12 +227,12 @@ bool PackagingMachineNode::ctrl_conveyor(
 
 bool PackagingMachineNode::read_conveyor_state(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6088, 0x0, data);
+  return read_co<0x6088>(data);
 }
 
 bool PackagingMachineNode::read_conveyor_ctrl(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6089, 0x0, data);
+  return read_co<0x6089>(data);
 }
 
 // ===================================== roller =====================================
@@ -266,12 +277,12 @@ bool PackagingMachineNode::ctrl_roller(
 
 bool PackagingMachineNode::read_roller_state(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6038, 0x0, data);
+  return read_co<0x6038>(data);
 }
 
 bool PackagingMachineNode::read_roller_ctrl(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6039, 0x0, data);
+  return read_co<0x6039>(data);
 }
 
 // ===================================== pkg_len =====================================
@@ -311,12 +322,12 @@ bool PackagingMachineNode::ctrl_pkg_len(
 
 bool PackagingMachineNode::read_pkg_len_state(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6048, 0x0, data);
+  return read_co<0x6048>(data);
 }
 
 bool PackagingMachineNode::read_pkg_len_ctrl(std::shared_ptr<uint32_t> data)
 {
-  return call_co_read(0x6049, 0x0, data);
+  return read_co<0x6049>(data);
 }
 
 // ===================================== printer =====================================
@@ -399,7 +410,7 @@ smdps_msgs::msg::PackageInfo PackagingMachineNode::create_printer_info_temp(void
   PackageInfo msg;
 
   msg.cn_name = "Centre A";
-  msg.en_name = "Sam";
+  msg.en_name = "Chan Tai Man";
 
   if (printer_test_date_index < printer_test_date.size())
     msg.date = printer_test_date[printer_test_date_index];
@@ -446,13 +457,22 @@ smdps_msgs::msg::PackageInfo PackagingMachineNode::create_printer_info_temp(void
 std::vector<std::string> PackagingMachineNode::get_print_label_cmd(PackageInfo msg)
 {
   std::vector<std::string> cmds{};
+
   if (!msg.en_name.empty())
   {
     RCLCPP_INFO(this->get_logger(), "Add a english name: %s", msg.en_name.c_str());
 
     // std::string gbk_cn = printer_->convert_utf8_to_gbk(msg.cn_name);
     // std::string cn = "TEXT 240,180,\"3\",0,2,2,\"" + gbk_cn + "\"";
-    std::string cn = "TEXT 150,550,\"" + std::to_string(printer_font_) + "\",270,1,1,\"" + msg.cn_name + "\"";
+    std::string cn_str;
+
+    if (printer_->is_valid_utf8(msg.cn_name))
+      cn_str = msg.cn_name;
+    else
+    {
+      cn_str = printer_->convert_utf8_to_gbk(msg.cn_name);
+    }
+    std::string cn = "TEXT 150,550,\"" + std::to_string(printer_font_) + "\",270,1,1,\"" + cn_str + "\"";
     cmds.emplace_back(cn);
     // std::string en = "TEXT 150,225,\"" + std::to_string(printer_font_) + "\",270,1,1,\"" + msg.en_name + "\"";
     std::string en = "TEXT 190,550,\"" + std::to_string(printer_font_) + "\",270,1,1,\"" + msg.en_name + "\"";
@@ -486,9 +506,10 @@ std::vector<std::string> PackagingMachineNode::get_print_label_cmd(PackageInfo m
 // ===================================== wait for =====================================
 void PackagingMachineNode::wait_for_stopper(const uint32_t stop_condition)
 {
-  std::this_thread::sleep_for(DELAY_VALVE_WAIT_FOR); 
-
-  // rclcpp::Rate rate(2);
+  // std::this_thread::sleep_for(DELAY_VALVE_WAIT_FOR); 
+  rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
+  rclcpp::Rate rate(2);
+  
   while (rclcpp::ok())
   {
     std::shared_ptr<uint32_t> data = std::make_shared<uint32_t>(0);
@@ -506,16 +527,17 @@ void PackagingMachineNode::wait_for_stopper(const uint32_t stop_condition)
       break; 
     }
 
-    // rate.sleep();
-    std::this_thread::sleep_for(500ms); 
+    rate.sleep();
+    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_material_box_gate(const uint32_t stop_condition)
 {
-  std::this_thread::sleep_for(DELAY_VALVE_WAIT_FOR); 
-
-  // rclcpp::Rate rate(2);
+  // std::this_thread::sleep_for(DELAY_VALVE_WAIT_FOR); 
+  rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
+  rclcpp::Rate rate(2);
+  
   while (rclcpp::ok())
   {
     std::shared_ptr<uint32_t> data = std::make_shared<uint32_t>(0);
@@ -533,16 +555,17 @@ void PackagingMachineNode::wait_for_material_box_gate(const uint32_t stop_condit
       break; 
     }
 
-    // rate.sleep();
-    std::this_thread::sleep_for(500ms); 
+    rate.sleep();
+    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_cutter(const uint32_t stop_condition)
 {
-  std::this_thread::sleep_for(DELAY_VALVE_WAIT_FOR); 
+  // std::this_thread::sleep_for(DELAY_VALVE_WAIT_FOR); 
+  rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
+  rclcpp::Rate rate(2);
 
-  // rclcpp::Rate rate(2);
   while (rclcpp::ok())
   {
     std::shared_ptr<uint32_t> data = std::make_shared<uint32_t>(0);
@@ -560,16 +583,17 @@ void PackagingMachineNode::wait_for_cutter(const uint32_t stop_condition)
       break; 
     }
 
-    // rate.sleep();
-    std::this_thread::sleep_for(500ms); 
+    rate.sleep();
+    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_pkg_dis(const uint8_t target_state)
 {
-  std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR);
-
-  // rclcpp::Rate rate(2);
+  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR);
+  rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
+  rclcpp::Rate rate(2);
+  
   while (rclcpp::ok())
   {
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
@@ -589,16 +613,17 @@ void PackagingMachineNode::wait_for_pkg_dis(const uint8_t target_state)
       break;
     }
 
-    // rate.sleep();
-    std::this_thread::sleep_for(500ms); 
+    rate.sleep();
+    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_pill_gate(const uint8_t target_state)
 {
-  std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
-
-  // rclcpp::Rate rate(2);
+  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
+  rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
+  rclcpp::Rate rate(2);
+  
   while (rclcpp::ok())
   {
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
@@ -618,16 +643,17 @@ void PackagingMachineNode::wait_for_pill_gate(const uint8_t target_state)
       break;
     }
 
-    // rate.sleep();
-    std::this_thread::sleep_for(500ms); 
+    rate.sleep();
+    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_squeezer(const uint8_t target_state)
 {
-  std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
+  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
+  rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
+  rclcpp::Rate rate(2);
 
-  // rclcpp::Rate rate(2);
   while (rclcpp::ok())
   {
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
@@ -648,16 +674,17 @@ void PackagingMachineNode::wait_for_squeezer(const uint8_t target_state)
       break;
     }
 
-    // rate.sleep();
-    std::this_thread::sleep_for(500ms); 
+    rate.sleep();
+    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_conveyor(const uint8_t target_state)
 {
-  std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
-
-  // rclcpp::Rate rate(2);
+  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
+  rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
+  rclcpp::Rate rate(2);
+  
   while (rclcpp::ok())
   {
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
@@ -678,16 +705,17 @@ void PackagingMachineNode::wait_for_conveyor(const uint8_t target_state)
       break;
     }
 
-    // rate.sleep();
-    std::this_thread::sleep_for(500ms); 
+    rate.sleep();
+    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_roller(const uint8_t target_state)
 {
-  std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
+  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
+  rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
+  rclcpp::Rate rate(2);
 
-  // rclcpp::Rate rate(2);
   while (rclcpp::ok())
   {
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
@@ -707,16 +735,17 @@ void PackagingMachineNode::wait_for_roller(const uint8_t target_state)
       break;
     }
 
-    // rate.sleep();
-    std::this_thread::sleep_for(500ms); 
+    rate.sleep();
+    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_pkg_len(const uint8_t target_state)
 {
-  std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
+  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
+  rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
+  rclcpp::Rate rate(2);
 
-  // rclcpp::Rate rate(2);
   while (rclcpp::ok())
   {
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
@@ -736,7 +765,7 @@ void PackagingMachineNode::wait_for_pkg_len(const uint8_t target_state)
       break;
     }
 
-    // rate.sleep();
-    std::this_thread::sleep_for(500ms); 
+    rate.sleep();
+    // std::this_thread::sleep_for(500ms); 
   }
 }

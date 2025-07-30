@@ -38,6 +38,8 @@ public:
 
   std::string convert_utf8_to_gbk(const std::string &utf8_string);
 
+  bool is_valid_utf8(const std::string& s);
+
 private:
   std::unique_ptr<libusbxx> usb_;
   std::map<std::string, std::string> default_cmd_;

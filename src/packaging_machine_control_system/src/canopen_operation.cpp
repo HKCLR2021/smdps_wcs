@@ -10,56 +10,45 @@ bool PackagingMachineNode::call_co_write(uint16_t index, uint8_t subindex, uint3
 
   co_write_wait_for_service();
 
-  using ServiceResponseFuture = rclcpp::Client<COWrite>::SharedFuture;
-  auto response_received_cb = [this](ServiceResponseFuture future) {
-    auto srv_response = future.get();
+  // using ServiceResponseFuture = rclcpp::Client<COWrite>::SharedFuture;
+  // auto response_received_cb = [this](ServiceResponseFuture future) {
+  //   auto srv_response = future.get();
 
-    if (srv_response) 
-      RCLCPP_DEBUG(this->get_logger(), "Inside the COWrite Callback OK");
-    else 
-      RCLCPP_ERROR(this->get_logger(), "Inside the COWrite Callback NOT OK");
+  //   if (srv_response) 
+  //     RCLCPP_DEBUG(get_logger(), "Inside the COWrite Callback OK");
+  //   else 
+  //     RCLCPP_ERROR(get_logger(), "Inside the COWrite Callback NOT OK");
+  // };
 
-    // if (rclcpp::ok())
-    // {
-    //   std::lock_guard<std::mutex> lock(co_write_signal.cv_mutex_);
-    //   co_write_signal.is_triggered_ = true;
-    // }
+  // auto future = co_write_client_->async_send_request(request, response_received_cb);
+  auto future = co_write_client_->async_send_request(request);
+  std::future_status status = future.wait_for(1s);
 
-    // co_write_signal.cv_.notify_one();  // Wake up service
-  };
-
-  auto future = co_write_client_->async_send_request(request, response_received_cb);
-  // future.wait();
-
-  // if (rclcpp::ok())
-  // {
-  //   RCLCPP_INFO(this->get_logger(), "Waiting the canopen write signal...");
-  //   std::unique_lock<std::mutex> lock(co_write_signal.cv_mutex_);
-
-  //   co_write_signal.cv_.wait(lock, [this]() { 
-  //     return co_write_signal.is_triggered_; 
-  //   });
-
-  //   co_write_signal.is_triggered_ = false;
-  // }
-
-  // return true;
-  std::future_status status = future.wait_for(500ms);
   switch (status)
   {
   case std::future_status::ready:
-    RCLCPP_DEBUG(this->get_logger(), "%s wait_for OK", __FUNCTION__);
+    RCLCPP_DEBUG(get_logger(), "%s wait_for OK", __FUNCTION__);
     return true; 
   case std::future_status::timeout:
-    RCLCPP_ERROR(this->get_logger(), "%s wait_for timeout", __FUNCTION__);
+    RCLCPP_ERROR(get_logger(), "%s wait_for timeout", __FUNCTION__);
     return false;
   default: 
-    RCLCPP_ERROR(this->get_logger(), "%s wait_for NOT OK", __FUNCTION__);
+    RCLCPP_ERROR(get_logger(), "%s wait_for NOT OK", __FUNCTION__);
     return false;
   }
+
+  // auto response = future.get();
+
+  // if (!response->success)
+  // {
+  //   RCLCPP_INFO(get_logger(), "Service %s call failed", __FUNCTION__);
+  //   return false;
+  // }
+
+  return false;
 }
 
-bool PackagingMachineNode::call_co_read(uint16_t index, uint8_t subindex, std::shared_ptr<uint32_t> data)
+std::optional<uint32_t> PackagingMachineNode::call_co_read(uint16_t index, uint8_t subindex)
 {
   std::shared_ptr<CORead::Request> request = std::make_shared<CORead::Request>();
 
@@ -68,59 +57,91 @@ bool PackagingMachineNode::call_co_read(uint16_t index, uint8_t subindex, std::s
 
   co_read_wait_for_service();
 
-  using ServiceResponseFuture = rclcpp::Client<CORead>::SharedFuture;
-  auto response_received_cb = [this, data](ServiceResponseFuture future) {
-    auto srv_response = future.get();
-    
-    if (srv_response) 
-    {
-      *data = srv_response->data;
-      RCLCPP_DEBUG(this->get_logger(), "Inside the CORead Callback OK, data: %d", *data);
-    } 
-    else 
-    {
-      RCLCPP_ERROR(this->get_logger(), "Inside the CORead Callback NOT OK");
-    }
+  auto future = co_read_client_->async_send_request(request);
+  std::future_status status = future.wait_for(1s);
 
-    // if (rclcpp::ok())
-    // {
-    //   std::lock_guard<std::mutex> lock(co_read_signal.cv_mutex_);
-    //   co_read_signal.is_triggered_ = true;
-    // }
-
-    // co_read_signal.cv_.notify_one();  // Wake up service
-  };
- 
-  auto future = co_read_client_->async_send_request(request, response_received_cb);
-  // future.wait();
-
-  // if (rclcpp::ok())
-  // {
-  //   RCLCPP_INFO(this->get_logger(), "Waiting the canopen read signal...");
-  //   std::unique_lock<std::mutex> lock(co_read_signal.cv_mutex_);
-
-  //   co_read_signal.cv_.wait(lock, [this]() { 
-  //     return co_read_signal.is_triggered_; 
-  //   });
-
-  //   co_read_signal.is_triggered_ = false;
-  // }
-
-  // return true;
-  std::future_status status = future.wait_for(500ms);
   switch (status)
   {
   case std::future_status::ready:
-    RCLCPP_DEBUG(this->get_logger(), "%s wait_for OK", __FUNCTION__);
-    return true;
+    RCLCPP_DEBUG(get_logger(), "%s wait_for OK", __FUNCTION__);
+    break;
   case std::future_status::timeout:
-    RCLCPP_ERROR(this->get_logger(), "%s wait_for timeout", __FUNCTION__);
-    return false;
+    RCLCPP_ERROR(get_logger(), "%s wait_for timeout", __FUNCTION__);
+    return std::nullopt;
   default: 
-    RCLCPP_ERROR(this->get_logger(), "%s wait_for NOT OK", __FUNCTION__);
-    return false;
+    RCLCPP_ERROR(get_logger(), "%s wait_for NOT OK", __FUNCTION__);
+    return std::nullopt;
   }
+
+  auto response = future.get();
+
+  if (!response->success)
+  {
+    RCLCPP_ERROR(get_logger(), "Service %s call failed", __FUNCTION__);
+    return std::nullopt;
+  }
+  
+  RCLCPP_DEBUG(get_logger(), "Inside the CORead, response->data: %d", response->data);
+  return std::make_optional(std::move(response->data));
 }
+
+// bool PackagingMachineNode::call_co_read(uint16_t index, uint8_t subindex, std::shared_ptr<uint32_t> data)
+// {
+//   std::shared_ptr<CORead::Request> request = std::make_shared<CORead::Request>();
+
+//   request->index = index;
+//   request->subindex = subindex;
+
+//   co_read_wait_for_service();
+
+//   // using ServiceResponseFuture = rclcpp::Client<CORead>::SharedFuture;
+//   // auto response_received_cb = [this, data](ServiceResponseFuture future) {
+//   //   auto srv_response = future.get();
+    
+//   //   if (srv_response) 
+//   //   {
+//   //     *data = srv_response->data;
+//   //     RCLCPP_WARN(get_logger(), "Inside the CORead Callback OK, data: %d", *data);
+//   //   } 
+//   //   else 
+//   //   {
+//   //     RCLCPP_ERROR(get_logger(), "Inside the CORead Callback NOT OK");
+//   //   }
+//   // };
+ 
+//   // auto future = co_read_client_->async_send_request(request, response_received_cb);
+//   auto future = co_read_client_->async_send_request(request);
+//   std::future_status status = future.wait_for(1s);
+
+//   switch (status)
+//   {
+//   case std::future_status::ready:
+//     RCLCPP_DEBUG(get_logger(), "%s wait_for OK", __FUNCTION__);
+//     return true;
+//   case std::future_status::timeout:
+//     RCLCPP_ERROR(get_logger(), "%s wait_for timeout", __FUNCTION__);
+//     return false;
+//   default: 
+//     RCLCPP_ERROR(get_logger(), "%s wait_for NOT OK", __FUNCTION__);
+//     return false;
+//   }
+
+//   auto response = future.get();
+
+//   if (!response->success)
+//   {
+//     RCLCPP_INFO(get_logger(), "Service %s call failed", __FUNCTION__);
+//     return false;
+//   }
+
+//   std::shared_ptr val = std::make_shared<uint32_t>(std::move(response->data));
+//   data = std::move(val);
+  
+//   RCLCPP_WARN(get_logger(), "Inside the CORead Callback OK, response->data: %d", response->data);
+//   RCLCPP_WARN(get_logger(), "data: %d", *data);
+
+//   RCLCPP_DEBUG(get_logger(), "Inside the CORead Callback OK");
+// }
 
 // Don't use this function
 bool PackagingMachineNode::call_co_write_w_spin(uint16_t index, uint8_t subindex, uint32_t data)
@@ -134,7 +155,7 @@ bool PackagingMachineNode::call_co_write_w_spin(uint16_t index, uint8_t subindex
   co_write_wait_for_service();
 
   auto future = co_write_client_->async_send_request(request);
-  if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), future, 200ms) == rclcpp::FutureReturnCode::SUCCESS)
+  if (rclcpp::spin_until_future_complete(get_node_base_interface(), future, 200ms) == rclcpp::FutureReturnCode::SUCCESS)
   {
     auto response = future.get();
     return response->success;
@@ -156,7 +177,7 @@ bool PackagingMachineNode::call_co_read_w_spin(uint16_t index, uint8_t subindex,
   co_read_wait_for_service();
  
   auto future = co_read_client_->async_send_request(request);
-  if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), future, 200ms) == rclcpp::FutureReturnCode::SUCCESS)
+  if (rclcpp::spin_until_future_complete(get_node_base_interface(), future, 200ms) == rclcpp::FutureReturnCode::SUCCESS)
   {
     auto response = future.get();
     *data = response->data;
@@ -174,11 +195,11 @@ void PackagingMachineNode::co_write_wait_for_service(void)
   {
     if (!rclcpp::ok())
     {
-      RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting");
+      RCLCPP_ERROR(get_logger(), "Interrupted while waiting for the service. Exiting");
       rclcpp::shutdown();
     }
 
-    RCLCPP_ERROR(this->get_logger(), "COWrite Service not available, waiting again...");
+    RCLCPP_ERROR(get_logger(), "COWrite Service not available, waiting again...");
     // std::this_thread::sleep_for(1s);
   }
 }
@@ -189,11 +210,11 @@ void PackagingMachineNode::co_read_wait_for_service(void)
   {
     if (!rclcpp::ok())
     {
-      RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting");
+      RCLCPP_ERROR(get_logger(), "Interrupted while waiting for the service. Exiting");
       rclcpp::shutdown();
     }
 
-    RCLCPP_ERROR(this->get_logger(), "CORead Service not available, waiting again...");
+    RCLCPP_ERROR(get_logger(), "CORead Service not available, waiting again...");
     // std::this_thread::sleep_for(1s);
   }
 }

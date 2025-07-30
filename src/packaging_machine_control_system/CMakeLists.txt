@@ -65,6 +65,7 @@ add_executable(packaging_machine_node
   src/canopen_operation.cpp
   src/component_operation.cpp
   src/order_operation.cpp
+  src/ribbon.cpp
   src/printer/printer.cpp
 )
 target_link_libraries(packaging_machine_node ${LIBUSB_LIBRARIES})

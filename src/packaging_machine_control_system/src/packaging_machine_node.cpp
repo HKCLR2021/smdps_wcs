@@ -78,8 +78,8 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   status_->canopen_state = PackagingMachineStatus::NORMAL;
   status_->package_length = 80; // FIXME
 
-  co_cli_read_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
-  co_cli_write_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  co_cli_read_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  co_cli_write_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   srv_conveyor_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   srv_stopper_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   srv_ser_cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -260,77 +260,11 @@ PackagingMachineNode::PackagingMachineNode(const rclcpp::NodeOptions& options)
   // }
 }
 
-uint32_t PackagingMachineNode::read_ribbon(std::string type)
-{
-  const char* mem_path = std::getenv("PKG_MAC_MEMORY_PATH");
-  if (!mem_path)
-  {
-    RCLCPP_ERROR(this->get_logger(), "PKG_MAC_MEMORY_PATH does not existed!!!");
-    return 0;
-  }
-
-  std::string filename = std::string(mem_path) + "/remain_" + type + "_" + std::to_string(status_->packaging_machine_id);
-  std::ifstream read_file(filename);
-
-  if (!read_file.is_open()) 
-  {
-    throw std::runtime_error("Failed to open file: " + filename);
-  }
-
-  std::string length;
-  if (!std::getline(read_file, length) || length.empty()) 
-  {
-    throw std::runtime_error("File is empty or invalid: " + filename);
-  }
-
-  try 
-  {
-    size_t pos;
-    int value = std::stoi(length, &pos);
-    if (pos != length.size() || value < 0 || value > INT32_MAX) 
-    {
-      throw std::runtime_error("Invalid ribbon length in file: " + filename);
-    }
-    return static_cast<uint32_t>(value);
-  }
-  catch (const std::exception& e) 
-  {
-    throw std::runtime_error("Failed to parse ribbon length: " + std::string(e.what()));
-  }
-}
-
-void PackagingMachineNode::write_ribbon(std::string type, uint32_t ribbon_length)
-{
-  const char* mem_path = std::getenv("PKG_MAC_MEMORY_PATH");
-  if (!mem_path)
-  {
-    RCLCPP_ERROR(this->get_logger(), "PKG_MAC_MEMORY_PATH does not existed!!!");
-    return;
-  }
-  
-  std::string filename = std::string(mem_path) + "/remain_" + type + "_" + std::to_string(status_->packaging_machine_id);
-  std::ofstream file(filename);
-
-  if (!file.is_open()) 
-  {
-    throw std::runtime_error("Failed to open file for writing: " + filename);
-  }
-
-  file << std::to_string(ribbon_length);
-
-  if (!file.good()) 
-  {
-    throw std::runtime_error("Failed to write to file: " + filename);
-  }
-
-  file.close();
-}
-
 void PackagingMachineNode::pub_status_cb(void)
 {
   Bool skip_pkg_msg;
   {
-    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
     skip_pkg_msg.data = status_->skip_packaging;
     status_->header.stamp = this->get_clock()->now();
   }
@@ -343,8 +277,8 @@ void PackagingMachineNode::pub_status_cb(void)
 
 void PackagingMachineNode::heater_cb(void)
 {
-  std::unique_lock<std::recursive_mutex> lock(r_mutex_, std::defer_lock);
-  lock.lock();
+  // std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
+  // lock.lock();
 
   // if (enable_heater_ && info_->temperature < MIN_TEMP)
   if (enable_heater_)
@@ -352,7 +286,7 @@ void PackagingMachineNode::heater_cb(void)
     if (info_->temperature < MIN_TEMP)
       RCLCPP_INFO(this->get_logger(), "Current heater temperature: %d [less than 100 Celsius]", info_->temperature);
     
-    lock.unlock();
+    // lock.unlock();
 
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>();
     bool success = read_heater(state);
@@ -367,7 +301,7 @@ void PackagingMachineNode::heater_cb(void)
 
 void PackagingMachineNode::con_state_cb(void)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  const std::lock_guard<std::mutex> lock(mutex_);
 
   if (motor_status_->con_state == MotorStatus::RUNNING && info_->stopper == STOPPER_SUNK)
   {
@@ -386,7 +320,7 @@ void PackagingMachineNode::remain_length_cb(void)
   uint32_t remain_package = read_ribbon("package");
   uint32_t remain_thermal = read_ribbon("thermal");
 
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  const std::lock_guard<std::mutex> lock(mutex_);
   status_->remain_package_length = remain_package;
   status_->remain_thermal_length = remain_thermal;
 }
@@ -410,7 +344,7 @@ void PackagingMachineNode::init_timer(void)
 
 void PackagingMachineNode::rpdo_cb(const COData::SharedPtr msg)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  const std::lock_guard<std::mutex> lock(mutex_);
   switch (msg->index)
   {
   case 0x6001:
@@ -530,7 +464,7 @@ void PackagingMachineNode::cutter_handle(
   std::shared_ptr<SetBool::Response> response)
 {
   {
-    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_initialized_)
       return;
@@ -573,7 +507,7 @@ void PackagingMachineNode::stopper_handle(
   std::shared_ptr<SetBool::Response> response)
 {
   {
-    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_initialized_)
       return;
@@ -622,7 +556,7 @@ void PackagingMachineNode::mtrl_box_gate_handle(
   std::shared_ptr<SetBool::Response> response)
 {
   {
-    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
     
     if (!is_initialized_)
       return;
@@ -663,7 +597,7 @@ void PackagingMachineNode::conveyor_handle(
   std::shared_ptr<SetBool::Response> response)
 {
   {
-    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_initialized_)
       return;
@@ -710,7 +644,7 @@ void PackagingMachineNode::pill_gate_handle(
   std::shared_ptr<SetBool::Response> response)
 {
   {
-    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_initialized_)
       return;
@@ -743,7 +677,7 @@ void PackagingMachineNode::roller_handle(
   std::shared_ptr<SetBool::Response> response)
 {
   {
-    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_initialized_)
       return;
@@ -778,7 +712,7 @@ void PackagingMachineNode::squeezer_handle(
   (void)request;
   
   {
-    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_initialized_)
       return;
@@ -800,7 +734,7 @@ void PackagingMachineNode::pkg_len_handle(
   std::shared_ptr<UInt8Srv::Response> response)
 {
   {
-    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_initialized_)
       return;
@@ -834,7 +768,7 @@ void PackagingMachineNode::print_one_pkg_handle(
 {
   (void) request;
   {
-    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_initialized_)
       return;
@@ -892,7 +826,7 @@ void PackagingMachineNode::print_one_pkg_wo_squ_handle(
 {
   (void) request;
   {
-    const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     if (!is_initialized_)
       return;
@@ -923,7 +857,7 @@ void PackagingMachineNode::print_one_pkg_wo_squ_handle(
 
   printer_.reset();
 
-    uint32_t remain_package = read_ribbon("package");
+  uint32_t remain_package = read_ribbon("package");
   uint32_t remain_thermal = read_ribbon("thermal");
 
   write_ribbon("package", remain_package - (status_->package_length));
@@ -938,7 +872,7 @@ void PackagingMachineNode::state_ctrl_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  const std::lock_guard<std::mutex> lock(mutex_);
   
   if (request->data)
     status_->packaging_machine_state = PackagingMachineStatus::BUSY;
@@ -954,7 +888,7 @@ void PackagingMachineNode::skip_pkg_ctrl_handle(
   const std::shared_ptr<SetBool::Request> request, 
   std::shared_ptr<SetBool::Response> response)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  const std::lock_guard<std::mutex> lock(mutex_);
   status_->skip_packaging = request->data;
   response->success = true;
 }
@@ -968,7 +902,7 @@ void PackagingMachineNode::enable_heater_handle(
   ctrl_heater(HEATER_OFF);
   response->success = true;
 
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  const std::lock_guard<std::mutex> lock(mutex_);
   enable_heater_ = request->data;
 }
 
@@ -1069,7 +1003,7 @@ rclcpp_action::CancelResponse PackagingMachineNode::handle_cancel(
 
 void PackagingMachineNode::handle_accepted(const std::shared_ptr<GaolHandlerPackagingOrder> goal_handle)
 {
-  const std::lock_guard<std::recursive_mutex> lock(r_mutex_);
+  const std::lock_guard<std::mutex> lock(mutex_);
   
   if (status_->skip_packaging)
     std::thread{std::bind(&PackagingMachineNode::skip_order_execute, this, _1), goal_handle}.detach();

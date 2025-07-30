@@ -109,3 +109,60 @@ std::string Printer::convert_utf8_to_gbk(const std::string &utf8_string)
 
   return gbk_string;
 }
+
+bool Printer::is_valid_utf8(const std::string& s)
+{
+  const unsigned char* bytes = reinterpret_cast<const unsigned char*>(s.data());
+  size_t len = s.length();
+  size_t i = 0;
+
+  while (i < len) 
+  {
+    unsigned char byte = bytes[i];
+    if (byte < 0x80) 
+    { 
+      // 1-byte character (ASCII)
+      i++;
+    } 
+    else if ((byte & 0xE0) == 0xC0) 
+    { 
+      // 2-byte character
+      if (i + 1 >= len || (bytes[i+1] & 0xC0) != 0x80) 
+        return false;
+      // Check for overlong encoding (U+0080 to U+07FF)
+      if (byte < 0xC2) 
+        return false;
+      i += 2;
+    } 
+    else if ((byte & 0xF0) == 0xE0) 
+    { 
+      // 3-byte character
+      if (i + 2 >= len || (bytes[i+1] & 0xC0) != 0x80 || (bytes[i+2] & 0xC0) != 0x80) 
+        return false;
+      // Check for overlong encoding (U+0800 to U+FFFF) and surrogate range
+      if (byte == 0xE0 && bytes[i+1] < 0xA0) 
+        return false;
+      if (byte == 0xED && bytes[i+1] >= 0xA0) 
+        return false; // Surrogate range
+      i += 3;
+    } 
+    else if ((byte & 0xF8) == 0xF0) 
+    { 
+      // 4-byte character
+      if (i + 3 >= len || (bytes[i+1] & 0xC0) != 0x80 || (bytes[i+2] & 0xC0) != 0x80 || (bytes[i+3] & 0xC0) != 0x80) 
+        return false;
+      // Check for overlong encoding (U+10000 to U+10FFFF) and valid range
+      if (byte == 0xF0 && bytes[i+1] < 0x90) 
+        return false;
+      if (byte == 0xF4 && bytes[i+1] >= 0x90) 
+        return false;
+      i += 4;
+    } 
+    else 
+    { 
+      // Invalid leading byte
+      return false;
+    }
+  }
+  return true;
+}
