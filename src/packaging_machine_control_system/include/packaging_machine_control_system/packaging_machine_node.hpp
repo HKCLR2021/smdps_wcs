@@ -100,12 +100,8 @@ public:
 
   template <uint16_t index>
   bool read_co(std::shared_ptr<uint32_t> data);
-
-  bool call_co_write(uint16_t index, uint8_t subindex, uint32_t data);
-  bool call_co_write_w_spin(uint16_t index, uint8_t subindex, uint32_t data);
   std::optional<uint32_t> call_co_read(uint16_t index, uint8_t subindex);
-  // bool call_co_read(uint16_t index, uint8_t subindex, std::shared_ptr<uint32_t> data);
-  bool call_co_read_w_spin(uint16_t index, uint8_t subindex, std::shared_ptr<uint32_t> data);
+  bool call_co_write(uint16_t index, uint8_t subindex, uint32_t data);
 
   bool ctrl_heater(const bool on); 
   bool write_heater(const uint32_t data); 
@@ -151,12 +147,12 @@ public:
   void wait_for_material_box_gate(const uint32_t stop_condition);
   void wait_for_cutter(const uint32_t stop_condition);
 
-  void wait_for_pkg_dis(const uint8_t target_state);
-  void wait_for_pill_gate(const uint8_t target_state);
-  void wait_for_squeezer(const uint8_t target_state);
-  void wait_for_conveyor(const uint8_t target_state);
-  void wait_for_roller(const uint8_t target_state);
-  void wait_for_pkg_len(const uint8_t target_state);
+  void wait_for_pkg_dis(const uint8_t target_state = MotorStatus::IDLE);
+  void wait_for_pill_gate(const uint8_t target_state = MotorStatus::IDLE);
+  void wait_for_squeezer(const uint8_t target_state = MotorStatus::IDLE);
+  void wait_for_conveyor(const uint8_t target_state = MotorStatus::IDLE);
+  void wait_for_roller(const uint8_t target_state = MotorStatus::IDLE);
+  void wait_for_pkg_len(const uint8_t target_state = MotorStatus::IDLE);
 
   void init_printer(void);
   void init_printer_config(void);

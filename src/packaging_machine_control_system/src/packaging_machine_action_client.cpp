@@ -104,7 +104,7 @@ inline bool PackagingMachineActionClient::is_goal_done(void) const
 
 void PackagingMachineActionClient::pub_status_cb(void)
 {
-  const std::lock_guard<std::mutex> lock(this->mutex_);
+  std::lock_guard<std::mutex> lock(this->mutex_);
   packaging_status_pub_->publish(*packaging_status_);
 }
 
@@ -157,7 +157,7 @@ void PackagingMachineActionClient::goal_response_callback(const GaolHandlerPacka
   } 
   else 
   {
-    const std::lock_guard<std::mutex> lock(this->mutex_);
+    std::lock_guard<std::mutex> lock(this->mutex_);
     packaging_status_->server_accepted = true;
     RCLCPP_INFO(this->get_logger(), "Goal accepted by server, waiting for result");
   }
@@ -167,7 +167,7 @@ void PackagingMachineActionClient::feedback_callback(
   GaolHandlerPackagingOrder::SharedPtr,
   const std::shared_ptr<const PackagingOrder::Feedback> feedback)
 {
-  const std::lock_guard<std::mutex> lock(this->mutex_);
+  std::lock_guard<std::mutex> lock(this->mutex_);
   packaging_status_->are_drugs_fallen = feedback->are_drugs_fallen;
   packaging_status_->order_status = feedback->curr_order_status;
 
@@ -194,7 +194,7 @@ void PackagingMachineActionClient::result_callback(const GaolHandlerPackagingOrd
   }
 
   {
-    const std::lock_guard<std::mutex> lock(this->mutex_);
+    std::lock_guard<std::mutex> lock(this->mutex_);
     packaging_status_->is_completed = true;
     packaging_status_pub_->publish(*packaging_status_);
   }

@@ -176,7 +176,7 @@ bool PackagingMachineNode::ctrl_squeezer(
     success &= call_co_write(0x6072, 0x0, 1);
     success &= call_co_write(0x6073, 0x0, 0);
   }
-  // std::this_thread::sleep_for(DELAY_CO_L);
+  // rclcpp::sleep_for(DELAY_CO_L);
 
   success &= call_co_write(0x6079, 0x0, 1);
 
@@ -506,7 +506,6 @@ std::vector<std::string> PackagingMachineNode::get_print_label_cmd(PackageInfo m
 // ===================================== wait for =====================================
 void PackagingMachineNode::wait_for_stopper(const uint32_t stop_condition)
 {
-  // std::this_thread::sleep_for(DELAY_VALVE_WAIT_FOR); 
   rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
   rclcpp::Rate rate(2);
   
@@ -514,7 +513,7 @@ void PackagingMachineNode::wait_for_stopper(const uint32_t stop_condition)
   {
     std::shared_ptr<uint32_t> data = std::make_shared<uint32_t>(0);
     read_stopper(data);
-    std::this_thread::sleep_for(DELAY_CO);
+    rclcpp::sleep_for(DELAY_CO);
     info_->stopper = *data;
     RCLCPP_DEBUG(this->get_logger(), "stopper: %d", *data);
 
@@ -528,13 +527,11 @@ void PackagingMachineNode::wait_for_stopper(const uint32_t stop_condition)
     }
 
     rate.sleep();
-    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_material_box_gate(const uint32_t stop_condition)
 {
-  // std::this_thread::sleep_for(DELAY_VALVE_WAIT_FOR); 
   rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
   rclcpp::Rate rate(2);
   
@@ -542,7 +539,7 @@ void PackagingMachineNode::wait_for_material_box_gate(const uint32_t stop_condit
   {
     std::shared_ptr<uint32_t> data = std::make_shared<uint32_t>(0);
     read_material_box_gate(data);
-    std::this_thread::sleep_for(DELAY_CO);
+    rclcpp::sleep_for(DELAY_CO);
     info_->material_box_gate = *data;
     RCLCPP_DEBUG(this->get_logger(), "material_box_gate: %d", *data);
 
@@ -556,13 +553,11 @@ void PackagingMachineNode::wait_for_material_box_gate(const uint32_t stop_condit
     }
 
     rate.sleep();
-    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_cutter(const uint32_t stop_condition)
 {
-  // std::this_thread::sleep_for(DELAY_VALVE_WAIT_FOR); 
   rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
   rclcpp::Rate rate(2);
 
@@ -570,7 +565,7 @@ void PackagingMachineNode::wait_for_cutter(const uint32_t stop_condition)
   {
     std::shared_ptr<uint32_t> data = std::make_shared<uint32_t>(0);
     read_cutter(data);
-    std::this_thread::sleep_for(DELAY_CO);
+    rclcpp::sleep_for(DELAY_CO);
     info_->cutter = *data;
     RCLCPP_DEBUG(this->get_logger(), "cutter: %d", *data);
 
@@ -584,13 +579,11 @@ void PackagingMachineNode::wait_for_cutter(const uint32_t stop_condition)
     }
 
     rate.sleep();
-    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_pkg_dis(const uint8_t target_state)
 {
-  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR);
   rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
   rclcpp::Rate rate(2);
   
@@ -599,9 +592,9 @@ void PackagingMachineNode::wait_for_pkg_dis(const uint8_t target_state)
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
     std::shared_ptr<uint32_t> ctrl = std::make_shared<uint32_t>(0);
     read_pkg_dis_state(state);
-    std::this_thread::sleep_for(DELAY_CO);
+    rclcpp::sleep_for(DELAY_CO);
     read_pkg_dis_ctrl(ctrl);
-    std::this_thread::sleep_for(DELAY_CO);
+    rclcpp::sleep_for(DELAY_CO);
     RCLCPP_DEBUG(this->get_logger(), "pkg_dis_state: %d, ctrl: %d", *state, *ctrl);
 
     motor_status_->pkg_dis_state = *state;
@@ -614,13 +607,11 @@ void PackagingMachineNode::wait_for_pkg_dis(const uint8_t target_state)
     }
 
     rate.sleep();
-    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_pill_gate(const uint8_t target_state)
 {
-  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
   rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
   rclcpp::Rate rate(2);
   
@@ -629,9 +620,9 @@ void PackagingMachineNode::wait_for_pill_gate(const uint8_t target_state)
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
     std::shared_ptr<uint32_t> ctrl = std::make_shared<uint32_t>(0);
     read_pill_gate_state(state);
-    std::this_thread::sleep_for(DELAY_CO);
+    rclcpp::sleep_for(DELAY_CO);
     read_pill_gate_ctrl(ctrl);
-    std::this_thread::sleep_for(DELAY_CO);
+    rclcpp::sleep_for(DELAY_CO);
     RCLCPP_DEBUG(this->get_logger(), "pill_gate_state: %d, ctrl: %d", *state, *ctrl);
 
     motor_status_->pill_gate_state = *state;
@@ -644,13 +635,11 @@ void PackagingMachineNode::wait_for_pill_gate(const uint8_t target_state)
     }
 
     rate.sleep();
-    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_squeezer(const uint8_t target_state)
 {
-  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
   rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
   rclcpp::Rate rate(2);
 
@@ -658,11 +647,11 @@ void PackagingMachineNode::wait_for_squeezer(const uint8_t target_state)
   {
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
     std::shared_ptr<uint32_t> ctrl = std::make_shared<uint32_t>(0);
-    std::this_thread::sleep_for(DELAY_CO_L);
+    rclcpp::sleep_for(DELAY_CO_L);
     read_squeezer_state(state);
-    std::this_thread::sleep_for(DELAY_CO_L);
+    rclcpp::sleep_for(DELAY_CO_L);
     read_squeezer_ctrl(ctrl);
-    std::this_thread::sleep_for(DELAY_CO_L);
+    rclcpp::sleep_for(DELAY_CO_L);
     RCLCPP_DEBUG(this->get_logger(), "squeezer_state: %d, ctrl: %d", *state, *ctrl);
 
     motor_status_->squ_state = *state;
@@ -675,13 +664,11 @@ void PackagingMachineNode::wait_for_squeezer(const uint8_t target_state)
     }
 
     rate.sleep();
-    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_conveyor(const uint8_t target_state)
 {
-  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
   rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
   rclcpp::Rate rate(2);
   
@@ -689,11 +676,11 @@ void PackagingMachineNode::wait_for_conveyor(const uint8_t target_state)
   {
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
     std::shared_ptr<uint32_t> ctrl = std::make_shared<uint32_t>(0);
-    std::this_thread::sleep_for(DELAY_CO_L);
+    rclcpp::sleep_for(DELAY_CO_L);
     read_conveyor_state(state);
-    std::this_thread::sleep_for(DELAY_CO_L);
+    rclcpp::sleep_for(DELAY_CO_L);
     read_conveyor_ctrl(ctrl);
-    std::this_thread::sleep_for(DELAY_CO_L);
+    rclcpp::sleep_for(DELAY_CO_L);
     RCLCPP_DEBUG(this->get_logger(), "conveyor_state: %d, ctrl: %d", *state, *ctrl);
 
     motor_status_->con_state = *state;
@@ -706,13 +693,11 @@ void PackagingMachineNode::wait_for_conveyor(const uint8_t target_state)
     }
 
     rate.sleep();
-    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_roller(const uint8_t target_state)
 {
-  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
   rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
   rclcpp::Rate rate(2);
 
@@ -721,9 +706,9 @@ void PackagingMachineNode::wait_for_roller(const uint8_t target_state)
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
     std::shared_ptr<uint32_t> ctrl = std::make_shared<uint32_t>(0);
     read_roller_state(state);
-    std::this_thread::sleep_for(DELAY_CO);
+    rclcpp::sleep_for(DELAY_CO);
     read_roller_ctrl(ctrl);
-    std::this_thread::sleep_for(DELAY_CO);
+    rclcpp::sleep_for(DELAY_CO);
     RCLCPP_DEBUG(this->get_logger(), "roller_state: %d, ctrl: %d", *state, *ctrl);
 
     motor_status_->roller_state = *state;
@@ -736,13 +721,11 @@ void PackagingMachineNode::wait_for_roller(const uint8_t target_state)
     }
 
     rate.sleep();
-    // std::this_thread::sleep_for(500ms); 
   }
 }
 
 void PackagingMachineNode::wait_for_pkg_len(const uint8_t target_state)
 {
-  // std::this_thread::sleep_for(DELAY_MOTOR_WAIT_FOR); 
   rclcpp::sleep_for(DELAY_MOTOR_WAIT_FOR);
   rclcpp::Rate rate(2);
 
@@ -751,9 +734,9 @@ void PackagingMachineNode::wait_for_pkg_len(const uint8_t target_state)
     std::shared_ptr<uint32_t> state = std::make_shared<uint32_t>(0);
     std::shared_ptr<uint32_t> ctrl = std::make_shared<uint32_t>(0);
     read_pkg_len_state(state);
-    std::this_thread::sleep_for(DELAY_CO);
+    rclcpp::sleep_for(DELAY_CO);
     read_pkg_len_ctrl(ctrl);
-    std::this_thread::sleep_for(DELAY_CO);
+    rclcpp::sleep_for(DELAY_CO);
     RCLCPP_DEBUG(this->get_logger(), "pkg_len_state: %d, ctrl: %d", *state, *ctrl);
 
     motor_status_->pkg_len_state = *state;
@@ -766,6 +749,5 @@ void PackagingMachineNode::wait_for_pkg_len(const uint8_t target_state)
     }
 
     rate.sleep();
-    // std::this_thread::sleep_for(500ms); 
   }
 }

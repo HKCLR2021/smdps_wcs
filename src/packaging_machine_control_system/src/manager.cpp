@@ -5,7 +5,7 @@ PackagingMachineManager::PackagingMachineManager(
   const std::string &node_name, 
   const std::string &node_namespace,
   const rclcpp::NodeOptions &options) 
-: Node(std::move(node_name), node_namespace, options),
+: Node(node_name, node_namespace, options),
   executor_(executor)
 {
   this->declare_parameter<int32_t>("no_of_pkg_mac", 0);
@@ -151,7 +151,7 @@ PackagingMachineManager::PackagingMachineManager(
 
 void PackagingMachineManager::release_blocking_cb(void)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
 
   if (release_blk_.empty())
     return;
@@ -241,7 +241,7 @@ void PackagingMachineManager::release_blocking_cb(void)
 void PackagingMachineManager::queue_handler_cb(void)
 {
   const double TIME_GAP_THRESHOLD = 0.5;
-  const std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
 
   rclcpp::Time curr_time = this->get_clock()->now();
 
@@ -309,46 +309,32 @@ void PackagingMachineManager::queue_handler_cb(void)
   const uint8_t target_id = iter->first;
   const auto &cli_pair = conveyor_stopper_client_[target_id];
 
-  using ServiceResponseFuture = rclcpp::Client<SetBool>::SharedFuture;
-  auto response_received_cb = [this](ServiceResponseFuture future) {
-    auto response = future.get();
-    if (response) 
-      RCLCPP_DEBUG(this->get_logger(), "Sent a operation request.");
-    else 
-    {
-      const std::string err_msg = "Service call failed or returned no result";
-      RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
-    }
-  };
-
   std::shared_ptr<SetBool::Request> request = std::make_shared<SetBool::Request>();
   request->data = true;
-  auto future = cli_pair.second->async_send_request(request, response_received_cb);
+  auto future = cli_pair.second->async_send_request(request);
 
   RCLCPP_INFO(this->get_logger(), "Packaging Machine [%d] Stopper Service are called", target_id);
 
-  bool success = true;
-
-  std::future_status status = future.wait_for(1s);
+  std::future_status status = future.wait_for(3s);
   switch (status)
   {
   case std::future_status::ready:
     break; 
   case std::future_status::timeout: {
-    success = false;
     const std::string err_msg = "The Operation Service is timeout.";
     RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
     break; 
   }
   case std::future_status::deferred: {
-    success = false;
     const std::string err_msg = "The Operation Service is deferred.";
     RCLCPP_ERROR(this->get_logger(), err_msg.c_str());
     break;
   }
   }
 
-  if (success)
+  auto response = future.get();
+
+  if (response->success)
   {
     RCLCPP_INFO(this->get_logger(), "The conveyor of Packaging Machine [%d] is blocked successfully", target_id);
     if (!income_box_.empty())
@@ -415,24 +401,24 @@ void PackagingMachineManager::queue_handler_cb(void)
 
 void PackagingMachineManager::status_cb(const PackagingMachineStatus::SharedPtr msg)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
   pkg_mac_status_[msg->packaging_machine_id] = *msg;
 }
 
 void PackagingMachineManager::motor_status_cb(const MotorStatus::SharedPtr msg)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
   motor_status_[msg->id] = *msg;
 }
 
 void PackagingMachineManager::info_cb(const PackagingMachineInfo::SharedPtr msg)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
   info_[msg->id] = *msg;
 }
 void PackagingMachineManager::packaging_result_cb(const PackagingResult::SharedPtr msg)
 {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
   
   if (!msg->success)
   {
@@ -510,7 +496,7 @@ void PackagingMachineManager::packaging_order_handle(
   std::shared_ptr<PackagingOrderSrv::Response> response)
 {
   RCLCPP_INFO(this->get_logger(), "packaging order service handle");
-  const std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = std::find_if(pkg_mac_status_.rbegin(), pkg_mac_status_.rend(),
     [](const auto& entry) {
@@ -664,7 +650,7 @@ void PackagingMachineManager::packaging_order_handle(
     if (srv_result) 
     {
       std::pair<uint32_t, uint64_t> _pair(request->order_id, srv_result->unique_id);
-      const std::lock_guard<std::mutex> lock(mutex_);
+      std::lock_guard<std::mutex> lock(mutex_);
       curr_client_.push_back(_pair);
       RCLCPP_INFO(this->get_logger(), "Loaded a action client. unique_id: %ld ", srv_result->unique_id);
     } 
@@ -703,7 +689,7 @@ void PackagingMachineManager::release_blocking_handle(
   constexpr double TIME_GAP_THRESHOLD = 3.0;
   rclcpp::Time curr_time = this->get_clock()->now();
 
-  const std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
   bool is_empty = release_blk_.empty();
   bool is_larger = !is_empty && (curr_time - release_blk_.front()).seconds() >= TIME_GAP_THRESHOLD;
 
@@ -729,7 +715,7 @@ void PackagingMachineManager::income_mtrl_box_handle(
 
   last_pkg_mac_scan_1 = request->data;
 
-  const std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
 
   bool is_empty = income_box_.empty();
   bool is_different = !is_empty && (income_box_.back().first != request->data);
@@ -751,11 +737,12 @@ void PackagingMachineManager::con_mtrl_box_handle(
   const std::shared_ptr<UInt8Srv::Request> request, 
   std::shared_ptr<UInt8Srv::Response> response)
 {
-  response->success = true;
   RCLCPP_INFO(this->get_logger(), "Handle a container material box service"); 
 
-  const std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
   last_pkg_mac_scan_2 = request->data;
+
+  response->success = true;
 }
 
 void PackagingMachineManager::manually_release_handle(
@@ -763,13 +750,14 @@ void PackagingMachineManager::manually_release_handle(
   std::shared_ptr<Trigger::Response> response)
 {
   (void)request;
-  response->success = true;
   RCLCPP_INFO(this->get_logger(), "Handle a manually release material box service"); 
 
-  const std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
 
   if (!release_blk_.empty())
     release_blk_.pop();
+
+  response->success = true;
 }
 
 int main(int argc, char **argv)

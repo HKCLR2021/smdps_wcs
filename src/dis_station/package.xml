@@ -15,7 +15,7 @@
   <depend>smdps_msgs</depend>
   <!-- <depend>nlohmann_json</depend> -->
   <!-- <depend>httplib</depend> -->
-  <depend>open62541pp</depend>
+  <build_depend>open62541pp</build_depend>
 
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>

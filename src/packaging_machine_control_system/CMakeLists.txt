@@ -62,10 +62,17 @@ ament_target_dependencies(packaging_machine_manager
 
 add_executable(packaging_machine_node 
   src/packaging_machine_node.cpp
-  src/canopen_operation.cpp
-  src/component_operation.cpp
-  src/order_operation.cpp
-  src/ribbon.cpp
+  
+  src/canopen/operation.cpp
+
+  src/utility/component_operation.cpp
+  src/utility/ribbon.cpp
+
+  src/action/packaging_machine_action.cpp
+  src/action/order_operation.cpp
+
+  src/service/packaging_machine_service.cpp
+
   src/printer/printer.cpp
 )
 target_link_libraries(packaging_machine_node ${LIBUSB_LIBRARIES})
