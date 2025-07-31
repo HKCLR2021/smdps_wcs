@@ -1,6 +1,8 @@
 #ifndef MANAGER_HPP_
 #define MANAGER_HPP_
 
+#pragma once 
+
 #include <map>
 #include <functional>
 #include <memory>

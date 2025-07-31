@@ -2,6 +2,8 @@
 #ifndef PACKAGING_MACHINE_ACTION_CLIENT_HPP_
 #define PACKAGING_MACHINE_ACTION_CLIENT_HPP_
 
+#pragma once 
+
 #include <functional>
 #include <memory>
 #include <utility>

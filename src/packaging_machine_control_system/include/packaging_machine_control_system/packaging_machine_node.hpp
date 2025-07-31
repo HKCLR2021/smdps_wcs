@@ -1,6 +1,8 @@
 #ifndef PACKAGING_MACHINE_NODE_HPP_
 #define PACKAGING_MACHINE_NODE_HPP_
 
+#pragma once 
+
 #include <functional>
 #include <future>
 #include <memory>
@@ -12,6 +14,7 @@
 #include <queue>
 #include <cstdlib>
 #include <math.h>
+#include <string_view>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
@@ -146,6 +149,14 @@ public:
   void wait_for_stopper(const uint32_t stop_condition);
   void wait_for_material_box_gate(const uint32_t stop_condition);
   void wait_for_cutter(const uint32_t stop_condition);
+
+  // template<bool state_reader(std::shared_ptr<uint32_t>), 
+  //   bool ctrl_reader(std::shared_ptr<uint32_t>)>
+  // void wait_for_motor_state(
+  //   state_reader read_state_func,
+  //   ctrl_reader read_ctrl_func,
+  //   const uint8_t target_state,
+  //   const std::string& motor_name);
 
   void wait_for_pkg_dis(const uint8_t target_state = MotorStatus::IDLE);
   void wait_for_pill_gate(const uint8_t target_state = MotorStatus::IDLE);

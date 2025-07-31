@@ -331,6 +331,12 @@ void PackagingMachineNode::init_timer(void)
   bool success = true;
   success &= ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
 
+  // wait_for_motor_state(
+  //   std::bind(&PackagingMachineNode::read_conveyor_state, this, _1),
+  //   std::bind(&PackagingMachineNode::read_conveyor_ctrl, this, _1),
+  //   MotorStatus::RUNNING,
+  //   "conveyor");
+    
   success &= ctrl_stopper(STOPPER_SUNK);
   wait_for_stopper(STOPPER_SUNK_STATE);
 

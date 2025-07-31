@@ -1,6 +1,8 @@
 #ifndef PACKAGING_MACHINE_DEFINITION_HPP_
 #define PACKAGING_MACHINE_DEFINITION_HPP_
 
+#pragma once 
+
 /*
   Caution:
   This header file is important
@@ -23,7 +25,7 @@
 #define MOTOR_DISABLE 0
 
 #define PKG_DIS_RADIUS        18   // in mm unit
-#define PKG_DIS_UNFEED_LEN    3    // in mm unit
+#define PKG_DIS_UNFEED_LEN    6    // in mm unit
 #define PKG_DIS_FEED_DIR      1
 #define PKG_DIS_UNFEED_DIR    0 
 #define PKG_DIS_MARGIN_FACTOR 1.08
