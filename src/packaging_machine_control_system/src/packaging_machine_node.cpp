@@ -330,7 +330,6 @@ void PackagingMachineNode::init_timer(void)
   RCLCPP_INFO(this->get_logger(), "Init timer start");
   bool success = true;
   success &= ctrl_conveyor(CONVEYOR_SPEED, 0, CONVEYOR_FWD, MOTOR_ENABLE);
-  wait_for_conveyor();
 
   success &= ctrl_stopper(STOPPER_SUNK);
   wait_for_stopper(STOPPER_SUNK_STATE);
