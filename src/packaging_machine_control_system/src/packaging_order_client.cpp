@@ -39,7 +39,8 @@ public:
 				request->print_info[i].en_name = "EN Name " + std::to_string(i + 1);
 				request->print_info[i].date = "2023-11-27";
 				request->print_info[i].time = "12:00";
-				request->print_info[i].drugs = {"Drug A", "Drug B"};
+				request->print_info[i].qr_code = "4cc02d59-688b-49f5-b88f-182b8e2c7a06:25";
+				request->print_info[i].drugs = {"Drug A 1", "Drug B 2"};
 			} 
 			
 		}

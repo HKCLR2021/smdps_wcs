@@ -65,8 +65,20 @@ add_executable(packaging_machine_node
   
   src/canopen/operation.cpp
 
-  src/utility/component_operation.cpp
+  src/utility/wait_for.cpp
+  src/utility/conveyor_motor.cpp
+  src/utility/cutter.cpp
+  src/utility/heater.cpp
+  src/utility/material_box_gate.cpp
+  src/utility/pill_gate_motor.cpp
+  src/utility/pkg_dis_motor.cpp
+  src/utility/pkg_len_motor.cpp
+  src/utility/printer.cpp
   src/utility/ribbon.cpp
+  src/utility/roller_motor.cpp
+  src/utility/squeezer_motor.cpp
+  src/utility/stopper.cpp
+
 
   src/action/packaging_machine_action.cpp
   src/action/order_operation.cpp

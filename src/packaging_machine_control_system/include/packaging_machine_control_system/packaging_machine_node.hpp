@@ -102,7 +102,17 @@ public:
   void co_write_wait_for_service(void);
 
   template <uint16_t index>
-  bool read_co(std::shared_ptr<uint32_t> data);
+  bool read_co(std::shared_ptr<uint32_t> data)
+  {
+    std::optional<uint32_t> tmp = call_co_read(index, 0x0);
+    
+    if (!tmp.has_value())
+      return false;
+
+    *data = tmp.value();
+    return true;
+  }
+  
   std::optional<uint32_t> call_co_read(uint16_t index, uint8_t subindex);
   bool call_co_write(uint16_t index, uint8_t subindex, uint32_t data);
 
